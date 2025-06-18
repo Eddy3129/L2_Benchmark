@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:17
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: edison03
+      POSTGRES_USER: postgres
+      POSTGRES_DB: benchmark_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Optional: Database admin interface
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

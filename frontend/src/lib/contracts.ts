@@ -1,9 +1,9 @@
 // Update these addresses after deployment
 export const CONTRACT_ADDRESSES = {
-  BASIC_POOL: '0x7a2088a1bFc9d81c55368AE168C2C02570cB814F', // Your deployed BasicPool address
-  TOKEN_A: '0xc5a5C42992dECbae36851359345FE25997F5C42d', // Your deployed TokenA address
-  TOKEN_B: '0x67d269191c92Caf3cD7723F116c85e6E9bf55933', // Your deployed TokenB address
-  MY_NFT: '0x09635F643e140090A9A8Dcd712eD6285858ceBef', // Your deployed MyNFT address
+  BASIC_POOL: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Your deployed BasicPool address
+  TOKEN_A: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', // Your deployed TokenA address
+  TOKEN_B: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9', // Your deployed TokenB address
+  MY_NFT: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', // Your deployed MyNFT address
 } as const;
 
 // Complete ERC20 ABI for tokens (including mint function)

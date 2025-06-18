@@ -6,7 +6,7 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'DeFi App',
+  title: 'L2 Benchmarker',
   description: 'Simple DeFi application',
 };
 

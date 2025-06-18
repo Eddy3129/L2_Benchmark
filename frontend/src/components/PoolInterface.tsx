@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
 import { WalletConnect } from './WalletConnect';
 import { CONTRACT_ADDRESSES, BASIC_POOL_ABI, ERC20_ABI } from '@/lib/contracts';
-import { parseEther, formatEther, Address, Abi } from 'viem';
+import { parseEther, formatEther, parseGwei, Address, Abi } from 'viem';
+import { apiService } from '@/lib/api';
 
 // --- Helper Types ---
 interface TransactionLog {
@@ -28,7 +29,7 @@ export function PoolInterface() {
   // --- Wagmi Hooks & Core State ---
   const { isConnected, address } = useAccount();
   const { data: ethBalance } = useBalance({ address });
-  const { writeContractAsync } = useWriteContract();
+  const { data: hash, isPending, writeContract, error } = useWriteContract();
   
   // --- Local UI State ---
   const [isMounted, setIsMounted] = useState(false);
@@ -38,7 +39,7 @@ export function PoolInterface() {
   // --- Transaction State Management ---
   const [latestTx, setLatestTx] = useState<{ hash?: `0x${string}`; startTime: number; action: string } | null>(null);
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt, isError: isTxError, error: txError } = useWaitForTransactionReceipt({ hash: latestTx?.hash });
-  const isMining = isConfirming || !!latestTx; // True from submission until success/fail
+  const isMining = isConfirming || isPending; // Updated to use isPending from useWriteContract
 
   // --- Form Input State ---
   const [liquidityAmountA, setLiquidityAmountA] = useState('100');
@@ -76,28 +77,70 @@ export function PoolInterface() {
   }, [tokenAData, tokenBData, refetchReservoirA, refetchReservoirB, refetchUserLiquidity]);
 
   // --- Transaction Execution & Logging Logic ---
-  const handleTransaction = useCallback(async (action: string, config: any) => {
+  const handleTransaction = useCallback((action: string, config: any) => {
     if (!address) {
         alert("Please connect your wallet first.");
-        return Promise.reject("Wallet not connected");
+        return;
     }
+    
+    // Clear any existing transaction state first
+    setLatestTx(null);
+    
     const logId = `${action}-${Date.now()}`;
     setLatestTx({ action, startTime: Date.now() });
     setTransactionLog(prev => [{ id: logId, timestamp: new Date().toISOString(), action, status: 'pending', message: `⏳ ${action}: Waiting for wallet confirmation...` }, ...prev]);
     
+    // Add EIP-1559 gas parameters to config
+    const eip1559Config = {
+      ...config,
+      gas: 300000n, // Set reasonable gas limit
+      maxFeePerGas: parseGwei('30'), // Maximum fee per gas (30 gwei)
+      maxPriorityFeePerGas: parseGwei('2'), // Priority fee for miners (2 gwei)
+    };
+    
     try {
-      const hash = await writeContractAsync(config);
-      setLatestTx(prev => ({ ...prev!, hash }));
-      setTransactionLog(prev => prev.map(log => log.id === logId ? { ...log, hash, message: `⏳ ${action}: Transaction submitted. Confirming...` } : log));
-      return { hash };
+      writeContract(eip1559Config);
     } catch (e: any) {
+      // Immediately clear transaction state on error
       const errorMessage = e.shortMessage || e.message;
       setTransactionLog(prev => prev.map(log => log.id === logId ? { ...log, status: 'failed', message: `❌ ${action} failed: ${errorMessage}` } : log));
       setLatestTx(null);
-      setIsRunningBenchmark(false); // Stop benchmark on failure
-      return Promise.reject(e);
+      setIsRunningBenchmark(false);
     }
-  }, [writeContractAsync, address]);
+  }, [writeContract, address]);
+
+  // Add a manual reset function
+  const resetTransactionState = useCallback(() => {
+    setLatestTx(null);
+    setIsRunningBenchmark(false);
+    setBenchmarkStep('');
+  }, []);
+
+  // Handle transaction hash when it's available
+  useEffect(() => {
+    if (hash && latestTx) {
+      setLatestTx(prev => ({ ...prev!, hash }));
+      setTransactionLog(prev => prev.map(log => 
+        log.action === latestTx.action && log.status === 'pending' 
+          ? { ...log, hash, message: `⏳ ${latestTx.action}: Transaction submitted. Confirming...` } 
+          : log
+      ));
+    }
+  }, [hash, latestTx]);
+
+  // Handle transaction errors
+  useEffect(() => {
+    if (error && latestTx) {
+      const errorMessage = error.message;
+      setTransactionLog(prev => prev.map(log => 
+        log.action === latestTx.action && log.status === 'pending'
+          ? { ...log, status: 'failed', message: `❌ ${latestTx.action} failed: ${errorMessage}` } 
+          : log
+      ));
+      setLatestTx(null);
+      setIsRunningBenchmark(false);
+    }
+  }, [error, latestTx]);
   
   useEffect(() => {
     if (!latestTx) return;
@@ -109,14 +152,15 @@ export function PoolInterface() {
       setTransactionLog(prev => prev.map(log => log.hash === latestTx.hash ? { ...log, status: 'confirmed', message: `✅ ${latestTx.action} confirmed in ${confirmationTime}ms. Fee: ${formatEther(fee)} ETH` } : log));
       setSessionStats(prev => [...prev, { action: latestTx.action, gasUsed: receipt.gasUsed, fee, confirmationTime }]);
       
-      setTimeout(refetchAllData, 1000); // Give node time to index before refetching
+      setTimeout(refetchAllData, 1000);
       setLatestTx(null);
     } else if (isTxError && txError) {
-        const errorMessage = txError.shortMessage || txError.message;
-        setTransactionLog(prev => prev.map(log => log.hash === latestTx.hash ? { ...log, status: 'failed', message: `❌ ${latestTx.action} tx failed: ${errorMessage}` } : log));
+        const errorMessage = txError;
+        setTransactionLog(prev => prev.map(log => log.hash === latestTx.hash ? { ...log, status: 'failed', message: `❌ ${latestTx.action} failed: ${errorMessage}` } : log));
         setLatestTx(null);
+        setIsRunningBenchmark(false);
     }
-  }, [isConfirmed, isTxError, receipt, latestTx, refetchAllData, txError]);
+  }, [isConfirmed, isTxError, receipt, txError, latestTx, refetchAllData]);
 
   // --- UI State & Computations ---
   const needsApproval = (balance: bigint | undefined, allowance: bigint | undefined, amount: string): boolean => {
@@ -154,29 +198,90 @@ export function PoolInterface() {
     } catch (e) { return '0'; }
   };
   
-  // --- Action Handlers ---
-  const handleMint = (tokenAddress: Address, tokenAbi: Abi, tokenName: string) => handleTransaction(`Mint 10,000 ${tokenName}`, { address: tokenAddress, abi: tokenAbi, functionName: 'mint', args: [address, parseEther('10000')] });
+  // --- Action Handlers with EIP-1559 ---
+  const handleMint = (tokenAddress: Address, tokenAbi: Abi, tokenName: string) => 
+    handleTransaction(`Mint 10,000 ${tokenName}`, { 
+      address: tokenAddress, 
+      abi: tokenAbi, 
+      functionName: 'mint', 
+      args: [address, parseEther('10000')]
+    });
+  
   const handleApprove = (tokenAddress: Address, tokenAbi: Abi, tokenName: string, amount: string) => {
     if (!amount) return;
-    handleTransaction(`Approve ${tokenName}`, { address: tokenAddress, abi: tokenAbi, functionName: 'approve', args: [CONTRACT_ADDRESSES.BASIC_POOL, parseEther(amount)] });
+    handleTransaction(`Approve ${tokenName}`, { 
+      address: tokenAddress, 
+      abi: tokenAbi, 
+      functionName: 'approve', 
+      args: [CONTRACT_ADDRESSES.BASIC_POOL, parseEther(amount)]
+    });
   };
+  
   const handleAddLiquidity = () => {
     if (!liquidityAmountA || !liquidityAmountB) return;
-    handleTransaction('Add Liquidity', { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'addLiquidity', args: [parseEther(liquidityAmountA), parseEther(liquidityAmountB)] });
+    handleTransaction('Add Liquidity', { 
+      address: CONTRACT_ADDRESSES.BASIC_POOL, 
+      abi: BASIC_POOL_ABI, 
+      functionName: 'addLiquidity', 
+      args: [parseEther(liquidityAmountA), parseEther(liquidityAmountB)]
+    });
   };
+  
   const handleSwap = () => {
     if (!swapAmount) return;
     const functionName = swapDirection === 'AtoB' ? 'swapAForB' : 'swapBForA';
-    handleTransaction(`Swap ${swapDirection === 'AtoB' ? 'A→B' : 'B→A'}`, { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName, args: [parseEther(swapAmount), 0] });
+    handleTransaction(`Swap ${swapDirection === 'AtoB' ? 'A→B' : 'B→A'}`, { 
+      address: CONTRACT_ADDRESSES.BASIC_POOL, 
+      abi: BASIC_POOL_ABI, 
+      functionName, 
+      args: [parseEther(swapAmount), 0]
+    });
   };
+  
   const handleRemoveLiquidity = () => {
     if (!userLiquidity || userLiquidity === 0n) return;
-    // NOTE: This now calls removeLiquidity() with no arguments, assuming it removes all liquidity as per the simpleCPMM contract.
-    // The slider is just for show in this version.
-    handleTransaction('Remove Liquidity', { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'removeLiquidity' });
+    handleTransaction('Remove Liquidity', { 
+      address: CONTRACT_ADDRESSES.BASIC_POOL, 
+      abi: BASIC_POOL_ABI, 
+      functionName: 'removeLiquidity'
+    });
   };
 
-  // --- Benchmark Runner Logic ---
+  // Save benchmark results to backend
+  const saveBenchmarkResults = async () => {
+    if (sessionStats.length === 0) {
+      alert('No benchmark data to save. Run a benchmark first.');
+      return;
+    }
+    
+    try {
+      const totalGas = sessionStats.reduce((sum, stat) => sum + stat.gasUsed, 0n);
+      const totalTime = sessionStats.reduce((sum, stat) => sum + stat.confirmationTime, 0);
+      
+      const benchmarkData = {
+        results: {
+          transactions: {
+            totalTransactions: sessionStats.length,
+            successfulTransactions: sessionStats.length,
+            failedTransactions: 0,
+            totalGasUsed: totalGas.toString(),
+            totalFees: sessionStats.reduce((sum, stat) => sum + stat.fee, 0n).toString()
+          }
+        },
+        totalOperations: sessionStats.length,
+        avgGasUsed: Number(totalGas) / sessionStats.length,
+        avgExecutionTime: totalTime / sessionStats.length / 1000
+      };
+  
+      await apiService.createBenchmarkSession(benchmarkData);
+      alert('Benchmark results saved successfully!');
+    } catch (error) {
+      console.error('Failed to save benchmark results:', error);
+      alert('Failed to save benchmark results. Check console for details.');
+    }
+  };
+
+  // --- Benchmark Runner Logic with EIP-1559 ---
   const runFullBenchmark = async () => {
     setIsRunningBenchmark(true);
     setSessionStats([]); // Clear previous session stats
@@ -188,7 +293,7 @@ export function PoolInterface() {
         { name: `Approve TokenB for Liquidity`, func: () => handleTransaction(`Approve TokenB for Liquidity`, { address: CONTRACT_ADDRESSES.TOKEN_B, abi: ERC20_ABI, functionName: 'approve', args: [CONTRACT_ADDRESSES.BASIC_POOL, parseEther('1000')] })},
         { name: `Add Liquidity`, func: () => handleTransaction('Add Liquidity', { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'addLiquidity', args: [parseEther('1000'), parseEther('1000')] })},
         { name: `Approve TokenA for Swap`, func: () => handleTransaction(`Approve TokenA for Swap`, { address: CONTRACT_ADDRESSES.TOKEN_A, abi: ERC20_ABI, functionName: 'approve', args: [CONTRACT_ADDRESSES.BASIC_POOL, parseEther('100')] })},
-        { name: `Swap A for B`, func: () => handleTransaction(`Swap A->B`, { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'swapAForB', args: [parseEther('100'), 0] })},
+        { name:`Swap A for B`, func: () => handleTransaction(`Swap A->B`, { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'swapAForB', args: [parseEther('100'), 0] })},
         { name: `Remove Liquidity`, func: () => handleTransaction('Remove Liquidity', { address: CONTRACT_ADDRESSES.BASIC_POOL, abi: BASIC_POOL_ABI, functionName: 'removeLiquidity' }) },
     ];
 
@@ -222,7 +327,18 @@ export function PoolInterface() {
     <div className="max-w-7xl mx-auto p-4 sm:p-6 bg-slate-50">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl text-slate-800 font-bold">AMM Benchmarking Dashboard</h2>
-        <WalletConnect />
+        <div className="flex gap-2">
+          {/* Add this reset button for debugging */}
+          {(latestTx || isRunningBenchmark) && (
+            <button 
+              onClick={resetTransactionState}
+              className="px-3 py-1 bg-gray-500 text-white rounded text-sm"
+            >
+              Reset State
+            </button>
+          )}
+          <WalletConnect />
+        </div>
       </div>
       
       {isConnected && address ? (
@@ -278,8 +394,20 @@ export function PoolInterface() {
           {/* Right Column */}
           <div className="lg:col-span-1 space-y-4">
             <InfoCard title="Benchmark Runner">
-              <button onClick={runFullBenchmark} disabled={isRunningBenchmark || isMining} className="w-full bg-purple-600 text-white p-2 rounded disabled:opacity-50">{isRunningBenchmark ? `Running: ${benchmarkStep}` : 'Run Full Automated Benchmark'}</button>
+              <button onClick={runFullBenchmark} disabled={isRunningBenchmark || isMining} className="w-full bg-purple-600 text-white p-2 rounded disabled:opacity-50 mb-3">{isRunningBenchmark ? `Running: ${benchmarkStep}` : 'Run Full Automated Benchmark'}</button>
+              
+              {sessionStats.length > 0 && (
+                <div className="mt-4">
+                  <button onClick={saveBenchmarkResults} className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition-colors">
+                    💾 Save Results to Database
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {sessionStats.length} transactions recorded
+                  </p>
+                </div>
+              )}
             </InfoCard>
+            
             <InfoCard title="Live Transaction Log">
                 <div className="max-h-[30rem] overflow-y-auto space-y-2">
                     {transactionLog.map(log => (
@@ -290,6 +418,7 @@ export function PoolInterface() {
                     ))}
                 </div>
             </InfoCard>
+            
             <InfoCard title="Session Statistics">
                 <div className="max-h-60 overflow-y-auto">
                     {sessionStats.length > 0 ? (
