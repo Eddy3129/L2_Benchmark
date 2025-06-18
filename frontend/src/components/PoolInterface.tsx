@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi';
-import { WalletConnect } from './WalletConnect';
 import { CONTRACT_ADDRESSES, BASIC_POOL_ABI, ERC20_ABI } from '@/lib/contracts';
 import { parseEther, formatEther, parseGwei, Address, Abi } from 'viem';
 import { apiService } from '@/lib/api';
@@ -337,7 +336,6 @@ export function PoolInterface() {
               Reset State
             </button>
           )}
-          <WalletConnect />
         </div>
       </div>
       
