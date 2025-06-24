@@ -9,8 +9,7 @@ export default function Home() {
           CYBER GAS ORACLE
         </h1>
         <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-          Professional-grade multi-chain gas analytics with real-time monitoring, 
-          predictive algorithms, and cyberpunk-enhanced visualization
+          Professional-grade multi-chain gas analytics with real-time monitoring & visualization
         </p>
       </div>
       

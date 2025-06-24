@@ -8,6 +8,8 @@ interface ChainConfig {
   color: string;
   icon: string;
   apiChainId?: number;
+  coingeckoId?: string; 
+  coingeckoSymbol?: string;
 }
 
 interface GasPriceData {
@@ -54,7 +56,8 @@ class MultiChainGasService {
       blockExplorer: 'https://etherscan.io',
       color: '#627EEA',
       icon: 'Ξ',
-      apiChainId: 1
+      apiChainId: 1,
+      coingeckoId: 'ethereum'
     },
     {
       id: 'polygon',
@@ -65,7 +68,8 @@ class MultiChainGasService {
       blockExplorer: 'https://polygonscan.com',
       color: '#8247E5',
       icon: '⬟',
-      apiChainId: 137
+      apiChainId: 137,
+      coingeckoSymbol: 'pol'
     },
     {
       id: 'arbitrum',
@@ -76,7 +80,8 @@ class MultiChainGasService {
       blockExplorer: 'https://arbiscan.io',
       color: '#28A0F0',
       icon: 'A',
-      apiChainId: 42161
+      apiChainId: 42161,
+      coingeckoId: 'ethereum'
     },
     {
       id: 'optimism',
@@ -87,7 +92,8 @@ class MultiChainGasService {
       blockExplorer: 'https://optimistic.etherscan.io',
       color: '#FF0420',
       icon: 'O',
-      apiChainId: 10
+      apiChainId: 10,
+      coingeckoId: 'ethereum'
     },
     {
       id: 'base',
@@ -98,7 +104,8 @@ class MultiChainGasService {
       blockExplorer: 'https://basescan.org',
       color: '#0052FF',
       icon: 'B',
-      apiChainId: 8453
+      apiChainId: 8453,
+      coingeckoId: 'ethereum'
     }
   ];
 
@@ -107,7 +114,6 @@ class MultiChainGasService {
   }
 
   private async fetchBlockPrices(chain: ChainConfig, confidenceLevels?: string): Promise<GasPriceData> {
-    // Use the correct API endpoint and parameter name as per documentation
     let url = `${this.baseUrl}/gasprices/blockprices?chainid=${chain.apiChainId}`;
     if (confidenceLevels) {
       url += `&confidenceLevels=${confidenceLevels}`;
@@ -116,7 +122,6 @@ class MultiChainGasService {
     try {
       const headers: Record<string, string> = {};
       
-      // Add Authorization header only if API key is provided
       if (this.apiKey && this.apiKey.trim() !== '') {
         headers['Authorization'] = this.apiKey;
       }
@@ -158,7 +163,7 @@ class MultiChainGasService {
     if (!chain) {
       throw new Error(`Unsupported chain: ${chainId}`);
     }
-    // Request standard confidence levels as per documentation
+    // Reverted to original confidence levels as requested
     const confidenceLevels = '70,80,90,95,99';
     return this.fetchBlockPrices(chain, confidenceLevels);
   }
@@ -166,9 +171,11 @@ class MultiChainGasService {
   async getMultiChainGasData(chainIds: string[]): Promise<MultiChainGasData[]> {
     const results: MultiChainGasData[] = [];
     
-    // Process chains sequentially to respect rate limits
     for (const chainId of chainIds) {
       try {
+        // NOTE: This now fetches the same data twice. For performance, you could later refactor
+        // this to make only one `getGasDistribution` call and use that data for both gasData and distribution.
+        // However, keeping it as is to avoid changing original logic.
         const [gasData, distribution] = await Promise.all([
           this.getGasPrices(chainId),
           this.getGasDistribution(chainId)
@@ -181,13 +188,11 @@ class MultiChainGasService {
           timestamp: Date.now()
         });
         
-        // Add small delay between requests to respect rate limits
         if (results.length < chainIds.length) {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       } catch (error) {
         console.error(`Failed to fetch data for chain ${chainId}:`, error);
-        // Continue with other chains even if one fails
       }
     }
 
@@ -195,25 +200,14 @@ class MultiChainGasService {
   }
 
   calculateOptimalGasPrice(distribution: GasDistribution | null, urgency: 'slow' | 'standard' | 'fast'): number {
-    if (!distribution || !distribution.blockPrices || distribution.blockPrices.length === 0) {
+    if (!distribution?.blockPrices?.[0]?.estimatedPrices?.length) {
       throw new Error('No gas distribution data available');
     }
 
     const latestBlock = distribution.blockPrices[0];
-    if (!latestBlock.estimatedPrices || latestBlock.estimatedPrices.length === 0) {
-      throw new Error('No estimated prices available');
-    }
-
-    // Map urgency to confidence levels as per Blocknative documentation
-    const confidenceMap = {
-      'slow': 50,    // 50% confidence (cheaper, might take longer)
-      'standard': 80, // 80% confidence (balanced)
-      'fast': 95     // 95% confidence (more expensive, faster)
-    };
-
+    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 95 }; // Using original confidence levels
     const targetConfidence = confidenceMap[urgency];
     
-    // Find the price for the target confidence level
     const targetPrice = latestBlock.estimatedPrices.find(
       price => price.confidence === targetConfidence
     );
@@ -222,12 +216,35 @@ class MultiChainGasService {
       return targetPrice.maxFeePerGas;
     }
 
-    // Fallback: use the closest confidence level
-    const sortedPrices = latestBlock.estimatedPrices.sort(
+    const sortedPrices = [...latestBlock.estimatedPrices].sort(
       (a, b) => Math.abs(a.confidence - targetConfidence) - Math.abs(b.confidence - targetConfidence)
     );
 
     return sortedPrices[0]?.maxFeePerGas || latestBlock.baseFeePerGas;
+  }
+
+  getOptimalPriorityFee(distribution: GasDistribution | null, urgency: 'slow' | 'standard' | 'fast'): number {
+    if (!distribution?.blockPrices?.[0]?.estimatedPrices?.length) {
+      return 0;
+    }
+
+    const latestBlock = distribution.blockPrices[0];
+    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 95 };
+    const targetConfidence = confidenceMap[urgency];
+    
+    const targetPrice = latestBlock.estimatedPrices.find(
+      price => price.confidence === targetConfidence
+    );
+
+    if (targetPrice) {
+      return targetPrice.maxPriorityFeePerGas;
+    }
+
+    const sortedPrices = [...latestBlock.estimatedPrices].sort(
+      (a, b) => Math.abs(a.confidence - targetConfidence) - Math.abs(b.confidence - targetConfidence)
+    );
+
+    return sortedPrices[0]?.maxPriorityFeePerGas || 0;
   }
 
   getChainConfig(chainId: string): ChainConfig | undefined {
