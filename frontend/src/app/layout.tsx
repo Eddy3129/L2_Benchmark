@@ -1,4 +1,4 @@
-import type { Metadata } from 'next/types';
+import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
@@ -7,8 +7,8 @@ import { Navigation } from '@/components/Navigation';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'L2 Benchmarker - Professional Research Platform',
-  description: 'Advanced DeFi benchmarking and analysis platform',
+  title: 'Multi-Chain Gas Analytics Platform',
+  description: 'Professional DeFi gas analytics and benchmarking platform',
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          <div className="min-h-screen bg-gray-50">
+          <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)' }}>
             <Navigation />
             <main className="pt-4">
               {children}
