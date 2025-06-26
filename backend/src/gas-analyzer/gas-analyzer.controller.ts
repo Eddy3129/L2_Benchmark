@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { GasAnalyzerService } from './gas-analyzer.service';
 
 @Controller('api/gas-analyzer')
@@ -15,7 +15,69 @@ export class GasAnalyzerController {
     }
   ) {
     const { code, networks, contractName } = body;
-    return this.gasAnalyzerService.analyzeContract(code, networks, contractName);
+    
+    try {
+      return await this.gasAnalyzerService.analyzeContract(code, networks, contractName);
+    } catch (error) {
+      // Handle compilation errors specifically
+      if (error.message && error.message.includes('Compilation failed')) {
+        // Extract the actual compilation error from stderr
+        const compilationError = this.extractCompilationError(error.message);
+        throw new HttpException(
+          {
+            statusCode: 400,
+            message: `Compilation failed: ${compilationError}`,
+            error: 'Bad Request',
+            type: 'COMPILATION_ERROR'
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+      
+      // Handle other service errors
+      if (error.message) {
+        throw new HttpException(
+          {
+            statusCode: 400,
+            message: error.message,
+            error: 'Bad Request'
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+      
+      // Fallback for unknown errors
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: 'Internal server error during contract analysis',
+          error: 'Internal Server Error'
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+  
+  private extractCompilationError(errorMessage: string): string {
+    // Extract the meaningful part of the compilation error
+    const lines = errorMessage.split('\n');
+    const errorLines: string[] = [];
+    
+    for (const line of lines) {
+      // Look for parser errors, syntax errors, etc.
+      if (line.includes('ParserError:') || 
+          line.includes('SyntaxError:') || 
+          line.includes('TypeError:') ||
+          line.includes('Error HH')) {
+        errorLines.push(line.replace(/\x1B\[[0-9;]*m/g, '')); // Remove ANSI color codes
+      }
+      // Include the line that shows the error location
+      if (line.includes('-->') || line.includes('|')) {
+        errorLines.push(line);
+      }
+    }
+    
+    return errorLines.length > 0 ? errorLines.join('\n') : 'Unknown compilation error';
   }
 
   // @Get('history')

@@ -156,12 +156,7 @@ export function GasEstimatorIDE() {
     try {
       // Simulate compilation delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      updateProgress('deploying');
       
-      // Simulate deployment delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      updateProgress('analyzing');
-
       const response = await fetch('http://localhost:3001/api/gas-analyzer/analyze', {
         method: 'POST',
         headers: {
@@ -175,8 +170,25 @@ export function GasEstimatorIDE() {
       });
 
       if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        
+        // Handle structured error responses from backend
+        if (errorData?.type === 'COMPILATION_ERROR') {
+          throw new Error(`Compilation Error:\n${errorData.message.replace('Compilation failed: ', '')}`);
+        } else if (errorData?.message) {
+          // Handle other structured errors
+          throw new Error(errorData.message);
+        } else {
+          // Fallback for non-JSON error responses
+          throw new Error(`Analysis failed: ${response.statusText}`);
+        }
       }
+
+      updateProgress('deploying');
+      
+      // Simulate deployment delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      updateProgress('analyzing');
 
       const result = await response.json();
       
@@ -205,8 +217,14 @@ export function GasEstimatorIDE() {
       // Reset to idle after 2 seconds
       setTimeout(() => updateProgress('idle'), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed');
+      const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
+      setError(errorMessage);
       updateProgress('idle');
+      
+      // For compilation errors, stay on editor tab to allow fixes
+      if (errorMessage.includes('Compilation Error') || errorMessage.includes('Syntax Error')) {
+        setActiveTab('editor');
+      }
     }
   };
 
@@ -377,16 +395,38 @@ export function GasEstimatorIDE() {
               </button>
 
               {error && (
-                <div className="bg-red-900/50 border border-red-700 rounded-lg p-4">
+                <div className={`border rounded-lg p-4 ${
+                  error.includes('Compilation Error') || error.includes('Syntax Error')
+                    ? 'bg-red-900/50 border-red-700'
+                    : 'bg-yellow-900/50 border-yellow-700'
+                }`}>
                   <div className="flex">
-                    <div className="text-red-400">
+                    <div className={error.includes('Compilation Error') || error.includes('Syntax Error') ? 'text-red-400' : 'text-yellow-400'}>
                       <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-300">Analysis Error</h3>
-                      <p className="text-sm text-red-400 mt-1">{error}</p>
+                      <h3 className={`text-sm font-medium ${
+                        error.includes('Compilation Error') || error.includes('Syntax Error')
+                          ? 'text-red-300'
+                          : 'text-yellow-300'
+                      }`}>
+                        {error.includes('Compilation Error') ? 'Compilation Error' :
+                         error.includes('Syntax Error') ? 'Syntax Error' : 'Analysis Error'}
+                      </h3>
+                      <p className={`text-sm mt-1 ${
+                        error.includes('Compilation Error') || error.includes('Syntax Error')
+                          ? 'text-red-400'
+                          : 'text-yellow-400'
+                      }`}>
+                        {error}
+                      </p>
+                      {(error.includes('Compilation Error') || error.includes('Syntax Error')) && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          💡 Check your Solidity syntax, imports, and contract structure.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
