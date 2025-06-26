@@ -431,7 +431,10 @@ export function GasEstimatorIDE() {
                       Analyzed: <span className="text-green-400 font-medium">{new Date(analysisResult.timestamp).toLocaleString()}</span>
                     </p>
                   </div>
-                  <ExportButton sessions={[transformToBenchmarkSession(analysisResult)]} />
+                  <ExportButton 
+                  sessions={[transformToBenchmarkSession(analysisResult)]} 
+                  analysisResult={analysisResult}
+                 />
                 </div>
                 <GasAnalysisResults result={analysisResult} />
               </>
