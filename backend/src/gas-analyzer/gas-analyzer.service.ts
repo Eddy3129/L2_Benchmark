@@ -83,7 +83,6 @@ export class GasAnalyzerService {
   async analyzeContract(code: string, networks: string[], contractName: string): Promise<AnalysisResult> {
     this.logger.log(`Starting analysis for contract: ${contractName}`);
     const compilation = await this.compileCode(code, contractName);
-    const ethPriceUSD = await this.getNetworkTokenPrice({ chainId: 1 });
 
     const results: NetworkResult[] = [];
     for (const networkKey of networks) {
@@ -95,7 +94,9 @@ export class GasAnalyzerService {
 
       this.logger.log(`Analyzing network: ${networkConfig.name}`);
       const gasPriceData = await this.getOptimalGasPrice(networkConfig);
-      const networkResult = await this.analyzeNetworkGas(compilation, gasPriceData, ethPriceUSD);
+      // Fetch the correct token price for each network
+      const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: networkConfig.chainId });
+      const networkResult = await this.analyzeNetworkGas(compilation, gasPriceData, tokenPriceUSD);
       
       results.push({
         network: networkKey,
@@ -133,14 +134,14 @@ export class GasAnalyzerService {
   private async analyzeNetworkGas(
     compilation: CompilationResult,
     gasPriceData: GasPriceData,
-    ethPriceUSD: number
+    tokenPriceUSD: number  // Changed from ethPriceUSD
   ): Promise<NetworkAnalysisResult> {
     const { abi, bytecode } = compilation;
     let hardhatNodeProcess: ChildProcess | null = null;
 
     try {
       hardhatNodeProcess = exec('npx hardhat node', { cwd: this.hardhatProjectRoot });
-      await new Promise(resolve => setTimeout(resolve, 4000)); // Increased wait time for node boot
+      await new Promise(resolve => setTimeout(resolve, 4000));
 
       const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       const deployer = await provider.getSigner(0);
@@ -148,7 +149,6 @@ export class GasAnalyzerService {
 
       const contractFactory = new ContractFactory(abi, bytecode, deployer);
       
-      // Some contracts need constructor args. We generate mock ones.
       const constructorInputs = contractFactory.interface.fragments.find(f => f.type === 'constructor')?.inputs || [];
       const mockConstructorArgs = this.generateMockParameters(constructorInputs, await deployer.getAddress(), await recipient.getAddress());
       
@@ -158,14 +158,14 @@ export class GasAnalyzerService {
       const deployedContract = await contractFactory.deploy(...mockConstructorArgs);
       await deployedContract.waitForDeployment();
 
-      const functionEstimates = await this.estimateFunctionGas(deployedContract as any, deployer, recipient, gasPriceData, ethPriceUSD);
-      const deploymentCost = this.calculateCost(deploymentGasUsed, gasPriceData.totalFee, ethPriceUSD);
+      const functionEstimates = await this.estimateFunctionGas(deployedContract as any, deployer, recipient, gasPriceData, tokenPriceUSD);
+      const deploymentCost = this.calculateCost(deploymentGasUsed, gasPriceData.totalFee, tokenPriceUSD);
 
       return {
         deployment: { gasUsed: deploymentGasUsed.toString(), costETH: deploymentCost.eth, costUSD: deploymentCost.usd },
         functions: functionEstimates,
         gasPrice: gasPriceData.totalFee.toString(),
-        ethPriceUSD,
+        ethPriceUSD: tokenPriceUSD,  // This should be renamed to tokenPriceUSD
         gasPriceBreakdown: gasPriceData
       };
     } finally {
@@ -178,7 +178,7 @@ export class GasAnalyzerService {
       deployer: ethers.Signer,
       recipient: ethers.Signer,
       gasPriceData: GasPriceData,
-      ethPriceUSD: number
+      tokenPriceUSD: number  // Changed from ethPriceUSD
   ): Promise<GasEstimate[]> {
       const estimates: GasEstimate[] = [];
       const functions: FunctionFragment[] = [];
@@ -215,7 +215,7 @@ export class GasAnalyzerService {
               const mockParams = this.generateMockParameters(func.inputs, deployerAddress, recipientAddress);
               const contractFunc = contract.connect(deployer).getFunction(functionName);
               const gasUsed = await contractFunc.estimateGas(...mockParams);
-              const cost = this.calculateCost(gasUsed, gasPriceData.totalFee, ethPriceUSD);
+              const cost = this.calculateCost(gasUsed, gasPriceData.totalFee, tokenPriceUSD);
 
               estimates.push({ functionName, gasUsed: gasUsed.toString(), estimatedCostETH: cost.eth, estimatedCostUSD: cost.usd });
           } catch (error) {
@@ -240,13 +240,13 @@ export class GasAnalyzerService {
     });
   }
 
-  private calculateCost(gasUsed: bigint, gasPriceGwei: number, ethPriceUSD: number) {
+  private calculateCost(gasUsed: bigint, gasPriceGwei: number, tokenPriceUSD: number) {
       const gasPriceWei = ethers.parseUnits(gasPriceGwei.toString(), 'gwei');
       const costWei = gasUsed * gasPriceWei;
-      const costEth = parseFloat(ethers.formatEther(costWei));
-      const costUsd = costEth * ethPriceUSD;
+      const costToken = parseFloat(ethers.formatEther(costWei));  // Cost in native token
+      const costUsd = costToken * tokenPriceUSD;
       return {
-          eth: costEth.toFixed(8),
+          eth: costToken.toFixed(8),  // This should be renamed to 'token' but keeping for compatibility
           usd: parseFloat(costUsd.toFixed(4))
       };
   }
@@ -267,18 +267,54 @@ export class GasAnalyzerService {
   }
 
   private async getNetworkTokenPrice(networkConfig: { chainId: number }): Promise<number> {
-    this.logger.log(`Fetching ETH price...`);
-    try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-        if (!response.ok) throw new Error(`CoinGecko API error: ${response.statusText}`);
-        const data = await response.json();
-        const price = data?.ethereum?.usd;
-        if (!price) throw new Error('Price not found in CoinGecko response');
-        this.logger.log(`Successfully fetched ETH price: $${price}`);
-        return price;
-    } catch (error) {
-        this.logger.warn(`Could not fetch ETH price, using default of $3000. Error: ${error.message}`);
-        return 3000;
-    }
+      // Map chain IDs to their native tokens with both ID and symbol support
+      const tokenMap: { [chainId: number]: { id?: string, symbol?: string, name: string } } = {
+          1: { id: 'ethereum', name: 'ETH' },           // Ethereum Mainnet
+          11155111: { id: 'ethereum', name: 'ETH' },    // Sepolia
+          137: { symbol: 'pol', name: 'POL' },         // Polygon Mainnet (use symbol for POL)
+          80002: { symbol: 'pol', name: 'POL' },       // Polygon Amoy (use symbol for POL)
+          42161: { id: 'ethereum', name: 'ETH' },       // Arbitrum One
+          421614: { id: 'ethereum', name: 'ETH' },      // Arbitrum Sepolia
+          10: { id: 'ethereum', name: 'ETH' },          // Optimism
+          11155420: { id: 'ethereum', name: 'ETH' },    // Optimism Sepolia
+          8453: { id: 'ethereum', name: 'ETH' },        // Base
+          84532: { id: 'ethereum', name: 'ETH' }        // Base Sepolia
+      };
+  
+      const token = tokenMap[networkConfig.chainId] || { id: 'ethereum', name: 'ETH' };
+      
+      this.logger.log(`Fetching ${token.name} price for chain ID ${networkConfig.chainId}...`);
+      try {
+          // Fetch multiple tokens at once using the symbols API with API key
+          const url = 'https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&symbols=pol%2Ceth';
+          const options = {
+              method: 'GET',
+              headers: {
+                  'accept': 'application/json',
+                  'x-cg-demo-api-key': 'CG-njMzeCqg4NmSv1JFwKypf5Zy'
+              }
+          };
+          
+          const response = await fetch(url, options);
+          if (!response.ok) throw new Error(`CoinGecko API error: ${response.statusText}`);
+          const data = await response.json();
+          
+          // Extract price based on token type
+          let price: number;
+          if (token.name === 'POL') {
+              price = data?.POL?.usd;
+          } else {
+              price = data?.eth?.usd;
+          }
+          
+          if (!price) throw new Error('Price not found in CoinGecko response');
+          
+          this.logger.log(`Successfully fetched ${token.name} price: $${price}`);
+          return price;
+      } catch (error) {
+          const defaultPrice = token.name === 'POL' ? 0.5 : 3000; // Different defaults for different tokens
+          this.logger.warn(`Could not fetch ${token.name} price, using default of $${defaultPrice}. Error: ${error.message}`);
+          return defaultPrice;
+      }
   }
 }
