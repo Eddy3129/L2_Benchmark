@@ -10,6 +10,7 @@ export function Navigation() {
   const navItems = [
     { href: '/', label: 'Benchmark Runner', icon: '🚀', description: 'Run live benchmarks' },
     { href: '/analysis', label: 'Analysis & Reports', icon: '📊', description: 'View historical data' },
+    { href: '/estimator', label: 'Gas & Cost Estimator', icon: '⛽', description: 'Estimate gas costs across L2s' },
   ];
 
   return (

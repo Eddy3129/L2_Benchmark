@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BenchmarkModule } from './benchmark/benchmark.module';
+import { GasAnalyzerModule } from './gas-analyzer/gas-analyzer.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BenchmarkModule } from './benchmark/benchmark.module';
       synchronize: true, // Only for development
     }),
     BenchmarkModule,
+    GasAnalyzerModule,
   ],
 })
 export class AppModule {}
