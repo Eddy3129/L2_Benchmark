@@ -322,7 +322,7 @@ export default function AnalysisPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-400">Total Cost (USD)</p>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-lg font-bold text-white">
                       ${gasAnalyses.length > 0 
                         ? gasAnalyses.reduce((sum, g) => sum + (Number(g.totalCostUSD) || 0), 0).toFixed(4)
                         : '0.0000'
@@ -341,7 +341,7 @@ export default function AnalysisPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-400">Unique Contracts</p>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-lg font-bold text-white">
                       {new Set(gasAnalyses.map(g => g.contractName)).size}
                     </p>
                   </div>
@@ -540,7 +540,7 @@ export default function AnalysisPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-400">Avg Gas Used</p>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-lg font-bold text-white">
                       {benchmarkSessions.length > 0 
                         ? Math.round(benchmarkSessions.reduce((sum, s) => sum + (Number(s.avgGasUsed) || 0), 0) / benchmarkSessions.length).toLocaleString()
                         : '0'

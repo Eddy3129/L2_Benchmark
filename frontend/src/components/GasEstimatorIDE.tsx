@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { GasAnalysisResults } from './GasAnalysisResults';
 import { ExportButton } from './ExportButton';
 import { apiService } from '../lib/api';
+import { CONTRACT_TEMPLATES, ContractTemplate, loadContractTemplate } from '@/lib/contractTemplate';
 
 interface AnalysisResult {
   contractName: string;
   compilation: any;
   results: NetworkResult[];
   timestamp: string;
-  // Additional properties for BenchmarkSession compatibility
   totalOperations: number;
   avgGasUsed: number;
   avgExecutionTime: number;
@@ -50,33 +50,6 @@ interface AnalysisProgress {
   message: string;
 }
 
-const SAMPLE_CONTRACT = `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-contract SampleToken is ERC20, Ownable {
-    uint256 public constant MAX_SUPPLY = 1000000 * 10**18;
-    
-    constructor() ERC20("Sample Token", "SAMPLE") Ownable(msg.sender) {
-        _mint(msg.sender, 100000 * 10**18);
-    }
-    
-    function mint(address to, uint256 amount) public onlyOwner {
-        require(totalSupply() + amount <= MAX_SUPPLY, "Exceeds max supply");
-        _mint(to, amount);
-    }
-    
-    function burn(uint256 amount) public {
-        _burn(msg.sender, amount);
-    }
-    
-    function transfer(address to, uint256 amount) public override returns (bool) {
-        return super.transfer(to, amount);
-    }
-}`;
-
 const NETWORKS = [
   { id: 'arbitrumSepolia', name: 'Arbitrum Sepolia', color: 'bg-blue-500' },
   { id: 'optimismSepolia', name: 'Optimism Sepolia', color: 'bg-red-500' },
@@ -94,10 +67,12 @@ const PROGRESS_STAGES = {
 
 export function GasEstimatorIDE() {
   const [activeTab, setActiveTab] = useState<'editor' | 'results'>('editor');
-  const [code, setCode] = useState(SAMPLE_CONTRACT);
-  const [contractName, setContractName] = useState('SampleToken');
+  const [code, setCode] = useState('');
+  const [contractName, setContractName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(CONTRACT_TEMPLATES[0].id);
   const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['arbitrumSepolia']);
-  const [saveToDatabase, setSaveToDatabase] = useState(true); // Add save option
+  const [saveToDatabase, setSaveToDatabase] = useState(true);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress>({
     stage: 'idle',
     progress: 0,
@@ -107,6 +82,11 @@ export function GasEstimatorIDE() {
   const [error, setError] = useState<string | null>(null);
 
   const isAnalyzing = analysisProgress.stage !== 'idle' && analysisProgress.stage !== 'complete';
+
+  // Load initial template on component mount
+  useEffect(() => {
+    handleTemplateChange(CONTRACT_TEMPLATES[0].id);
+  }, []);
 
   const updateProgress = (stage: AnalysisProgress['stage']) => {
     const stageInfo = PROGRESS_STAGES[stage];
@@ -121,7 +101,25 @@ export function GasEstimatorIDE() {
     );
   };
 
-  // Helper function to transform AnalysisResult to BenchmarkSession format
+  const handleTemplateChange = async (templateId: string) => {
+    const template = CONTRACT_TEMPLATES.find(t => t.id === templateId);
+    if (template) {
+      setIsLoadingTemplate(true);
+      setError(null);
+      try {
+        const contractCode = await loadContractTemplate(template.fileName);
+        setSelectedTemplate(templateId);
+        setCode(contractCode);
+        setContractName(template.contractName);
+      } catch (error) {
+        console.error('Failed to load contract template:', error);
+        setError('Failed to load contract template. Please try again.');
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    }
+  };
+
   const transformToBenchmarkSession = (analysisResult: AnalysisResult) => {
     const totalTransactions = analysisResult.results.length;
     const totalGasUsed = analysisResult.results.reduce((sum, r) => 
@@ -156,10 +154,8 @@ export function GasEstimatorIDE() {
     updateProgress('compiling');
 
     try {
-      // Simulate compilation delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Use the API service instead of direct fetch
       const result = await apiService.analyzeContract({
         code,
         contractName,
@@ -168,12 +164,9 @@ export function GasEstimatorIDE() {
       });
 
       updateProgress('deploying');
-      
-      // Simulate deployment delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       updateProgress('analyzing');
       
-      // Transform the result to match the AnalysisResult interface
       const transformedResult: AnalysisResult = {
         contractName: result.contractName || contractName,
         compilation: result.compilation,
@@ -191,18 +184,13 @@ export function GasEstimatorIDE() {
       
       setAnalysisResult(transformedResult);
       updateProgress('complete');
-      
-      // Auto-switch to results tab
       setActiveTab('results');
-      
-      // Reset to idle after 2 seconds
       setTimeout(() => updateProgress('idle'), 2000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
       setError(errorMessage);
       updateProgress('idle');
       
-      // For compilation errors, stay on editor tab to allow fixes
       if (errorMessage.includes('Compilation Error') || errorMessage.includes('Syntax Error')) {
         setActiveTab('editor');
       }
@@ -268,6 +256,36 @@ export function GasEstimatorIDE() {
                 </div>
                 
                 <div className="p-6 space-y-4">
+                  {/* Contract Template Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Contract Template
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <select
+                        value={selectedTemplate}
+                        onChange={(e) => handleTemplateChange(e.target.value)}
+                        disabled={isLoadingTemplate}
+                        className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                      >
+                        {CONTRACT_TEMPLATES.map((template) => (
+                          <option key={template.id} value={template.id}>
+                            {template.name} ({template.category})
+                          </option>
+                        ))}
+                      </select>
+                      {isLoadingTemplate && (
+                        <div className="text-sm text-gray-500 flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                          <span>Loading...</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm text-gray-400">
+                      {CONTRACT_TEMPLATES.find(t => t.id === selectedTemplate)?.description}
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Contract Name
@@ -281,7 +299,6 @@ export function GasEstimatorIDE() {
                     />
                   </div>
 
-                  {/* Add save to database option */}
                   <div className="flex items-center space-x-3">
                     <input
                       type="checkbox"
@@ -376,7 +393,7 @@ export function GasEstimatorIDE() {
               {/* Analyze Button */}
               <button
                 onClick={handleAnalyze}
-                disabled={isAnalyzing || selectedNetworks.length === 0}
+                disabled={isAnalyzing || selectedNetworks.length === 0 || isLoadingTemplate}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-colors text-lg"
               >
                 {isAnalyzing ? (
@@ -467,28 +484,20 @@ export function GasEstimatorIDE() {
                     </p>
                   </div>
                   <ExportButton 
-                  sessions={[transformToBenchmarkSession(analysisResult)]} 
-                  analysisResult={analysisResult}
-                 />
+                    sessions={[transformToBenchmarkSession(analysisResult)]} 
+                    analysisResult={analysisResult}
+                  />
                 </div>
                 <GasAnalysisResults result={analysisResult} />
               </>
             ) : (
               <div className="bg-gray-800 rounded-lg border border-gray-700 h-96 flex items-center justify-center">
                 <div className="text-center text-gray-400">
-                  <svg className="mx-auto h-16 w-16 text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <svg className="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  <h3 className="text-xl font-medium text-gray-300 mb-2">No Analysis Results</h3>
-                  <p className="text-gray-500 mb-4">
-                    Switch to the Contract Editor tab to analyze your Solidity contract.
-                  </p>
-                  <button
-                    onClick={() => setActiveTab('editor')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Go to Editor
-                  </button>
+                  <h3 className="text-lg font-medium mb-2">No Analysis Results</h3>
+                  <p className="text-sm">Run a gas analysis to see detailed results here.</p>
                 </div>
               </div>
             )}
