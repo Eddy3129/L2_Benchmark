@@ -34,11 +34,12 @@ export function PoolInterface() {
   const [isMounted, setIsMounted] = useState(false);
   const [transactionLog, setTransactionLog] = useState<TransactionLog[]>([]);
   const [sessionStats, setSessionStats] = useState<SessionStat[]>([]);
+  const [activeTab, setActiveTab] = useState<'setup' | 'liquidity' | 'swap' | 'benchmark'>('setup');
   
   // --- Transaction State Management ---
   const [latestTx, setLatestTx] = useState<{ hash?: `0x${string}`; startTime: number; action: string } | null>(null);
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt, isError: isTxError, error: txError } = useWaitForTransactionReceipt({ hash: latestTx?.hash });
-  const isMining = isConfirming || isPending; // Updated to use isPending from useWriteContract
+  const isMining = isConfirming || isPending;
 
   // --- Form Input State ---
   const [liquidityAmountA, setLiquidityAmountA] = useState('100');
@@ -82,25 +83,22 @@ export function PoolInterface() {
         return;
     }
     
-    // Clear any existing transaction state first
     setLatestTx(null);
     
     const logId = `${action}-${Date.now()}`;
     setLatestTx({ action, startTime: Date.now() });
     setTransactionLog(prev => [{ id: logId, timestamp: new Date().toISOString(), action, status: 'pending', message: `⏳ ${action}: Waiting for wallet confirmation...` }, ...prev]);
     
-    // Add EIP-1559 gas parameters to config
     const eip1559Config = {
       ...config,
-      gas: 300000n, // Set reasonable gas limit
-      maxFeePerGas: parseGwei('30'), // Maximum fee per gas (30 gwei)
-      maxPriorityFeePerGas: parseGwei('2'), // Priority fee for miners (2 gwei)
+      gas: 300000n,
+      maxFeePerGas: parseGwei('30'),
+      maxPriorityFeePerGas: parseGwei('2'),
     };
     
     try {
       writeContract(eip1559Config);
     } catch (e: any) {
-      // Immediately clear transaction state on error
       const errorMessage = e.shortMessage || e.message;
       setTransactionLog(prev => prev.map(log => log.id === logId ? { ...log, status: 'failed', message: `❌ ${action} failed: ${errorMessage}` } : log));
       setLatestTx(null);
@@ -108,7 +106,6 @@ export function PoolInterface() {
     }
   }, [writeContract, address]);
 
-  // Add a manual reset function
   const resetTransactionState = useCallback(() => {
     setLatestTx(null);
     setIsRunningBenchmark(false);
@@ -167,7 +164,6 @@ export function PoolInterface() {
     try {
       const amountBigInt = parseEther(amount);
       if (amountBigInt === 0n) return false;
-      // You must have enough balance to provide, and your allowance must be less than what you want to provide.
       return !!(balance && balance >= amountBigInt && (!allowance || allowance < amountBigInt));
     } catch {
         return false;
@@ -191,13 +187,12 @@ export function PoolInterface() {
       const amountIn = parseEther(swapAmount);
       const reserveIn = swapDirection === 'AtoB' ? reservoirA : reservoirB;
       const reserveOut = swapDirection === 'AtoB' ? reservoirB : reservoirA;
-      // Formula: amountOut = (reserveOut * amountIn) / (reserveIn + amountIn)
       const amountOut = (amountIn * reserveOut) / (reserveIn + amountIn);
       return formatEther(amountOut);
     } catch (e) { return '0'; }
   };
   
-  // --- Action Handlers with EIP-1559 ---
+  // --- Action Handlers ---
   const handleMint = (tokenAddress: Address, tokenAbi: Abi, tokenName: string) => 
     handleTransaction(`Mint 10,000 ${tokenName}`, { 
       address: tokenAddress, 
@@ -280,10 +275,10 @@ export function PoolInterface() {
     }
   };
 
-  // --- Benchmark Runner Logic with EIP-1559 ---
+  // --- Benchmark Runner Logic ---
   const runFullBenchmark = async () => {
     setIsRunningBenchmark(true);
-    setSessionStats([]); // Clear previous session stats
+    setSessionStats([]);
     
     const steps = [
         { name: 'Mint 10,000 TokenA', func: () => handleTransaction(`Mint 10,000 TokenA`, { address: CONTRACT_ADDRESSES.TOKEN_A, abi: ERC20_ABI, functionName: 'mint', args: [address, parseEther('10000')] })},
@@ -320,129 +315,372 @@ export function PoolInterface() {
   
   // Hydration fix
   useEffect(() => setIsMounted(true), []);
-  if (!isMounted) return <div className="max-w-7xl mx-auto p-4 sm:p-6 bg-slate-50 rounded-lg shadow animate-pulse"><div className="h-[70vh] bg-gray-200 rounded-lg"></div></div>;
-
-  return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 bg-slate-50">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl text-slate-800 font-bold">AMM Benchmarking Dashboard</h2>
-        <div className="flex gap-2">
-          {/* Add this reset button for debugging */}
-          {(latestTx || isRunningBenchmark) && (
-            <button 
-              onClick={resetTransactionState}
-              className="px-3 py-1 bg-gray-500 text-white rounded text-sm"
-            >
-              Reset State
-            </button>
-          )}
+  if (!isMounted) return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="max-w-6xl mx-auto p-4">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-64 bg-gray-800 rounded-lg"></div>
+            ))}
+          </div>
         </div>
       </div>
-      
-      {isConnected && address ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-4">
-            <InfoCard title="Your Balances">
-              <p>Address: <span className="font-mono text-xs break-all">{address}</span></p>
-              <p>ETH: {ethBalance?.formatted ? parseFloat(ethBalance.formatted).toFixed(4) : '0.00'}</p>
-              <p>Token A: {tokenAData.balance.data != null ? formatEther(tokenAData.balance.data) : 'Loading...'}</p>
-              <p>Token B: {tokenBData.balance.data != null ? formatEther(tokenBData.balance.data) : 'Loading...'}</p>
-              <p>Your Pool Share (LP Tokens): {userLiquidity != null ? formatEther(userLiquidity) : 'Loading...'}</p>
-            </InfoCard>
-            <InfoCard title="Pool Status">
-              <p>Token A Reserve: {reservoirA != null ? formatEther(reservoirA) : 'Loading...'}</p>
-              <p>Token B Reserve: {reservoirB != null ? formatEther(reservoirB) : 'Loading...'}</p>
-            </InfoCard>
-          </div>
+    </div>
+  );
 
-          <div className="lg:col-span-1 space-y-4">
-             <ActionCard title="1. Setup: Get Test Tokens">
-                <p className="text-xs text-gray-600 mb-2">First, mint test tokens to your wallet. You must have tokens to do anything else.</p>
-                <button onClick={() => handleMint(CONTRACT_ADDRESSES.TOKEN_A, ERC20_ABI, 'Token A')} className="w-full bg-indigo-500 text-white p-2 rounded mb-2 disabled:opacity-50" disabled={isMining}>Mint 10,000 Token A</button>
-                <button onClick={() => handleMint(CONTRACT_ADDRESSES.TOKEN_B, ERC20_ABI, 'Token B')} className="w-full bg-indigo-500 text-white p-2 rounded disabled:opacity-50" disabled={isMining}>Mint 10,000 Token B</button>
-             </ActionCard>
+  const tabs = [
+    { id: 'setup', label: 'Setup', icon: '🔧', description: 'Get test tokens' },
+    { id: 'liquidity', label: 'Liquidity', icon: '💧', description: 'Add/Remove liquidity' },
+    { id: 'swap', label: 'Swap', icon: '🔄', description: 'Token swapping' },
+    { id: 'benchmark', label: 'Benchmark', icon: '⚡', description: 'Automated testing' },
+  ];
 
-             <ActionCard title="2. Add Liquidity">
-                <input type="number" placeholder="Amount Token A" value={liquidityAmountA} onChange={e => setLiquidityAmountA(e.target.value)} className="w-full p-2 border rounded text-gray-700 mb-2"/>
-                {needsApprovalA && <button onClick={() => handleApprove(CONTRACT_ADDRESSES.TOKEN_A, ERC20_ABI, 'Token A', liquidityAmountA)} className="w-full bg-yellow-500 text-white p-2 rounded mb-2 disabled:opacity-50" disabled={isMining}>1. Approve Token A</button>}
-                
-                <input type="number" placeholder="Amount Token B" value={liquidityAmountB} onChange={e => setLiquidityAmountB(e.target.value)} className="w-full p-2 border rounded text-gray-700 mb-2"/>
-                {needsApprovalB && <button onClick={() => handleApprove(CONTRACT_ADDRESSES.TOKEN_B, ERC20_ABI, 'Token B', liquidityAmountB)} className="w-full bg-yellow-500 text-white p-2 rounded mb-2 disabled:opacity-50" disabled={isMining}>2. Approve Token B</button>}
-                
-                <button onClick={handleAddLiquidity} disabled={!canAddLiquidity || isMining} className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-gray-400 disabled:opacity-70">{canAddLiquidity ? '3. Add Liquidity' : 'Approve both tokens first'}</button>
-             </ActionCard>
-             
-             <ActionCard title="3. Swap Tokens">
-                <select value={swapDirection} onChange={(e) => setSwapDirection(e.target.value as 'AtoB' | 'BtoA')} className="w-full p-2 border rounded text-gray-700 mb-2">
-                  <option value="AtoB">Swap Token A for Token B</option>
-                  <option value="BtoA">Swap Token B for Token A</option>
-                </select>
-                <input type="number" placeholder="Amount to swap" value={swapAmount} onChange={e => setSwapAmount(e.target.value)} className="w-full p-2 border rounded text-gray-700 mb-2"/>
-                {swapAmount && <p className="text-sm text-gray-600">Estimated output: {getSwapOutput()}</p>}
-                
-                {needsSwapApproval && <button onClick={() => handleApprove(swapTokenAddress, swapDirection === 'AtoB' ? ERC20_ABI : ERC20_ABI, `Token for Swap`, swapAmount)} className="w-full bg-yellow-500 text-white p-2 rounded mb-2 disabled:opacity-50" disabled={isMining}>Approve Token for Swap</button>}
-                <button onClick={handleSwap} disabled={!canSwap || isMining} className="w-full bg-green-600 text-white p-2 rounded disabled:bg-gray-400 disabled:opacity-70">{canSwap ? 'Swap' : 'Approve token first'}</button>
-             </ActionCard>
+  const CompactCard = ({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) => (
+    <div className={`bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700/50 p-4 ${className}`}>
+      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
+      {children}
+    </div>
+  );
 
-             <ActionCard title="4. Remove Liquidity">
-                <button onClick={handleRemoveLiquidity} disabled={!canRemoveLiquidity || isMining} className="w-full bg-red-500 text-white p-2 rounded disabled:opacity-50 mt-2">Remove All Liquidity</button>
-             </ActionCard>
-          </div>
+  const CompactButton = ({ onClick, disabled, children, variant = 'primary', size = 'sm' }: {
+    onClick: () => void;
+    disabled?: boolean;
+    children: React.ReactNode;
+    variant?: 'primary' | 'secondary' | 'success' | 'warning';
+    size?: 'xs' | 'sm';
+  }) => {
+    const variants = {
+      primary: 'bg-blue-600 hover:bg-blue-700',
+      secondary: 'bg-gray-600 hover:bg-gray-700',
+      success: 'bg-green-600 hover:bg-green-700',
+      warning: 'bg-yellow-600 hover:bg-yellow-700'
+    };
+    const sizes = {
+      xs: 'px-2 py-1 text-xs',
+      sm: 'px-3 py-2 text-sm'
+    };
+    
+    return (
+      <button 
+        onClick={onClick}
+        disabled={disabled}
+        className={`${variants[variant]} ${sizes[size]} disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors w-full`}
+      >
+        {disabled && isMining ? 'Processing...' : children}
+      </button>
+    );
+  };
 
-          {/* Right Column */}
-          <div className="lg:col-span-1 space-y-4">
-            <InfoCard title="Benchmark Runner">
-              <button onClick={runFullBenchmark} disabled={isRunningBenchmark || isMining} className="w-full bg-purple-600 text-white p-2 rounded disabled:opacity-50 mb-3">{isRunningBenchmark ? `Running: ${benchmarkStep}` : 'Run Full Automated Benchmark'}</button>
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="max-w-6xl mx-auto p-4">
+        {isConnected && address ? (
+          <div className="space-y-4">
+            {/* Account Overview - Compact */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CompactCard title="Account Overview">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">ETH:</span>
+                      <span className="text-white font-mono">{ethBalance?.formatted ? parseFloat(ethBalance.formatted).toFixed(4) : '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Token A:</span>
+                      <span className="text-green-400 font-mono">{tokenAData.balance.data != null ? parseFloat(formatEther(tokenAData.balance.data)).toFixed(2) : '0'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Token B:</span>
+                      <span className="text-purple-400 font-mono">{tokenBData.balance.data != null ? parseFloat(formatEther(tokenBData.balance.data)).toFixed(2) : '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">LP Tokens:</span>
+                      <span className="text-yellow-400 font-mono">{userLiquidity != null ? parseFloat(formatEther(userLiquidity)).toFixed(2) : '0'}</span>
+                    </div>
+                  </div>
+                </div>
+              </CompactCard>
               
-              {sessionStats.length > 0 && (
-                <div className="mt-4">
-                  <button onClick={saveBenchmarkResults} className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition-colors">
-                    💾 Save Results to Database
-                  </button>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {sessionStats.length} transactions recorded
-                  </p>
+              <CompactCard title="Pool Status">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Reserve A:</span>
+                    <span className="text-green-400 font-mono">{reservoirA != null ? parseFloat(formatEther(reservoirA)).toFixed(2) : '0'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Reserve B:</span>
+                    <span className="text-purple-400 font-mono">{reservoirB != null ? parseFloat(formatEther(reservoirB)).toFixed(2) : '0'}</span>
+                  </div>
+                </div>
+              </CompactCard>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex space-x-1 bg-gray-800/30 p-1 rounded-lg">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex-1 flex items-center justify-center space-x-2 px-3 py-2 rounded-md text-xs font-medium transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="bg-gray-800/30 backdrop-blur-sm rounded-lg border border-gray-700/50 p-4">
+              {activeTab === 'setup' && (
+                <div className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-white mb-1">Step 1: Setup Test Tokens</h3>
+                    <p className="text-xs text-gray-400">Mint test tokens to your wallet before proceeding</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CompactCard title="Token A">
+                      <CompactButton 
+                        onClick={() => handleMint(CONTRACT_ADDRESSES.TOKEN_A, ERC20_ABI, 'Token A')} 
+                        disabled={isMining}
+                        variant="success"
+                      >
+                        Mint 10,000 Token A
+                      </CompactButton>
+                    </CompactCard>
+                    <CompactCard title="Token B">
+                      <CompactButton 
+                        onClick={() => handleMint(CONTRACT_ADDRESSES.TOKEN_B, ERC20_ABI, 'Token B')} 
+                        disabled={isMining}
+                        variant="success"
+                      >
+                        Mint 10,000 Token B
+                      </CompactButton>
+                    </CompactCard>
+                  </div>
                 </div>
               )}
-            </InfoCard>
-            
-            <InfoCard title="Live Transaction Log">
-                <div className="max-h-[30rem] overflow-y-auto space-y-2">
-                    {transactionLog.map(log => (
-                        <div key={log.id} className={`p-2 rounded border text-xs ${log.status === 'confirmed' ? 'bg-green-50 border-green-200' : log.status === 'failed' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
-                            <p className="font-mono text-gray-500">{log.timestamp}</p>
-                            <p className="text-gray-800 break-words">{log.message}</p>
+
+              {activeTab === 'liquidity' && (
+                <div className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-white mb-1">Step 2: Liquidity Management</h3>
+                    <p className="text-xs text-gray-400">Add or remove liquidity from the pool</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CompactCard title="Add Liquidity">
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input 
+                            type="number" 
+                            placeholder="Token A" 
+                            value={liquidityAmountA} 
+                            onChange={e => setLiquidityAmountA(e.target.value)} 
+                            className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="Token B" 
+                            value={liquidityAmountB} 
+                            onChange={e => setLiquidityAmountB(e.target.value)} 
+                            className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
                         </div>
-                    ))}
+                        {needsApprovalA && (
+                          <CompactButton 
+                            onClick={() => handleApprove(CONTRACT_ADDRESSES.TOKEN_A, ERC20_ABI, 'Token A', liquidityAmountA)} 
+                            disabled={isMining}
+                            variant="warning"
+                            size="xs"
+                          >
+                            Approve Token A
+                          </CompactButton>
+                        )}
+                        {needsApprovalB && (
+                          <CompactButton 
+                            onClick={() => handleApprove(CONTRACT_ADDRESSES.TOKEN_B, ERC20_ABI, 'Token B', liquidityAmountB)} 
+                            disabled={isMining}
+                            variant="warning"
+                            size="xs"
+                          >
+                            Approve Token B
+                          </CompactButton>
+                        )}
+                        <CompactButton 
+                          onClick={handleAddLiquidity} 
+                          disabled={!canAddLiquidity || isMining}
+                          variant="primary"
+                        >
+                          Add Liquidity
+                        </CompactButton>
+                      </div>
+                    </CompactCard>
+                    
+                    <CompactCard title="Remove Liquidity">
+                      <div className="space-y-3">
+                        <div className="text-xs text-gray-400 text-center">
+                          Current LP: {userLiquidity != null ? parseFloat(formatEther(userLiquidity)).toFixed(4) : '0'}
+                        </div>
+                        <CompactButton 
+                          onClick={handleRemoveLiquidity} 
+                          disabled={!canRemoveLiquidity || isMining}
+                          variant="secondary"
+                        >
+                          Remove All Liquidity
+                        </CompactButton>
+                      </div>
+                    </CompactCard>
+                  </div>
                 </div>
-            </InfoCard>
-            
-            <InfoCard title="Session Statistics">
-                <div className="max-h-60 overflow-y-auto">
-                    {sessionStats.length > 0 ? (
-                        <table className="w-full text-xs text-left">
-                            <thead><tr className="border-b"><th className="py-1">Action</th><th className="py-1">Gas Used</th><th className="py-1">Time (ms)</th></tr></thead>
-                            <tbody>
-                                {sessionStats.map((stat, i) => (<tr key={i} className="border-b"><td className="py-1 pr-2">{stat.action}</td><td className="py-1">{stat.gasUsed.toString()}</td><td className="py-1">{stat.confirmationTime}</td></tr>))}
-                            </tbody>
-                        </table>
-                    ) : <p className="text-sm text-gray-500">No completed transactions yet.</p>}
+              )}
+
+              {activeTab === 'swap' && (
+                <div className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-white mb-1">Step 3: Token Swapping</h3>
+                    <p className="text-xs text-gray-400">Exchange tokens through the AMM pool</p>
+                  </div>
+                  <div className="max-w-md mx-auto">
+                    <CompactCard title="Swap Tokens">
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <select 
+                            value={swapDirection} 
+                            onChange={e => setSwapDirection(e.target.value as 'AtoB' | 'BtoA')}
+                            className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="AtoB">A → B</option>
+                            <option value="BtoA">B → A</option>
+                          </select>
+                          <input 
+                            type="number" 
+                            placeholder="Amount" 
+                            value={swapAmount} 
+                            onChange={e => setSwapAmount(e.target.value)} 
+                            className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="text-xs text-gray-400 text-center">
+                          Output: ~{parseFloat(getSwapOutput()).toFixed(4)} {swapDirection === 'AtoB' ? 'Token B' : 'Token A'}
+                        </div>
+                        {needsSwapApproval && (
+                          <CompactButton 
+                            onClick={() => handleApprove(swapTokenAddress, ERC20_ABI, swapDirection === 'AtoB' ? 'Token A' : 'Token B', swapAmount)} 
+                            disabled={isMining}
+                            variant="warning"
+                            size="xs"
+                          >
+                            Approve {swapDirection === 'AtoB' ? 'Token A' : 'Token B'}
+                          </CompactButton>
+                        )}
+                        <CompactButton 
+                          onClick={handleSwap} 
+                          disabled={!canSwap || isMining}
+                          variant="primary"
+                        >
+                          Execute Swap
+                        </CompactButton>
+                      </div>
+                    </CompactCard>
+                  </div>
                 </div>
-            </InfoCard>
+              )}
+
+              {activeTab === 'benchmark' && (
+                <div className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-white mb-1">Step 4: Automated Benchmark</h3>
+                    <p className="text-xs text-gray-400">Run comprehensive automated testing suite</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CompactCard title="Benchmark Controls">
+                      <div className="space-y-3">
+                        <CompactButton 
+                          onClick={runFullBenchmark} 
+                          disabled={isRunningBenchmark || isMining}
+                          variant="success"
+                        >
+                          {isRunningBenchmark ? 'Running...' : 'Start Full Benchmark'}
+                        </CompactButton>
+                        <CompactButton 
+                          onClick={saveBenchmarkResults} 
+                          disabled={sessionStats.length === 0}
+                          variant="primary"
+                        >
+                          Save Results
+                        </CompactButton>
+                        <CompactButton 
+                          onClick={resetTransactionState} 
+                          variant="secondary"
+                        >
+                          Reset
+                        </CompactButton>
+                      </div>
+                    </CompactCard>
+                    
+                    <CompactCard title="Session Stats">
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Transactions:</span>
+                          <span className="text-white">{sessionStats.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Total Gas:</span>
+                          <span className="text-blue-400">{sessionStats.reduce((sum, stat) => sum + Number(stat.gasUsed), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Total Fees:</span>
+                          <span className="text-green-400">{parseFloat(formatEther(sessionStats.reduce((sum, stat) => sum + stat.fee, 0n))).toFixed(6)} ETH</span>
+                        </div>
+                        {benchmarkStep && (
+                          <div className="text-xs text-yellow-400 mt-2 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                            {benchmarkStep}
+                          </div>
+                        )}
+                      </div>
+                    </CompactCard>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Transaction Log - Compact */}
+            <CompactCard title="Transaction Log" className="max-h-48 overflow-hidden">
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {transactionLog.slice(0, 5).map((log) => (
+                  <div key={log.id} className="flex items-center justify-between text-xs p-2 bg-gray-700/30 rounded">
+                    <span className={`font-medium ${
+                      log.status === 'confirmed' ? 'text-green-400' : 
+                      log.status === 'failed' ? 'text-red-400' : 'text-yellow-400'
+                    }`}>
+                      {log.action}
+                    </span>
+                    <span className="text-gray-400 text-xs">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+                {transactionLog.length === 0 && (
+                  <div className="text-center text-gray-500 text-xs py-4">No transactions yet</div>
+                )}
+              </div>
+            </CompactCard>
           </div>
-        </div>
-      ) : (
-        <div className="text-center p-10 bg-gray-50 rounded-lg"><p className="text-gray-600">Please connect your wallet to begin benchmarking.</p></div>
-      )}
+        ) : (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">🔗</div>
+            <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
+            <p className="text-gray-400">Please connect your wallet to start testing</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-// Helper Components
-const InfoCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="p-4 bg-white border rounded-lg shadow-sm"><h3 className="font-semibold text-slate-800 mb-2 text-lg">{title}</h3><div className="space-y-1 text-slate-700">{children}</div></div>
-);
-
-const ActionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="p-4 bg-white border rounded-lg shadow-sm"><h3 className="font-semibold text-slate-800 mb-3 text-lg">{title}</h3><div className="space-y-3">{children}</div></div>
-);

@@ -50,11 +50,11 @@ export function Navigation() {
             <Link href="/" className="flex items-center space-x-3 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative bg-gradient-to-r from-blue-500 to-purple-600 p-3 rounded-xl">
+                <div className="relative bg-gradient-to-r from-blue-500 to-purple-600 p-1 rounded-xl">
                   <span className="text-white text-xl font-bold">⚡</span>
                 </div>
               </div>
-              <div>
+              <div className='ml-4'>
                 <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                   L2 Benchmarker
                 </span>

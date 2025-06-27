@@ -138,13 +138,18 @@ export function GasDashboard() {
     }
   };
 
-  const usdChartOptions: ChartOptions<'bar'> = {
+  const usdChartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(36, 41, 56, 0.95)', titleColor: '#ffffff', bodyColor: '#a0aec0', borderColor: '#4a5568', borderWidth: 1, cornerRadius: 8,
+        backgroundColor: 'rgba(36, 41, 56, 0.95)', 
+        titleColor: '#ffffff', 
+        bodyColor: '#a0aec0', 
+        borderColor: '#4a5568', 
+        borderWidth: 1, 
+        cornerRadius: 8,
         callbacks: {
           label: function(context: any) {
             let label = context.dataset.label || 'Cost';
@@ -156,8 +161,31 @@ export function GasDashboard() {
       }
     },
     scales: {
-      x: { ticks: { color: '#718096' }, grid: { display: false } },
-      y: { type: 'linear', ticks: { color: '#718096', callback: (val) => `$${Number(val).toFixed(2)}` }, grid: { color: 'rgba(74, 85, 104, 0.2)' } }
+      x: { 
+        ticks: { color: '#718096' }, 
+        grid: { display: false } 
+      },
+      y: { 
+        type: 'linear', 
+        ticks: { 
+          color: '#718096', 
+          callback: (val) => `$${Number(val).toFixed(2)}` 
+        }, 
+        grid: { color: 'rgba(74, 85, 104, 0.2)' } 
+      }
+    },
+    elements: {
+      point: {
+        radius: 6,
+        hoverRadius: 8,
+        backgroundColor: '#10b981',
+        borderColor: '#ffffff',
+        borderWidth: 2
+      },
+      line: {
+        tension: 0.3,
+        borderWidth: 3
+      }
     }
   };
 
@@ -190,10 +218,15 @@ export function GasDashboard() {
         const totalGas = getOptimalTotalFee(d, 'standard');
         return gweiToUsd(totalGas * 21000, config);
       }),
-      backgroundColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color),
-      borderColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color + '80'),
-      borderWidth: 1,
-      borderRadius: 4,
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      fill: true,
+      pointBackgroundColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color),
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      tension: 0.3
     }]
   };
 
@@ -237,7 +270,7 @@ export function GasDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-gray-800 p-4 rounded-lg">
             <h3 className="text-lg font-semibold text-white mb-4">Std. Tx Cost (USD)</h3>
-            <div className="h-72"><Bar data={txCostComparisonData} options={usdChartOptions} /></div>
+            <div className="h-72"><Line data={txCostComparisonData} options={usdChartOptions} /></div>
         </div>
         <div className="bg-gray-800 p-4 rounded-lg">
             <h3 className="text-lg font-semibold text-white mb-4">Gas Price Composition (Gwei)</h3>
