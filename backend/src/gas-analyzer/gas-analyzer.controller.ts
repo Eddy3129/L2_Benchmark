@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Param, HttpException, HttpStatus } from '@nestjs/common';
 import { GasAnalyzerService } from './gas-analyzer.service';
 
 @Controller('api/gas-analyzer')
@@ -12,12 +12,20 @@ export class GasAnalyzerController {
       networks: string[]; 
       contractName: string;
       confidenceLevel?: number;
+      saveToDatabase?: boolean;
     }
   ) {
-    const { code, networks, contractName } = body;
+    const { code, networks, contractName, saveToDatabase = false } = body;
     
     try {
-      return await this.gasAnalyzerService.analyzeContract(code, networks, contractName);
+      const result = await this.gasAnalyzerService.analyzeContract(code, networks, contractName);
+      
+      // Save to database if requested
+      if (saveToDatabase) {
+        await this.gasAnalyzerService.saveAnalysisResults(result, code);
+      }
+      
+      return result;
     } catch (error) {
       // Handle compilation errors specifically
       if (error.message && error.message.includes('Compilation failed')) {
@@ -58,6 +66,22 @@ export class GasAnalyzerController {
     }
   }
   
+  @Get('history')
+  async getAnalysisHistory(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 50;
+    return this.gasAnalyzerService.getGasAnalysisHistory(limitNum);
+  }
+
+  @Get('contract/:contractName')
+  async getAnalysisByContract(@Param('contractName') contractName: string) {
+    return this.gasAnalyzerService.getGasAnalysisByContract(contractName);
+  }
+
+  @Get('analysis/:id')
+  async getAnalysisById(@Param('id') id: string) {
+    return this.gasAnalyzerService.getGasAnalysisById(id);
+  }
+  
   private extractCompilationError(errorMessage: string): string {
     // Extract the meaningful part of the compilation error
     const lines = errorMessage.split('\n');
@@ -79,10 +103,4 @@ export class GasAnalyzerController {
     
     return errorLines.length > 0 ? errorLines.join('\n') : 'Unknown compilation error';
   }
-
-  // @Get('history')
-  // async getAnalysisHistory(@Query('limit') limit?: string) {
-  //   const limitNum = limit ? parseInt(limit, 10) : 10;
-  //   return this.gasAnalyzerService.getAnalysisHistory(limitNum);
-  // }
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { GasAnalysisResults } from './GasAnalysisResults';
 import { ExportButton } from './ExportButton';
+import { apiService } from '../lib/api';
 
 interface AnalysisResult {
   contractName: string;
@@ -96,6 +97,7 @@ export function GasEstimatorIDE() {
   const [code, setCode] = useState(SAMPLE_CONTRACT);
   const [contractName, setContractName] = useState('SampleToken');
   const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['arbitrumSepolia']);
+  const [saveToDatabase, setSaveToDatabase] = useState(true); // Add save option
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress>({
     stage: 'idle',
     progress: 0,
@@ -157,40 +159,19 @@ export function GasEstimatorIDE() {
       // Simulate compilation delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const response = await fetch('http://localhost:3001/api/gas-analyzer/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code,
-          contractName,
-          networks: selectedNetworks,
-        }),
+      // Use the API service instead of direct fetch
+      const result = await apiService.analyzeContract({
+        code,
+        contractName,
+        networks: selectedNetworks,
+        saveToDatabase
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        
-        // Handle structured error responses from backend
-        if (errorData?.type === 'COMPILATION_ERROR') {
-          throw new Error(`Compilation Error:\n${errorData.message.replace('Compilation failed: ', '')}`);
-        } else if (errorData?.message) {
-          // Handle other structured errors
-          throw new Error(errorData.message);
-        } else {
-          // Fallback for non-JSON error responses
-          throw new Error(`Analysis failed: ${response.statusText}`);
-        }
-      }
 
       updateProgress('deploying');
       
       // Simulate deployment delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       updateProgress('analyzing');
-
-      const result = await response.json();
       
       // Transform the result to match the AnalysisResult interface
       const transformedResult: AnalysisResult = {
@@ -299,7 +280,21 @@ export function GasEstimatorIDE() {
                       placeholder="Enter contract name"
                     />
                   </div>
-                  
+
+                  {/* Add save to database option */}
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="saveToDatabase"
+                      checked={saveToDatabase}
+                      onChange={(e) => setSaveToDatabase(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <label htmlFor="saveToDatabase" className="text-sm font-medium text-gray-300">
+                      Save results to database for reporting
+                    </label>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Solidity Code

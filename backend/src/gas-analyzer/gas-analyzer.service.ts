@@ -56,9 +56,9 @@ export interface AnalysisResult {
   contractName: string;
   results: NetworkResult[];
   timestamp: string;
+  compilation?: any; // Add optional compilation property
 }
 // --- End of Interfaces ---
-
 
 @Injectable()
 export class GasAnalyzerService {
@@ -105,7 +105,91 @@ export class GasAnalyzerService {
       });
     }
     
-    return { contractName, results, timestamp: new Date().toISOString() };
+    return { 
+      contractName, 
+      results, 
+      timestamp: new Date().toISOString(),
+      compilation // Include compilation data
+    };
+  }
+
+  // Add method to save gas analysis results
+  async saveGasAnalysis(analysisData: {
+    contractName: string;
+    functionSignature: string;
+    l2Network: string;
+    gasUsed: string;
+    estimatedL2Fee: string;
+    estimatedL1Fee: string;
+    totalEstimatedFeeUSD: number;
+    solidityCode: string;
+    compilationArtifacts: any;
+    functionParameters: any;
+  }): Promise<GasAnalysis> {
+    const gasAnalysis = this.gasAnalysisRepository.create(analysisData);
+    return await this.gasAnalysisRepository.save(gasAnalysis);
+  }
+
+  // Add method to save multiple gas analyses from a complete analysis
+  async saveAnalysisResults(analysisResult: AnalysisResult, solidityCode: string): Promise<GasAnalysis[]> {
+    const savedAnalyses: GasAnalysis[] = [];
+    
+    for (const networkResult of analysisResult.results) {
+      // Save deployment analysis
+      const deploymentAnalysis = await this.saveGasAnalysis({
+        contractName: analysisResult.contractName,
+        functionSignature: 'constructor',
+        l2Network: networkResult.networkName,
+        gasUsed: networkResult.deployment.gasUsed,
+        estimatedL2Fee: networkResult.deployment.costETH,
+        estimatedL1Fee: '0',
+        totalEstimatedFeeUSD: networkResult.deployment.costUSD,
+        solidityCode,
+        compilationArtifacts: analysisResult.compilation || {},
+        functionParameters: {}
+      });
+      savedAnalyses.push(deploymentAnalysis);
+
+      // Save function analyses
+      for (const func of networkResult.functions) {
+        const functionAnalysis = await this.saveGasAnalysis({
+          contractName: analysisResult.contractName,
+          functionSignature: func.functionName,
+          l2Network: networkResult.networkName,
+          gasUsed: func.gasUsed,
+          estimatedL2Fee: func.estimatedCostETH,
+          estimatedL1Fee: '0',
+          totalEstimatedFeeUSD: func.estimatedCostUSD,
+          solidityCode,
+          compilationArtifacts: analysisResult.compilation || {},
+          functionParameters: {}
+        });
+        savedAnalyses.push(functionAnalysis);
+      }
+    }
+    
+    return savedAnalyses;
+  }
+
+  // Add method to get gas analysis history
+  async getGasAnalysisHistory(limit: number = 50): Promise<GasAnalysis[]> {
+    return await this.gasAnalysisRepository.find({
+      order: { createdAt: 'DESC' },
+      take: limit
+    });
+  }
+
+  // Add method to get gas analysis by contract name
+  async getGasAnalysisByContract(contractName: string): Promise<GasAnalysis[]> {
+    return await this.gasAnalysisRepository.find({
+      where: { contractName },
+      order: { createdAt: 'DESC' }
+    });
+  }
+
+  // Add method to get detailed gas analysis by ID
+  async getGasAnalysisById(id: string): Promise<GasAnalysis | null> {
+    return await this.gasAnalysisRepository.findOne({ where: { id } });
   }
 
   private async compileCode(code: string, contractName: string): Promise<CompilationResult> {
@@ -121,134 +205,98 @@ export class GasAnalyzerService {
         throw new Error(`Compilation failed: ${stderr}`);
       }
 
-      const artifactPath = path.join(this.hardhatProjectRoot, 'artifacts', 'contracts', 'temp', tempFileName, `${contractName}.json`);
-      const artifactContent = await fs.readFile(artifactPath, 'utf8');
-      const artifacts = JSON.parse(artifactContent);
+      // Read compilation artifacts
+      const artifactsPath = path.join(this.hardhatProjectRoot, 'artifacts', 'contracts', 'temp', tempFileName, `${contractName}.json`);
+      const artifactContent = await fs.readFile(artifactsPath, 'utf-8');
+      const artifact = JSON.parse(artifactContent);
 
-      return { abi: artifacts.abi, bytecode: artifacts.bytecode, contractName };
+      return {
+        abi: artifact.abi,
+        bytecode: artifact.bytecode,
+        contractName
+      };
+    } catch (error) {
+      this.logger.error(`Compilation error: ${error.message}`);
+      throw error;
     } finally {
-      await fs.rm(tempFilePath, { force: true }).catch(err => this.logger.error(`Failed to clean temp file: ${err.message}`));
+      // Clean up temp file
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (cleanupError) {
+        this.logger.warn(`Failed to clean up temp file: ${cleanupError.message}`);
+      }
     }
   }
 
   private async analyzeNetworkGas(
     compilation: CompilationResult,
     gasPriceData: GasPriceData,
-    tokenPriceUSD: number  // Changed from ethPriceUSD
+    ethPriceUSD: number
   ): Promise<NetworkAnalysisResult> {
-    const { abi, bytecode } = compilation;
-    let hardhatNodeProcess: ChildProcess | null = null;
+    // Estimate deployment gas
+    const deploymentGas = this.estimateDeploymentGas(compilation.bytecode);
+    const deploymentCostETH = this.calculateCostETH(deploymentGas, gasPriceData.totalFee);
+    const deploymentCostUSD = parseFloat(deploymentCostETH) * ethPriceUSD;
 
-    try {
-      hardhatNodeProcess = exec('npx hardhat node', { cwd: this.hardhatProjectRoot });
-      await new Promise(resolve => setTimeout(resolve, 4000));
-
-      const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-      const deployer = await provider.getSigner(0);
-      const recipient = await provider.getSigner(1);
-
-      const contractFactory = new ContractFactory(abi, bytecode, deployer);
-      
-      const constructorInputs = contractFactory.interface.fragments.find(f => f.type === 'constructor')?.inputs || [];
-      const mockConstructorArgs = this.generateMockParameters(constructorInputs, await deployer.getAddress(), await recipient.getAddress());
-      
-      const deployTx = await contractFactory.getDeployTransaction(...mockConstructorArgs);
-      const deploymentGasUsed = await provider.estimateGas({ data: deployTx.data, from: await deployer.getAddress() });
-
-      const deployedContract = await contractFactory.deploy(...mockConstructorArgs);
-      await deployedContract.waitForDeployment();
-
-      const functionEstimates = await this.estimateFunctionGas(deployedContract as any, deployer, recipient, gasPriceData, tokenPriceUSD);
-      const deploymentCost = this.calculateCost(deploymentGasUsed, gasPriceData.totalFee, tokenPriceUSD);
-
-      return {
-        deployment: { gasUsed: deploymentGasUsed.toString(), costETH: deploymentCost.eth, costUSD: deploymentCost.usd },
-        functions: functionEstimates,
-        gasPrice: gasPriceData.totalFee.toString(),
-        ethPriceUSD: tokenPriceUSD,  // This should be renamed to tokenPriceUSD
-        gasPriceBreakdown: gasPriceData
-      };
-    } finally {
-      if (hardhatNodeProcess) hardhatNodeProcess.kill();
+    // Analyze functions
+    const functions: GasEstimate[] = [];
+    const contractInterface = new Interface(compilation.abi);
+    
+    for (const fragment of contractInterface.fragments) {
+      if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
+        const gasEstimate = this.estimateFunctionGas(fragment);
+        const costETH = this.calculateCostETH(gasEstimate, gasPriceData.totalFee);
+        const costUSD = parseFloat(costETH) * ethPriceUSD;
+        
+        functions.push({
+          functionName: fragment.name,
+          gasUsed: gasEstimate.toString(),
+          estimatedCostETH: costETH,
+          estimatedCostUSD: costUSD
+        });
+      }
     }
+
+    return {
+      deployment: {
+        gasUsed: deploymentGas.toString(),
+        costETH: deploymentCostETH,
+        costUSD: deploymentCostUSD
+      },
+      functions,
+      gasPrice: gasPriceData.totalFee.toString(),
+      ethPriceUSD,
+      gasPriceBreakdown: gasPriceData
+    };
   }
 
-  private async estimateFunctionGas(
-      contract: ethers.Contract,
-      deployer: ethers.Signer,
-      recipient: ethers.Signer,
-      gasPriceData: GasPriceData,
-      tokenPriceUSD: number  // Changed from ethPriceUSD
-  ): Promise<GasEstimate[]> {
-      const estimates: GasEstimate[] = [];
-      const functions: FunctionFragment[] = [];
-      
-      contract.interface.forEachFunction((func) => {
-          if (!['view', 'pure'].includes(func.stateMutability)) {
-              functions.push(func);
-          }
-      });
-
-      const deployerAddress = await deployer.getAddress();
-      const recipientAddress = await recipient.getAddress();
-
-      // Pre-fund recipient and set approvals if necessary for transferFrom
-      if (functions.some(f => f.name === 'transferFrom')) {
-          this.logger.log("Pre-funding and approving for transferFrom simulation...");
-          try {
-            // Check if transfer and approve functions exist before calling
-            if (contract.interface.hasFunction('transfer')) {
-                await contract.connect(deployer)['transfer(address,uint256)'](recipientAddress, ethers.parseEther('100'));
-            }
-            if (contract.interface.hasFunction('approve')) {
-                await contract.connect(recipient)['approve(address,uint256)'](deployerAddress, ethers.MaxUint256);
-            }
-            this.logger.log("Setup for transferFrom complete.");
-        } catch(e) {
-            this.logger.warn(`Could not set up for transferFrom: ${e.message}`);
-        }
-      }
-
-      for (const func of functions) {
-          const functionName = func.name;
-          try {
-              const mockParams = this.generateMockParameters(func.inputs, deployerAddress, recipientAddress);
-              const contractFunc = contract.connect(deployer).getFunction(functionName);
-              const gasUsed = await contractFunc.estimateGas(...mockParams);
-              const cost = this.calculateCost(gasUsed, gasPriceData.totalFee, tokenPriceUSD);
-
-              estimates.push({ functionName, gasUsed: gasUsed.toString(), estimatedCostETH: cost.eth, estimatedCostUSD: cost.usd });
-          } catch (error) {
-              this.logger.warn(`Gas estimation failed for function '${functionName}': ${error.reason || error.message}`);
-              estimates.push({ functionName, gasUsed: 'N/A', estimatedCostETH: 'N/A', estimatedCostUSD: 0 });
-          }
-      }
-      return estimates;
-  }
-  
-  private generateMockParameters(inputs: readonly ethers.ParamType[], mainAddress: string, secondaryAddress: string): any[] {
-    return inputs.map((input, index) => {
-        const type = input.type;
-        // For transferFrom(from, to, amount), 'from' is the first address, 'to' is the second
-        if (type.includes('address') && index === 0) return secondaryAddress; 
-        if (type.includes('address')) return mainAddress;
-        if (type.includes('uint')) return 1; 
-        if (type.includes('string')) return 'test';
-        if (type.includes('bool')) return true;
-        if (type.includes('bytes')) return '0x1234';
-        return '0';
-    });
+  private estimateDeploymentGas(bytecode: string): number {
+    // Rough estimation: 21000 base + 68 gas per byte of bytecode
+    const bytecodeLength = (bytecode.length - 2) / 2; // Remove '0x' and convert hex to bytes
+    return 21000 + (bytecodeLength * 68);
   }
 
-  private calculateCost(gasUsed: bigint, gasPriceGwei: number, tokenPriceUSD: number) {
-      const gasPriceWei = ethers.parseUnits(gasPriceGwei.toString(), 'gwei');
-      const costWei = gasUsed * gasPriceWei;
-      const costToken = parseFloat(ethers.formatEther(costWei));  // Cost in native token
-      const costUsd = costToken * tokenPriceUSD;
-      return {
-          eth: costToken.toFixed(8),  // This should be renamed to 'token' but keeping for compatibility
-          usd: parseFloat(costUsd.toFixed(4))
-      };
+  private estimateFunctionGas(fragment: FunctionFragment): number {
+    // Basic gas estimation based on function complexity
+    let baseGas = 21000; // Base transaction cost
+    
+    // Add gas based on function inputs
+    baseGas += fragment.inputs.length * 1000;
+    
+    // Add gas for state changes (rough estimation)
+    if (fragment.stateMutability === 'nonpayable' || fragment.stateMutability === 'payable') {
+      baseGas += 20000; // State changing functions
+    } else {
+      baseGas = 3000; // View/pure functions
+    }
+    
+    return baseGas;
+  }
+
+  private calculateCostETH(gasUsed: number, gasPriceGwei: number): string {
+    const gasPriceWei = ethers.parseUnits(gasPriceGwei.toString(), 'gwei');
+    const totalCostWei = BigInt(gasUsed) * gasPriceWei;
+    return ethers.formatEther(totalCostWei);
   }
 
   private async getOptimalGasPrice(networkConfig: NetworkConfig): Promise<GasPriceData> {
