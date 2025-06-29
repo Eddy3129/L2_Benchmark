@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroui/tooltip": "^2.2.19",
+    "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.80.7",
     "axios": "^1.10.0",
     "chart.js": "^4.5.0",
