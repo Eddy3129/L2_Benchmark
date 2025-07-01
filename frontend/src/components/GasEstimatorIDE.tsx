@@ -18,45 +18,16 @@ interface AnalysisResult {
   createdAt?: string;
 }
 
-interface NetworkResult {
-  network: string;
-  networkName: string;
-  deployment: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  functions: GasEstimate[];
-  gasPrice: string;
-  ethPriceUSD: number;
-  gasPriceBreakdown: {
-    baseFee: number;
-    priorityFee: number;
-    totalFee: number;
-    confidence: number;
-    source: string;
-  };
-}
+// Import shared types and utilities
+import { NetworkResult, GasEstimate, AnalysisProgress } from '@/types/shared';
+import { getAllNetworks } from '@/utils/networkConfig';
 
-interface GasEstimate {
-  functionName: string;
-  gasUsed: string;
-  estimatedCostETH: string;
-  estimatedCostUSD: number;
-}
-
-interface AnalysisProgress {
-  stage: 'idle' | 'compiling' | 'deploying' | 'analyzing' | 'complete';
-  progress: number;
-  message: string;
-}
-
-const NETWORKS = [
-  { id: 'arbitrumSepolia', name: 'Arbitrum One', color: 'bg-blue-500' },
-  { id: 'optimismSepolia', name: 'Optimism Mainnet', color: 'bg-red-500' },
-  { id: 'baseSepolia', name: 'Base', color: 'bg-blue-600' },
-  { id: 'polygonAmoy', name: 'Polygon', color: 'bg-purple-500' },
-];
+// Use centralized network configuration
+const NETWORKS = getAllNetworks().map(network => ({
+  id: network.id,
+  name: network.name,
+  color: `bg-${network.color.replace('#', '')}`
+}));
 
 const ANALYSIS_MODES = [
   { id: 'standard', name: 'Standard Analysis', description: 'Analyze gas costs across selected networks' },

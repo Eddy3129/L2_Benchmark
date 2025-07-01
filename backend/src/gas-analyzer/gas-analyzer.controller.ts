@@ -1,20 +1,17 @@
 import { Controller, Post, Get, Body, Query, Param, HttpException, HttpStatus } from '@nestjs/common';
 import { GasAnalyzerService } from './gas-analyzer.service';
+import { ValidationUtils } from '../shared/validation-utils';
+import { AnalyzeContractRequest, CompareNetworksRequest } from '../shared/types';
 
 @Controller('api/gas-analyzer')
 export class GasAnalyzerController {
   constructor(private readonly gasAnalyzerService: GasAnalyzerService) {}
 
   @Post('analyze')
-  async analyzeContract(
-    @Body() body: { 
-      code: string; 
-      networks: string[]; 
-      contractName: string;
-      confidenceLevel?: number;
-      saveToDatabase?: boolean;
-    }
-  ) {
+  async analyzeContract(@Body() body: AnalyzeContractRequest) {
+    // Validate request using centralized validation
+    ValidationUtils.validateAnalyzeContractRequest(body);
+    
     const { code, networks, contractName, confidenceLevel = 70, saveToDatabase = false } = body;
     
     try {
@@ -29,40 +26,21 @@ export class GasAnalyzerController {
     } catch (error) {
       // Handle compilation errors specifically
       if (error.message && error.message.includes('Compilation failed')) {
-        // Extract the actual compilation error from stderr
-        const compilationError = this.extractCompilationError(error.message);
-        throw new HttpException(
-          {
-            statusCode: 400,
-            message: `Compilation failed: ${compilationError}`,
-            error: 'Bad Request',
-            type: 'COMPILATION_ERROR'
-          },
-          HttpStatus.BAD_REQUEST
-        );
+        throw ValidationUtils.createCompilationError(error.message);
+      }
+      
+      // Handle validation errors
+      if (error instanceof HttpException) {
+        throw error;
       }
       
       // Handle other service errors
       if (error.message) {
-        throw new HttpException(
-          {
-            statusCode: 400,
-            message: error.message,
-            error: 'Bad Request'
-          },
-          HttpStatus.BAD_REQUEST
-        );
+        throw ValidationUtils.createValidationError(error.message);
       }
       
       // Fallback for unknown errors
-      throw new HttpException(
-        {
-          statusCode: 500,
-          message: 'Internal server error during contract analysis',
-          error: 'Internal Server Error'
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      throw ValidationUtils.createInternalServerError('Internal server error during contract analysis');
     }
   }
   
@@ -83,15 +61,10 @@ export class GasAnalyzerController {
   }
 
   @Post('compare')
-  async compareLocalVsL2(
-    @Body() body: {
-      code: string;
-      contractName: string;
-      l2Networks: string[];
-      confidenceLevel?: number;
-      saveToDatabase?: boolean;
-    }
-  ) {
+  async compareLocalVsL2(@Body() body: CompareNetworksRequest) {
+    // Validate request using centralized validation
+    ValidationUtils.validateCompareNetworksRequest(body);
+    
     const { code, contractName, l2Networks, confidenceLevel = 70, saveToDatabase = false } = body;
     
     try {
@@ -123,26 +96,15 @@ export class GasAnalyzerController {
       return comparisonReport;
     } catch (error) {
       if (error.message && error.message.includes('Compilation failed')) {
-        const compilationError = this.extractCompilationError(error.message);
-        throw new HttpException(
-          {
-            statusCode: 400,
-            message: `Compilation failed: ${compilationError}`,
-            error: 'Bad Request',
-            type: 'COMPILATION_ERROR'
-          },
-          HttpStatus.BAD_REQUEST
-        );
+        throw ValidationUtils.createCompilationError(error.message);
       }
       
-      throw new HttpException(
-        {
-          statusCode: 500,
-          message: error.message || 'Comparison analysis failed',
-          error: 'Internal Server Error'
-        },
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      // Handle validation errors
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw ValidationUtils.createInternalServerError(error.message || 'Comparison analysis failed');
     }
   }
   
@@ -227,25 +189,5 @@ export class GasAnalyzerController {
     };
   }
   
-  private extractCompilationError(errorMessage: string): string {
-    // Extract the meaningful part of the compilation error
-    const lines = errorMessage.split('\n');
-    const errorLines: string[] = [];
-    
-    for (const line of lines) {
-      // Look for parser errors, syntax errors, etc.
-      if (line.includes('ParserError:') || 
-          line.includes('SyntaxError:') || 
-          line.includes('TypeError:') ||
-          line.includes('Error HH')) {
-        errorLines.push(line.replace(/\x1B\[[0-9;]*m/g, '')); // Remove ANSI color codes
-      }
-      // Include the line that shows the error location
-      if (line.includes('-->') || line.includes('|')) {
-        errorLines.push(line);
-      }
-    }
-    
-    return errorLines.length > 0 ? errorLines.join('\n') : 'Unknown compilation error';
-  }
+  // Compilation error extraction moved to shared/validation-utils.ts
 }

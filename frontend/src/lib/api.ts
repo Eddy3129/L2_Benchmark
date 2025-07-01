@@ -1,3 +1,6 @@
+// Import shared types
+import { NetworkResult, GasEstimate, NetworkComparison, FunctionComparison } from '@/types/shared';
+
 export interface GasAnalysis {
   id: string;
   contractName: string;
@@ -41,80 +44,9 @@ export interface ComparisonResult {
   };
 }
 
-export interface NetworkComparison {
-  network: string;
-  gasPrice: string;
-  gasPriceBreakdown?: {
-    totalFee: number;
-    source: string;
-    confidence: number;
-  };
-  deployment: {
-    local: {
-      gasUsed: string;
-      costETH: string;
-      costUSD: number;
-    };
-    l2: {
-      gasUsed: string;
-      costETH: string;
-      costUSD: number;
-    };
-    savings: {
-      gasReduction: number;
-      costSavingsETH: number;
-      costSavingsUSD: number;
-      percentageSaving: number;
-    };
-  };
-  functions: FunctionComparison[];
-  summary: {
-    totalLocalCost: number;
-    totalL2Cost: number;
-    totalSavings: number;
-  };
-}
+// NetworkComparison and FunctionComparison are now imported from shared types
 
-export interface FunctionComparison {
-  functionName: string;
-  local: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  l2: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  savings: {
-    gasReduction: number;
-    costSavingsETH: number;
-    costSavingsUSD: number;
-    percentageSaving: number;
-  };
-}
-
-export interface NetworkResult {
-  networkName: string;
-  gasPrice: string;
-  gasPriceBreakdown?: {
-    totalFee: number;
-    source: string;
-    confidence: number;
-  };
-  deployment: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  functions: {
-    functionName: string;
-    gasUsed: string;
-    estimatedCostETH: string;
-    estimatedCostUSD: number;
-  }[];
-}
+// NetworkResult is now imported from shared types
   
   class ApiService {
     private baseUrl = 'http://localhost:3001/api';

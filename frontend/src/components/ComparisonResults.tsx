@@ -1,28 +1,18 @@
 import React from 'react';
-import { ComparisonResult, NetworkComparison } from '../lib/api';
+import { ComparisonResult } from '../lib/api';
+import { NetworkComparison } from '@/types/shared';
 import { TrendingDown, TrendingUp, DollarSign, Zap, Network } from 'lucide-react';
+import { getNetworkDisplayName } from '@/utils/networkConfig';
+import { formatCurrency, formatPercentage, getGasPriceFromBreakdown } from '@/utils/gasUtils';
 
 interface ComparisonResultsProps {
   result: ComparisonResult;
 }
 
 const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 8
-    }).format(value);
-  };
-
   const formatGas = (gas: string | number) => {
     const gasNum = typeof gas === 'string' ? parseInt(gas) : gas;
     return new Intl.NumberFormat('en-US').format(gasNum);
-  };
-
-  const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '-' : ''}${value.toFixed(1)}%`;
   };
 
   const getSavingsColor = (savings: number) => {
@@ -46,16 +36,7 @@ const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
   const networks = result.comparisons.map(comp => comp.network);
   const baselineNetwork = 'Sepolia';
 
-  // Map network IDs to mainnet display names
-  const getNetworkDisplayName = (networkId: string) => {
-    const networkMap: { [key: string]: string } = {
-      'arbitrumSepolia': 'Arbitrum One',
-      'optimismSepolia': 'Optimism Mainnet',
-      'baseSepolia': 'Base',
-      'polygonAmoy': 'Polygon'
-    };
-    return networkMap[networkId] || networkId.toUpperCase();
-  };
+  // Use centralized network display name utility
 
   // Helper to find function data for a specific network
   const getFunctionData = (networkName: string, functionName: string) => {
@@ -152,11 +133,11 @@ const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
               <tr>
                 <th className="px-4 py-3 text-left text-white font-medium">Gas Price</th>
                 <th className="px-4 py-3 text-center text-white font-medium">
-                  {result.local?.gasPriceBreakdown?.totalFee ? `${result.local.gasPriceBreakdown.totalFee.toFixed(2)} Gwei` : `${parseFloat(result.local?.gasPrice || '0').toFixed(1)} Gwei`}
+                  {getGasPriceFromBreakdown(result.local?.gasPriceBreakdown, result.local?.gasPrice)}
                 </th>
                 {result.comparisons.map(comp => (
                   <th key={comp.network} className="px-4 py-3 text-center text-white font-medium">
-                    {comp.gasPriceBreakdown?.totalFee ? `${comp.gasPriceBreakdown.totalFee.toFixed(2)} Gwei` : `${parseFloat(comp.gasPrice).toFixed(1)} Gwei`}
+                    {getGasPriceFromBreakdown(comp.gasPriceBreakdown, comp.gasPrice)}
                   </th>
                 ))}
               </tr>
@@ -165,11 +146,11 @@ const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
               <tr className="hover:bg-gray-750">
                 <td className="px-4 py-3 text-gray-300 font-medium">Gas Price</td>
                 <td className="px-4 py-3 text-center text-orange-400 font-mono">
-                  {result.local?.gasPriceBreakdown?.totalFee ? `${result.local.gasPriceBreakdown.totalFee.toFixed(2)} Gwei` : `${parseFloat(result.local?.gasPrice || '0').toFixed(1)} Gwei`}
+                  {getGasPriceFromBreakdown(result.local?.gasPriceBreakdown, result.local?.gasPrice)}
                 </td>
                 {result.comparisons.map(comp => (
                   <td key={comp.network} className="px-4 py-3 text-center text-orange-400 font-mono">
-                    {comp.gasPriceBreakdown?.totalFee ? `${comp.gasPriceBreakdown.totalFee.toFixed(8)} Gwei` : `${parseFloat(comp.gasPrice).toFixed(1)} Gwei`}
+                    {getGasPriceFromBreakdown(comp.gasPriceBreakdown, comp.gasPrice)}
                   </td>
                 ))}
               </tr>

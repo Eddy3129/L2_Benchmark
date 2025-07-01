@@ -31,44 +31,13 @@ interface AnalysisResult {
   timestamp: string;
 }
 
-interface NetworkResult {
-  network: string;
-  networkName: string;
-  deployment: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  functions: GasEstimate[];
-  gasPrice: string;
-  ethPriceUSD: number;
-  gasPriceBreakdown: {
-    baseFee: number;
-    priorityFee: number;
-    totalFee: number;
-    confidence: number;
-    source: string;
-  };
-}
+// Import shared types and utilities
+import { NetworkResult, GasEstimate } from '@/types/shared';
+import { NETWORK_CONFIGS, getNetworkColor } from '@/utils/networkConfig';
+import { formatCurrency, formatGasUsed } from '@/utils/gasUtils';
+import { createMultiDatasetChart, getLineChartOptions, getBarChartOptions } from '@/utils/chartConfig';
 
-interface GasEstimate {
-  functionName: string;
-  gasUsed: string;
-  estimatedCostETH: string;
-  estimatedCostUSD: number;
-}
-
-const NETWORK_CONFIG: { [key: string]: { name: string; color: string; symbol: string } } = {
-  arbitrumSepolia: { name: 'Arbitrum One', color: '#2563eb', symbol: 'ETH' },
-  optimismSepolia: { name: 'Optimism Mainnet', color: '#dc2626', symbol: 'ETH' },
-  baseSepolia: { name: 'Base', color: '#1d4ed8', symbol: 'ETH' },
-  polygonAmoy: { name: 'Polygon', color: '#7c3aed', symbol: 'POL' },
-};
-
-const CHART_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
-  '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
-];
+// Use centralized network configuration (imported above)
 
 // Utility function to format small numbers with scientific notation
 const formatNumber = (value: number, decimals: number = 4): string => {
@@ -79,14 +48,7 @@ const formatNumber = (value: number, decimals: number = 4): string => {
   return value.toFixed(decimals);
 };
 
-// Utility function to format currency with scientific notation
-const formatCurrency = (value: number): string => {
-  if (value === 0) return '$0';
-  if (Math.abs(value) < 0.001) {
-    return `$${value.toExponential(2)}`;
-  }
-  return `$${value.toFixed(4)}`;
-};
+// Remove duplicate formatCurrency function since it's imported from utils
 
 interface GasAnalysisResultsProps {
   result: AnalysisResult;
@@ -96,7 +58,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
   // Function cost comparison data (line chart for better small number visualization)
   const functionCostLineData = useMemo(() => {
     const functionCosts: { [key: string]: number[] } = {};
-    const networkNames = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networkNames = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     
     // Collect all unique function names
     const allFunctions = new Set<string>();
@@ -136,7 +98,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
   // Network cost comparison data (line chart)
   const networkCostLineData = useMemo(() => {
-    const networks = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networks = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     const deploymentCosts = result.results.map(r => r.deployment.costUSD);
     const totalFunctionCosts = result.results.map(r => 
       r.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0)
@@ -173,7 +135,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
   // Gas usage comparison (line chart)
   const gasUsageLineData = useMemo(() => {
-    const networks = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networks = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     const gasUsage = result.results.map(r => parseInt(r.deployment.gasUsed) / 1000); // Convert to K gas
 
     return {
@@ -382,7 +344,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
               {result.results.map((networkResult, index) => {
-                const config = NETWORK_CONFIG[networkResult.network];
+                const config = NETWORK_CONFIGS[networkResult.network];
                 const totalFunctionCost = networkResult.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0);
                 return (
                   <tr key={networkResult.network} className="hover:bg-gray-750 transition-colors">
@@ -426,7 +388,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
       {/* Function Details by Network */}
       {result.results.map((networkResult) => {
-        const config = NETWORK_CONFIG[networkResult.network];
+        const config = NETWORK_CONFIGS[networkResult.network];
         return (
           <div key={networkResult.network} className="bg-gray-800 rounded-lg border border-gray-700">
             <div className="p-4 border-b border-gray-700">

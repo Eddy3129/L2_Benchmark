@@ -8,117 +8,58 @@ import { exec, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import { ethers, ContractFactory, Interface, FunctionFragment, Signer } from 'ethers';
 
+// Import shared utilities
+import { 
+  NetworkConfig, 
+  GasPriceData, 
+  CompilationResult, 
+  GasEstimate, 
+  NetworkAnalysisResult, 
+  NetworkResult, 
+  AnalysisResult,
+  GasAnalysisData
+} from '../shared/types';
+import { NetworkConfigService, NETWORK_CONFIGS } from '../shared/network-config';
+import { GasUtils } from '../shared/gas-utils';
+import { ValidationUtils } from '../shared/validation-utils';
+import { BaseService } from '../shared/base.service';
+
 // Promisify exec for async/await usage
 const execAsync = promisify(exec);
 
-// --- Interfaces (assuming these are defined elsewhere or here) ---
-interface NetworkConfig {
-  name: string;
-  rpcUrl: string;
-  chainId: number;
-  gasPriceChainId?: number; // Optional chain ID to use for gas price fetching (defaults to chainId if not provided)
-}
-
-interface GasPriceData {
-  baseFee: number;
-  priorityFee: number;
-  totalFee: number; // in Gwei
-  confidence: number;
-  source: 'blocknative' | 'provider' | 'hardhat' | 'mainnet-pricing';
-}
-
-export interface CompilationResult {
-  abi: any[];
-  bytecode: string;
-  contractName: string;
-}
-
-export interface GasEstimate {
-  functionName: string;
-  gasUsed: string;
-  estimatedCostETH: string;
-  estimatedCostUSD: number;
-}
-
-export interface NetworkAnalysisResult {
-  deployment: { gasUsed: string; costETH: string; costUSD: number; };
-  functions: GasEstimate[];
-  gasPrice: string;
-  ethPriceUSD: number;
-  gasPriceBreakdown: GasPriceData;
-}
-
-export interface NetworkResult extends NetworkAnalysisResult {
-  network: string;
-  networkName: string;
-}
-
-export interface AnalysisResult {
-  contractName: string;
-  results: NetworkResult[];
-  timestamp: string;
-  compilation?: any; // Add optional compilation property
-}
-// --- End of Interfaces ---
-
 @Injectable()
-export class GasAnalyzerService {
-  private readonly logger = new Logger(GasAnalyzerService.name);
+export class GasAnalyzerService extends BaseService<GasAnalysis> {
   private readonly hardhatProjectRoot = path.join(process.cwd(), '..');
   private readonly tempContractsDir = path.join(this.hardhatProjectRoot, 'contracts', 'temp');
-
-  private readonly networks: Record<string, NetworkConfig> = {
-    // Local networks
-    hardhat: { name: 'Hardhat Local', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337 },
-    localhost: { name: 'Localhost', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337 },
-    // Ethereum networks
-    sepolia: { 
-      name: 'Sepolia Testnet', 
-      rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org', 
-      chainId: 11155111,
-      gasPriceChainId: 1 // Use Ethereum Mainnet for gas prices
-    },
-    // Layer 2 networks
-    arbitrumSepolia: { 
-      name: 'Arbitrum One', 
-      rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc", 
-      chainId: 421614,
-      gasPriceChainId: 42161 // Use Arbitrum One for gas prices
-    },
-    optimismSepolia: { 
-      name: 'Optimism Mainnet', 
-      rpcUrl: process.env.OP_SEPOLIA_RPC_URL || "https://sepolia.optimism.io/", 
-      chainId: 11155420,
-      gasPriceChainId: 10 // Use Optimism Mainnet for gas prices
-    },
-    baseSepolia: { 
-      name: 'Base', 
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org", 
-      chainId: 84532,
-      gasPriceChainId: 8453 // Use Base Mainnet for gas prices
-    },
-    polygonAmoy: { 
-      name: 'Polygon', 
-      rpcUrl: process.env.POLYGON_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology/", 
-      chainId: 80002,
-      gasPriceChainId: 137 // Use Polygon Mainnet for gas prices
-    },
-  };
 
   constructor(
     @InjectRepository(GasAnalysis)
     private gasAnalysisRepository: Repository<GasAnalysis>,
   ) {
+    super(gasAnalysisRepository, 'GasAnalysis');
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
   }
 
   async analyzeContract(code: string, networks: string[], contractName: string, confidenceLevel: number = 70): Promise<AnalysisResult> {
     this.logger.log(`Starting analysis for contract: ${contractName}`);
+    
+    // Validate inputs
+    ValidationUtils.validateSolidityCode(code);
+    const { valid: validNetworks, invalid: invalidNetworks } = NetworkConfigService.validateNetworks(networks);
+    
+    if (invalidNetworks.length > 0) {
+      this.logger.warn(`Invalid networks provided: ${invalidNetworks.join(', ')}`);
+    }
+    
+    if (validNetworks.length === 0) {
+      throw ValidationUtils.createValidationError(['No valid networks provided for analysis']);
+    }
+    
     const compilation = await this.compileCode(code, contractName);
-
     const results: NetworkResult[] = [];
-    for (const networkKey of networks) {
-      const networkConfig = this.networks[networkKey];
+    
+    for (const networkKey of validNetworks) {
+      const networkConfig = NetworkConfigService.getNetworkConfig(networkKey);
       if (!networkConfig || !networkConfig.rpcUrl) {
         this.logger.warn(`RPC URL not configured for network: ${networkKey}. Skipping.`);
         continue;
@@ -129,16 +70,14 @@ export class GasAnalyzerService {
       let networkResult: NetworkAnalysisResult;
       
       // Use actual deployment for local networks, estimation for others
-      if (networkConfig.chainId === 31337) {
+      if (NetworkConfigService.isLocalNetwork(networkConfig.chainId)) {
         networkResult = await this.deployAndAnalyzeLocal(compilation, networkConfig, confidenceLevel);
       } else {
         // Get testnet gas usage but use mainnet gas prices for realistic cost calculation
         const testnetGasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
-        // Use mainnet chain ID for gas pricing if available, otherwise fall back to Ethereum mainnet
-        const gasPriceChainId = networkConfig.gasPriceChainId || networkConfig.chainId;
+        const gasPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
         const mainnetGasPriceData = await this.getOptimalGasPrice({ ...networkConfig, chainId: gasPriceChainId }, confidenceLevel);
-        // Use mainnet chain ID for token pricing if available
-        const tokenPriceChainId = networkConfig.gasPriceChainId || 1; // Default to Ethereum mainnet
+        const tokenPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
         const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
         networkResult = await this.analyzeNetworkGasWithMainnetPricing(compilation, testnetGasPriceData, mainnetGasPriceData, tokenPriceUSD, networkConfig.name);
       }
@@ -154,7 +93,7 @@ export class GasAnalyzerService {
       contractName, 
       results, 
       timestamp: new Date().toISOString(),
-      compilation // Include compilation data
+      compilation
     };
   }
 
@@ -181,8 +120,8 @@ export class GasAnalyzerService {
       const ethPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
       
       // Calculate deployment costs
-      const deploymentCostETH = this.calculateCostETH(Number(gasEstimate), gasPriceData.totalFee);
-      const deploymentCostUSD = parseFloat(deploymentCostETH) * ethPriceUSD;
+      const deploymentCostETH = GasUtils.calculateCostETH(Number(gasEstimate), gasPriceData.totalFee);
+      const deploymentCostUSD = GasUtils.calculateCostUSD(deploymentCostETH, ethPriceUSD);
       
       // Analyze functions with actual gas estimation
       const functions: GasEstimate[] = [];
@@ -197,11 +136,11 @@ export class GasAnalyzerService {
             const encodedData = contractInterface.encodeFunctionData(fragment.name, []);
             gasEstimate = 21000 + (encodedData.length - 2) / 2 * 16; // More accurate estimation
           } catch {
-            gasEstimate = this.estimateFunctionGas(fragment);
+            gasEstimate = GasUtils.estimateFunctionGas(fragment);
           }
           
-          const costETH = this.calculateCostETH(gasEstimate, gasPriceData.totalFee);
-          const costUSD = parseFloat(costETH) * ethPriceUSD;
+          const costETH = GasUtils.calculateCostETH(gasEstimate, gasPriceData.totalFee);
+          const costUSD = GasUtils.calculateCostUSD(costETH, ethPriceUSD);
           
           functions.push({
             functionName: fragment.name,
@@ -356,8 +295,8 @@ export class GasAnalyzerService {
     ethPriceUSD: number
   ): Promise<NetworkAnalysisResult> {
     // Estimate deployment gas
-    const deploymentGas = this.estimateDeploymentGas(compilation.bytecode);
-    const deploymentCostETH = this.calculateCostETH(deploymentGas, gasPriceData.totalFee);
+    const deploymentGas = GasUtils.estimateDeploymentGas(compilation.bytecode);
+    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, gasPriceData.totalFee);
     const deploymentCostUSD = parseFloat(deploymentCostETH) * ethPriceUSD;
 
     // Analyze functions
@@ -366,8 +305,8 @@ export class GasAnalyzerService {
     
     for (const fragment of contractInterface.fragments) {
       if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
-        const gasEstimate = this.estimateFunctionGas(fragment);
-        const costETH = this.calculateCostETH(gasEstimate, gasPriceData.totalFee);
+        const gasEstimate = GasUtils.estimateFunctionGas(fragment);
+        const costETH = GasUtils.calculateCostETH(gasEstimate, gasPriceData.totalFee);
         const costUSD = parseFloat(costETH) * ethPriceUSD;
         
         functions.push({
@@ -400,11 +339,11 @@ export class GasAnalyzerService {
     networkName: string
   ): Promise<NetworkAnalysisResult> {
     // Estimate deployment gas using testnet conditions
-    const deploymentGas = this.estimateDeploymentGas(compilation.bytecode);
+    const deploymentGas = GasUtils.estimateDeploymentGas(compilation.bytecode);
     
     // Calculate costs using mainnet gas prices for realistic estimates
-    const deploymentCostETH = this.calculateCostETH(deploymentGas, mainnetGasPriceData.totalFee);
-    const deploymentCostUSD = parseFloat(deploymentCostETH) * ethPriceUSD;
+    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, mainnetGasPriceData.totalFee);
+    const deploymentCostUSD = GasUtils.calculateCostUSD(deploymentCostETH, ethPriceUSD);
 
     // Analyze functions with mainnet pricing
     const functions: GasEstimate[] = [];
@@ -412,10 +351,10 @@ export class GasAnalyzerService {
     
     for (const fragment of contractInterface.fragments) {
       if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
-        const gasEstimate = this.estimateFunctionGas(fragment);
+        const gasEstimate = GasUtils.estimateFunctionGas(fragment);
         // Use mainnet gas prices for cost calculation
-        const costETH = this.calculateCostETH(gasEstimate, mainnetGasPriceData.totalFee);
-        const costUSD = parseFloat(costETH) * ethPriceUSD;
+        const costETH = GasUtils.calculateCostETH(gasEstimate, mainnetGasPriceData.totalFee);
+        const costUSD = GasUtils.calculateCostUSD(costETH, ethPriceUSD);
         
         functions.push({
           functionName: fragment.name,
@@ -444,153 +383,9 @@ export class GasAnalyzerService {
     };
   }
 
-  private estimateDeploymentGas(bytecode: string): number {
-    // More sophisticated deployment gas estimation
-    const bytecodeLength = (bytecode.length - 2) / 2; // Remove '0x' and convert hex to bytes
-    
-    // Base transaction cost
-    let gasEstimate = 21000;
-    
-    // Contract creation cost: 32000 gas
-    gasEstimate += 32000;
-    
-    // Code deposit cost: 200 gas per byte
-    gasEstimate += bytecodeLength * 200;
-    
-    // Constructor execution cost (estimated based on bytecode complexity)
-    const complexityFactor = this.calculateBytecodeComplexity(bytecode);
-    gasEstimate += Math.floor(bytecodeLength * complexityFactor * 10);
-    
-    // Add buffer for initialization and storage operations (10-20%)
-    gasEstimate = Math.floor(gasEstimate * 1.15);
-    
-    this.logger.debug(`Deployment gas estimate: ${gasEstimate} for ${bytecodeLength} bytes`);
-    return gasEstimate;
-  }
-  
-  private calculateBytecodeComplexity(bytecode: string): number {
-    // Analyze bytecode for complexity indicators
-    let complexity = 1.0;
-    
-    // Count expensive operations in bytecode
-    const expensiveOps = [
-      '55', // SSTORE
-      '54', // SLOAD
-      'f0', // CREATE
-      'f1', // CALL
-      'f2', // CALLCODE
-      'f4', // DELEGATECALL
-      'f5', // CREATE2
-      'fa', // STATICCALL
-    ];
-    
-    for (const op of expensiveOps) {
-      const count = (bytecode.match(new RegExp(op, 'gi')) || []).length;
-      complexity += count * 0.1;
-    }
-    
-    // Cap complexity factor
-    return Math.min(complexity, 3.0);
-  }
+  // Gas calculation methods moved to shared/gas-utils.ts
 
-  private estimateFunctionGas(fragment: FunctionFragment): number {
-    // Sophisticated function gas estimation based on multiple factors
-    let gasEstimate = 21000; // Base transaction cost
-    
-    // Function selector and basic execution
-    gasEstimate += 2300; // Basic function call overhead
-    
-    // Parameter processing cost
-    for (const input of fragment.inputs) {
-      gasEstimate += this.getParameterGasCost(input.type);
-    }
-    
-    // State mutability impact
-    switch (fragment.stateMutability) {
-      case 'pure':
-        gasEstimate = 3000; // Pure functions are cheap
-        break;
-      case 'view':
-        gasEstimate = 5000; // View functions may read state
-        break;
-      case 'nonpayable':
-      case 'payable':
-        // State-changing functions - estimate based on complexity
-        gasEstimate += this.estimateStateChangeGas(fragment);
-        break;
-    }
-    
-    // Function name complexity (longer names = more complex logic assumption)
-    const nameComplexity = Math.min(fragment.name.length / 10, 2.0);
-    gasEstimate = Math.floor(gasEstimate * (1 + nameComplexity * 0.1));
-    
-    this.logger.debug(`Function ${fragment.name} gas estimate: ${gasEstimate}`);
-    return gasEstimate;
-  }
-  
-  private getParameterGasCost(paramType: string): number {
-    // Gas cost based on parameter types
-    if (paramType.includes('[]')) {
-      return 5000; // Arrays are expensive
-    }
-    if (paramType.includes('bytes')) {
-      return 3000; // Dynamic bytes
-    }
-    if (paramType.includes('string')) {
-      return 3000; // Strings
-    }
-    if (paramType.includes('uint') || paramType.includes('int')) {
-      return 800; // Integers
-    }
-    if (paramType === 'address') {
-      return 700; // Addresses
-    }
-    if (paramType === 'bool') {
-      return 500; // Booleans
-    }
-    return 1000; // Default for complex types
-  }
-  
-  private estimateStateChangeGas(fragment: FunctionFragment): number {
-    // Estimate gas for state-changing operations
-    let stateGas = 0;
-    
-    // Common patterns in function names that indicate expensive operations
-    const expensivePatterns = [
-      { pattern: /transfer|send|pay/i, gas: 25000 },
-      { pattern: /mint|burn/i, gas: 30000 },
-      { pattern: /approve|allow/i, gas: 15000 },
-      { pattern: /stake|unstake/i, gas: 35000 },
-      { pattern: /swap|exchange/i, gas: 40000 },
-      { pattern: /deposit|withdraw/i, gas: 25000 },
-      { pattern: /create|deploy/i, gas: 50000 },
-      { pattern: /update|modify|change/i, gas: 20000 },
-      { pattern: /set|configure/i, gas: 15000 },
-      { pattern: /add|remove|delete/i, gas: 18000 }
-    ];
-    
-    for (const { pattern, gas } of expensivePatterns) {
-      if (pattern.test(fragment.name)) {
-        stateGas = Math.max(stateGas, gas);
-      }
-    }
-    
-    // Default state change cost if no patterns match
-    if (stateGas === 0) {
-      stateGas = 20000;
-    }
-    
-    // Add cost for multiple parameters (more complex state changes)
-    stateGas += fragment.inputs.length * 2000;
-    
-    return stateGas;
-  }
-
-  private calculateCostETH(gasUsed: number, gasPriceGwei: number): string {
-    const gasPriceWei = ethers.parseUnits(gasPriceGwei.toString(), 'gwei');
-    const totalCostWei = BigInt(gasUsed) * gasPriceWei;
-    return ethers.formatEther(totalCostWei);
-  }
+  // Function gas estimation methods moved to shared/gas-utils.ts
 
   private async getOptimalGasPrice(networkConfig: NetworkConfig, confidenceLevel: number = 70): Promise<GasPriceData> {
     // For local networks, use minimal gas prices for fair Layer 2 comparison
