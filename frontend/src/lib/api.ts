@@ -29,6 +29,92 @@ export interface BenchmarkSession {
     avgExecutionTime: number;
     createdAt?: string;
   }
+
+export interface ComparisonResult {
+  contractName: string;
+  timestamp: string;
+  local: NetworkResult;
+  comparisons: NetworkComparison[];
+  overallSummary: {
+    bestNetwork: NetworkComparison;
+    averageSavings: number;
+  };
+}
+
+export interface NetworkComparison {
+  network: string;
+  gasPrice: string;
+  gasPriceBreakdown?: {
+    totalFee: number;
+    source: string;
+    confidence: number;
+  };
+  deployment: {
+    local: {
+      gasUsed: string;
+      costETH: string;
+      costUSD: number;
+    };
+    l2: {
+      gasUsed: string;
+      costETH: string;
+      costUSD: number;
+    };
+    savings: {
+      gasReduction: number;
+      costSavingsETH: number;
+      costSavingsUSD: number;
+      percentageSaving: number;
+    };
+  };
+  functions: FunctionComparison[];
+  summary: {
+    totalLocalCost: number;
+    totalL2Cost: number;
+    totalSavings: number;
+  };
+}
+
+export interface FunctionComparison {
+  functionName: string;
+  local: {
+    gasUsed: string;
+    costETH: string;
+    costUSD: number;
+  };
+  l2: {
+    gasUsed: string;
+    costETH: string;
+    costUSD: number;
+  };
+  savings: {
+    gasReduction: number;
+    costSavingsETH: number;
+    costSavingsUSD: number;
+    percentageSaving: number;
+  };
+}
+
+export interface NetworkResult {
+  networkName: string;
+  gasPrice: string;
+  gasPriceBreakdown?: {
+    totalFee: number;
+    source: string;
+    confidence: number;
+  };
+  deployment: {
+    gasUsed: string;
+    costETH: string;
+    costUSD: number;
+  };
+  functions: {
+    functionName: string;
+    gasUsed: string;
+    estimatedCostETH: string;
+    estimatedCostUSD: number;
+  }[];
+}
   
   class ApiService {
     private baseUrl = 'http://localhost:3001/api';
@@ -86,6 +172,33 @@ export interface BenchmarkSession {
 
     if (!response.ok) {
       throw new Error(`Failed to analyze contract: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async compareLocalVsL2(
+    code: string, 
+    contractName: string, 
+    l2Networks: string[], 
+    saveToDatabase: boolean = false
+  ): Promise<ComparisonResult> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/compare`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        code, 
+        contractName, 
+        l2Networks, 
+        saveToDatabase 
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Comparison analysis failed');
     }
 
     return response.json();

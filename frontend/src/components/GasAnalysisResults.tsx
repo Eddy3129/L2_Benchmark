@@ -59,10 +59,10 @@ interface GasEstimate {
 }
 
 const NETWORK_CONFIG: { [key: string]: { name: string; color: string; symbol: string } } = {
-  arbitrumSepolia: { name: 'Arbitrum Sepolia', color: '#2563eb', symbol: 'ETH' },
-  optimismSepolia: { name: 'Optimism Sepolia', color: '#dc2626', symbol: 'ETH' },
-  baseSepolia: { name: 'Base Sepolia', color: '#1d4ed8', symbol: 'ETH' },
-  polygonAmoy: { name: 'Polygon Amoy', color: '#7c3aed', symbol: 'POL' },
+  arbitrumSepolia: { name: 'Arbitrum One', color: '#2563eb', symbol: 'ETH' },
+  optimismSepolia: { name: 'Optimism Mainnet', color: '#dc2626', symbol: 'ETH' },
+  baseSepolia: { name: 'Base', color: '#1d4ed8', symbol: 'ETH' },
+  polygonAmoy: { name: 'Polygon', color: '#7c3aed', symbol: 'POL' },
 };
 
 const CHART_COLORS = [
@@ -373,7 +373,8 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Network</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Gas</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Cost</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price</th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price (Used)</th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price (Source)</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Token Price</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Functions</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Total Function Cost</th>
@@ -401,7 +402,10 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                       {formatCurrency(networkResult.deployment.costUSD)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-blue-400 font-mono">
-                      {parseFloat(networkResult.gasPrice).toFixed(1)} Gwei
+                      {networkResult.gasPriceBreakdown?.totalFee ? `${networkResult.gasPriceBreakdown.totalFee.toFixed(4)} Gwei` : `${parseFloat(networkResult.gasPrice).toFixed(1)} Gwei`}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400 font-mono text-xs">
+                      {networkResult.gasPriceBreakdown?.source || 'mainnet'} (conf: {networkResult.gasPriceBreakdown?.confidence || 70}%)
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-yellow-400 font-mono">
                       ${networkResult.ethPriceUSD.toFixed(2)}
@@ -443,6 +447,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Function</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Used</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost ({config?.symbol || 'ETH'})</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost (USD)</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">% of Total</th>
@@ -459,6 +464,9 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-gray-300 font-mono">
                           {func.gasUsed !== 'N/A' ? parseInt(func.gasUsed).toLocaleString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-orange-400 font-mono">
+                          {networkResult.gasPriceBreakdown?.totalFee ? `${networkResult.gasPriceBreakdown.totalFee.toFixed(4)} Gwei` : `${parseFloat(networkResult.gasPrice).toFixed(1)} Gwei`}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-blue-400 font-mono">
                           {func.estimatedCostETH !== 'N/A' ? formatNumber(parseFloat(func.estimatedCostETH), 6) : 'N/A'}

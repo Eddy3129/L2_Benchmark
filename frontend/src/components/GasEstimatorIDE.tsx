@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { GasAnalysisResults } from './GasAnalysisResults';
 import { ExportButton } from './ExportButton';
-import { apiService } from '../lib/api';
+import ComparisonResults from './ComparisonResults';
+import { apiService, ComparisonResult } from '../lib/api';
 import { CONTRACT_TEMPLATES, ContractTemplate, loadContractTemplate } from '@/lib/contractTemplate';
 
 interface AnalysisResult {
@@ -51,10 +52,15 @@ interface AnalysisProgress {
 }
 
 const NETWORKS = [
-  { id: 'arbitrumSepolia', name: 'Arbitrum Sepolia', color: 'bg-blue-500' },
-  { id: 'optimismSepolia', name: 'Optimism Sepolia', color: 'bg-red-500' },
-  { id: 'baseSepolia', name: 'Base Sepolia', color: 'bg-blue-600' },
-  { id: 'polygonAmoy', name: 'Polygon Amoy', color: 'bg-purple-500' },
+  { id: 'arbitrumSepolia', name: 'Arbitrum One', color: 'bg-blue-500' },
+  { id: 'optimismSepolia', name: 'Optimism Mainnet', color: 'bg-red-500' },
+  { id: 'baseSepolia', name: 'Base', color: 'bg-blue-600' },
+  { id: 'polygonAmoy', name: 'Polygon', color: 'bg-purple-500' },
+];
+
+const ANALYSIS_MODES = [
+  { id: 'standard', name: 'Standard Analysis', description: 'Analyze gas costs across selected networks' },
+  { id: 'comparison', name: 'Local vs L2 Comparison', description: 'Compare local Hardhat deployment with L2 networks' },
 ];
 
 const PROGRESS_STAGES = {
@@ -73,12 +79,14 @@ export function GasEstimatorIDE() {
   const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['arbitrumSepolia']);
   const [saveToDatabase, setSaveToDatabase] = useState(true);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  const [analysisMode, setAnalysisMode] = useState<'standard' | 'comparison'>('standard');
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress>({
     stage: 'idle',
     progress: 0,
     message: 'Ready to analyze'
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isAnalyzing = analysisProgress.stage !== 'idle' && analysisProgress.stage !== 'complete';
@@ -151,38 +159,57 @@ export function GasEstimatorIDE() {
 
     setError(null);
     setAnalysisResult(null);
+    setComparisonResult(null);
     updateProgress('compiling');
 
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const result = await apiService.analyzeContract({
-        code,
-        contractName,
-        networks: selectedNetworks,
-        saveToDatabase
-      });
+      if (analysisMode === 'comparison') {
+        // Local vs L2 Comparison Mode
+        const result = await apiService.compareLocalVsL2(
+          code,
+          contractName,
+          selectedNetworks,
+          saveToDatabase
+        );
+        
+        updateProgress('deploying');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        updateProgress('analyzing');
+        
+        setComparisonResult(result);
+      } else {
+        // Standard Analysis Mode
+        const result = await apiService.analyzeContract({
+          code,
+          contractName,
+          networks: selectedNetworks,
+          saveToDatabase
+        });
 
-      updateProgress('deploying');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      updateProgress('analyzing');
+        updateProgress('deploying');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        updateProgress('analyzing');
+        
+        const transformedResult: AnalysisResult = {
+          contractName: result.contractName || contractName,
+          compilation: result.compilation,
+          results: result.results || [],
+          timestamp: result.timestamp || new Date().toISOString(),
+          totalOperations: result.results?.length || 0,
+          avgGasUsed: result.results?.length > 0 ? 
+            result.results.reduce((sum: number, r: any) => {
+              const totalGas = parseInt(r.deployment?.gasUsed || '0') + 
+                r.functions?.reduce((fSum: number, f: any) => fSum + parseInt(f.gasUsed || '0'), 0);
+              return sum + totalGas;
+            }, 0) / result.results.length : 0,
+          avgExecutionTime: 0,
+        };
+        
+        setAnalysisResult(transformedResult);
+      }
       
-      const transformedResult: AnalysisResult = {
-        contractName: result.contractName || contractName,
-        compilation: result.compilation,
-        results: result.results || [],
-        timestamp: result.timestamp || new Date().toISOString(),
-        totalOperations: result.results?.length || 0,
-        avgGasUsed: result.results?.length > 0 ? 
-          result.results.reduce((sum: number, r: any) => {
-            const totalGas = parseInt(r.deployment?.gasUsed || '0') + 
-              r.functions?.reduce((fSum: number, f: any) => fSum + parseInt(f.gasUsed || '0'), 0);
-            return sum + totalGas;
-          }, 0) / result.results.length : 0,
-        avgExecutionTime: 0,
-      };
-      
-      setAnalysisResult(transformedResult);
       updateProgress('complete');
       setActiveTab('results');
       setTimeout(() => updateProgress('idle'), 2000);
@@ -220,7 +247,7 @@ export function GasEstimatorIDE() {
             </button>
             <button
               onClick={() => setActiveTab('results')}
-              disabled={!analysisResult}
+              disabled={!analysisResult && !comparisonResult}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 activeTab === 'results'
                   ? 'border-blue-500 text-blue-400'
@@ -231,10 +258,13 @@ export function GasEstimatorIDE() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span>Analysis Results</span>
-                {analysisResult && (
+                <span>{analysisMode === 'comparison' ? 'Comparison Results' : 'Analysis Results'}</span>
+                {(analysisResult || comparisonResult) && (
                   <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                    {analysisResult.results.length}
+                    {analysisMode === 'comparison' ? 
+                      (comparisonResult?.comparisons.length || 0) : 
+                      (analysisResult?.results.length || 0)
+                    }
                   </span>
                 )}
               </div>
@@ -299,6 +329,38 @@ export function GasEstimatorIDE() {
                     />
                   </div>
 
+                  {/* Analysis Mode Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Analysis Mode
+                    </label>
+                    <div className="space-y-2">
+                      {ANALYSIS_MODES.map((mode) => (
+                        <label
+                          key={mode.id}
+                          className="flex items-start space-x-3 cursor-pointer p-3 rounded-md hover:bg-gray-700 transition-colors border border-gray-600"
+                        >
+                          <input
+                            type="radio"
+                            name="analysisMode"
+                            value={mode.id}
+                            checked={analysisMode === mode.id}
+                            onChange={(e) => setAnalysisMode(e.target.value as 'standard' | 'comparison')}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 bg-gray-700 mt-0.5"
+                          />
+                          <div>
+                            <div className="text-sm font-medium text-gray-300">
+                              {mode.name}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {mode.description}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex items-center space-x-3">
                     <input
                       type="checkbox"
@@ -345,8 +407,15 @@ export function GasEstimatorIDE() {
               {/* Network Selection */}
               <div className="bg-gray-800 rounded-lg border border-gray-700">
                 <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">Target Networks</h3>
-                  <p className="text-sm text-gray-400 mt-1">Select networks for gas analysis</p>
+                  <h3 className="text-lg font-semibold text-white">
+                    {analysisMode === 'comparison' ? 'L2 Networks to Compare' : 'Target Networks'}
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {analysisMode === 'comparison' 
+                      ? 'Select L2 networks to compare against local Hardhat deployment'
+                      : 'Select networks for gas analysis'
+                    }
+                  </p>
                 </div>
                 
                 <div className="p-4">
@@ -399,10 +468,10 @@ export function GasEstimatorIDE() {
                 {isAnalyzing ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Analyzing...</span>
+                    <span>{analysisMode === 'comparison' ? 'Comparing...' : 'Analyzing...'}</span>
                   </div>
                 ) : (
-                  'Analyze Gas & Costs'
+                  analysisMode === 'comparison' ? 'Compare Local vs L2' : 'Analyze Gas & Costs'
                 )}
               </button>
 
@@ -445,26 +514,49 @@ export function GasEstimatorIDE() {
               )}
 
               {/* Quick Stats */}
-              {analysisResult && (
+              {(analysisResult || comparisonResult) && (
                 <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
                   <h3 className="text-lg font-semibold text-white mb-3">Quick Stats</h3>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Networks:</span>
-                      <span className="text-blue-400 font-medium">{analysisResult.results.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Functions:</span>
-                      <span className="text-purple-400 font-medium">
-                        {analysisResult.results.reduce((sum, r) => sum + r.functions.length, 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Avg Deploy Cost:</span>
-                      <span className="text-green-400 font-medium">
-                        ${(analysisResult.results.reduce((sum, r) => sum + r.deployment.costUSD, 0) / analysisResult.results.length).toFixed(3)}
-                      </span>
-                    </div>
+                    {analysisMode === 'comparison' && comparisonResult ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">L2 Networks:</span>
+                          <span className="text-blue-400 font-medium">{comparisonResult.comparisons.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Best Savings:</span>
+                          <span className="text-green-400 font-medium">
+                            ${comparisonResult.overallSummary.bestNetwork.summary.totalSavings.toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Best Network:</span>
+                          <span className="text-purple-400 font-medium">
+                            {comparisonResult.overallSummary.bestNetwork.network}
+                          </span>
+                        </div>
+                      </>
+                    ) : analysisResult ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Networks:</span>
+                          <span className="text-blue-400 font-medium">{analysisResult.results.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Functions:</span>
+                          <span className="text-purple-400 font-medium">
+                            {analysisResult.results.reduce((sum, r) => sum + r.functions.length, 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Avg Deploy Cost:</span>
+                          <span className="text-green-400 font-medium">
+                            ${(analysisResult.results.reduce((sum, r) => sum + r.deployment.costUSD, 0) / analysisResult.results.length).toFixed(3)}
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -473,7 +565,20 @@ export function GasEstimatorIDE() {
         ) : (
           // Results Tab
           <div className="space-y-6">
-            {analysisResult ? (
+            {analysisMode === 'comparison' && comparisonResult ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-white">Local vs L2 Comparison Results</h1>
+                    <p className="text-gray-400 mt-1">
+                      Contract: <span className="text-blue-400 font-medium">{comparisonResult.contractName}</span> • 
+                      Analyzed: <span className="text-green-400 font-medium">{new Date(comparisonResult.timestamp).toLocaleString()}</span>
+                    </p>
+                  </div>
+                </div>
+                <ComparisonResults result={comparisonResult} />
+              </>
+            ) : analysisResult ? (
               <>
                 <div className="flex items-center justify-between">
                   <div>
@@ -496,8 +601,15 @@ export function GasEstimatorIDE() {
                   <svg className="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  <h3 className="text-lg font-medium mb-2">No Analysis Results</h3>
-                  <p className="text-sm">Run a gas analysis to see detailed results here.</p>
+                  <h3 className="text-lg font-medium mb-2">
+                    {analysisMode === 'comparison' ? 'No Comparison Results' : 'No Analysis Results'}
+                  </h3>
+                  <p className="text-sm">
+                    {analysisMode === 'comparison' 
+                      ? 'Run a local vs L2 comparison to see detailed results here.'
+                      : 'Run a gas analysis to see detailed results here.'
+                    }
+                  </p>
                 </div>
               </div>
             )}
