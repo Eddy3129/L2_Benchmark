@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BenchmarkModule } from './benchmark/benchmark.module';
 import { GasAnalyzerModule } from './gas-analyzer/gas-analyzer.module';
+import { AbiModule } from './abi/abi.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { GasAnalyzerModule } from './gas-analyzer/gas-analyzer.module';
     }),
     BenchmarkModule,
     GasAnalyzerModule,
+    AbiModule,
   ],
 })
 export class AppModule {}

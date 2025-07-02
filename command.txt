@@ -3,3 +3,5 @@ set REPORT_GAS=true && npx hardhat test
 npx hardhat ignition deploy ignition/modules/FullDeploy.ts --network localhost
 
 change address in contract.ts
+
+0x10025Ae0c53473E68Ff7DaeD5236436CaE604e56

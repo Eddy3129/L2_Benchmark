@@ -35,10 +35,10 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
 // Network display utilities
 export const getNetworkDisplayName = (networkId: string): string => {
   const networkMap: Record<string, string> = {
-    'arbitrumSepolia': 'ARBITRUM ONE',
-    'optimismSepolia': 'OPTIMISM MAINNET',
-    'baseSepolia': 'BASE',
-    'polygonAmoy': 'POLYGON'
+    'arbitrumSepolia': 'Arbitrum One',
+    'optimismSepolia': 'Optimism Mainnet',
+    'baseSepolia': 'Base',
+    'polygonAmoy': 'Polygon'
   };
   return networkMap[networkId] || networkId.toUpperCase();
 };
