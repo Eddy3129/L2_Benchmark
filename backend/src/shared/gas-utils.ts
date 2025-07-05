@@ -9,9 +9,13 @@ export class GasUtils {
    * Calculate cost in ETH from gas amount and gas price
    */
   static calculateCostETH(gasAmount: number, gasPriceGwei: number): string {
-    const gasPriceWei = ethers.parseUnits(gasPriceGwei.toString(), 'gwei');
+    // Ensure gas price is in proper decimal format (avoid scientific notation)
+    const safeGasPriceString = gasPriceGwei.toFixed(12);
+    const gasPriceWei = ethers.parseUnits(safeGasPriceString, 'gwei');
     const costWei = BigInt(gasAmount) * gasPriceWei;
-    return ethers.formatEther(costWei);
+    const ethValue = ethers.formatEther(costWei);
+    // Limit precision to prevent 'too many decimals for format' errors
+    return Number(ethValue).toFixed(12);
   }
 
   /**

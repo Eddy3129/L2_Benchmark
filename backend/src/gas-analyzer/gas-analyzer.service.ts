@@ -253,6 +253,191 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     return await this.gasAnalysisRepository.findOne({ where: { id } });
   }
 
+  // EIP-4844 Blob Cost Analysis Methods
+  async analyzeBlobCosts(
+    l2Networks: string[],
+    blobDataSize: number = 131072, // Default blob size (128KB)
+    confidenceLevel: number = 70
+  ): Promise<any> {
+    this.logger.log(`Starting EIP-4844 blob cost analysis for networks: ${l2Networks.join(', ')}`);
+    
+    const results: any[] = [];
+    
+    for (const networkKey of l2Networks) {
+      const networkConfig = NetworkConfigService.getNetworkConfig(networkKey);
+      if (!networkConfig) {
+        this.logger.warn(`Network configuration not found for: ${networkKey}`);
+        continue;
+      }
+
+      this.logger.log(`Analyzing blob costs for: ${networkConfig.name}`);
+      
+      // Get mainnet gas prices for realistic cost calculation
+      const mainnetChainId = NetworkConfigService.getMainnetChainId(networkKey);
+      const mainnetGasPriceData = await this.getOptimalGasPrice({ ...networkConfig, chainId: mainnetChainId }, confidenceLevel);
+      const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: mainnetChainId });
+      
+      // Calculate blob transaction costs
+      const blobAnalysis = await this.calculateBlobTransactionCosts(
+        networkConfig,
+        blobDataSize,
+        mainnetGasPriceData,
+        tokenPriceUSD
+      );
+      
+      results.push({
+        network: networkKey,
+        networkName: networkConfig.name,
+        ...blobAnalysis
+      });
+    }
+    
+    return {
+      blobDataSize,
+      results,
+      timestamp: new Date().toISOString(),
+      analysis: 'EIP-4844 Blob Transaction Cost Comparison'
+    };
+  }
+
+  private async calculateBlobTransactionCosts(
+    networkConfig: NetworkConfig,
+    blobDataSize: number,
+    gasPriceData: GasPriceData,
+    tokenPriceUSD: number
+  ): Promise<any> {
+    // EIP-4844 blob specifications
+    const BLOB_SIZE = 131072; // 128KB per blob
+    const MAX_BLOBS_PER_TX = 6;
+    const BLOB_GAS_PER_BLOB = 131072; // Gas units per blob
+    
+    // Calculate number of blobs needed
+    const blobsNeeded = Math.ceil(blobDataSize / BLOB_SIZE);
+    if (blobsNeeded > MAX_BLOBS_PER_TX) {
+      throw new Error(`Data size requires ${blobsNeeded} blobs, but maximum is ${MAX_BLOBS_PER_TX} per transaction`);
+    }
+    
+    // Base transaction costs (Type 3 transaction)
+    const baseTxGas = 21000; // Base transaction cost
+    const blobTxOverhead = 1000; // Additional overhead for blob transaction
+    const totalBaseTxGas = baseTxGas + blobTxOverhead;
+    
+    // Blob gas costs (separate from regular gas)
+    const totalBlobGas = blobsNeeded * BLOB_GAS_PER_BLOB;
+    
+    // Get real-time blob gas price from Blocknative API
+    let estimatedBlobGasPrice: number;
+    try {
+      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(70); // Use 70% confidence for blob pricing
+      if (blocknativeBlobBaseFee !== null) {
+        estimatedBlobGasPrice = blocknativeBlobBaseFee;
+        this.logger.log(`Using real-time blob base fee: ${estimatedBlobGasPrice} gwei`);
+      } else {
+        throw new Error('Blocknative blob base fee not available');
+      }
+    } catch (error) {
+      this.logger.warn('Failed to fetch real-time blob base fee, using fallback estimation:', error.message);
+      // Fallback to conservative estimation only if API fails
+      estimatedBlobGasPrice = Math.min(5, Math.max(1, gasPriceData.baseFee * 0.02));
+    }
+    
+    // Ensure gas prices are properly formatted (avoid scientific notation)
+    const safeRegularGasPrice = Number(gasPriceData.totalFee.toFixed(9));
+    const safeBlobGasPrice = Number(estimatedBlobGasPrice.toFixed(9));
+    
+    // Calculate costs
+    const regularGasCostETH = GasUtils.calculateCostETH(totalBaseTxGas, safeRegularGasPrice);
+    const blobGasCostETH = GasUtils.calculateCostETH(totalBlobGas, safeBlobGasPrice);
+    const totalCostETH = (parseFloat(regularGasCostETH) + parseFloat(blobGasCostETH)).toFixed(8);
+    const totalCostUSD = GasUtils.calculateCostUSD(totalCostETH, tokenPriceUSD);
+    
+    // Calculate cost per KB for comparison
+    const costPerKB = totalCostUSD / (blobDataSize / 1024);
+    
+    // Estimate L2 settlement frequency and batch costs
+    const estimatedBatchSize = 100; // Typical number of L2 transactions per batch
+    const costPerL2Transaction = totalCostUSD / estimatedBatchSize;
+    
+    // Calculate calldata comparison
+    const calldataComparison = this.calculateCalldataCostComparison(blobDataSize, gasPriceData, tokenPriceUSD);
+    
+    // Calculate cost reduction percentage
+    const costReductionVsCalldata = ((calldataComparison.costUSD - totalCostUSD) / calldataComparison.costUSD) * 100;
+    
+    return {
+      blobTransaction: {
+        blobsUsed: blobsNeeded,
+        blobDataSize,
+        regularGasUsed: totalBaseTxGas,
+        blobGasUsed: totalBlobGas,
+        regularGasCostETH,
+        blobGasCostETH,
+        totalCostETH,
+        totalCostUSD,
+        costPerKB,
+        costPerL2Transaction
+      },
+      gasBreakdown: {
+        regularGasPrice: safeRegularGasPrice,
+        estimatedBlobGasPrice: safeBlobGasPrice,
+        tokenPriceUSD
+      },
+      comparison: {
+        vsTraditionalCalldata: calldataComparison,
+        efficiency: {
+          dataCompressionRatio: 1, // Blobs don't compress data, but enable efficient L2 settlement
+          costReductionVsCalldata: costReductionVsCalldata
+        }
+      }
+    };
+  }
+
+  private calculateCalldataCostComparison(
+    dataSize: number,
+    gasPriceData: GasPriceData,
+    tokenPriceUSD: number
+  ): any {
+    // Traditional calldata costs: 16 gas per non-zero byte, 4 gas per zero byte
+    // Assume average case: 50% zero bytes, 50% non-zero bytes
+    const avgGasPerByte = (16 + 4) / 2; // 10 gas per byte average
+    const calldataGas = dataSize * avgGasPerByte;
+    const baseTxGas = 21000;
+    const totalCalldataGas = baseTxGas + calldataGas;
+    
+    // Ensure gas price is properly formatted (avoid scientific notation)
+    const safeGasPrice = Number(gasPriceData.totalFee.toFixed(9));
+    
+    const calldataCostETH = GasUtils.calculateCostETH(totalCalldataGas, safeGasPrice);
+    const calldataCostUSD = GasUtils.calculateCostUSD(calldataCostETH, tokenPriceUSD);
+    
+    return {
+      gasUsed: totalCalldataGas,
+      costETH: calldataCostETH,
+      costUSD: calldataCostUSD,
+      costPerKB: calldataCostUSD / (dataSize / 1024)
+    };
+  }
+
+  // Save blob analysis results
+  async saveBlobAnalysis(blobAnalysis: any): Promise<void> {
+    // Save blob analysis results to database
+    // This could be extended to save to a specific blob analysis table
+    for (const result of blobAnalysis.results) {
+      await this.saveGasAnalysis({
+        contractName: 'EIP-4844-Blob-Analysis',
+        functionSignature: 'blob_transaction',
+        l2Network: result.networkName,
+        gasUsed: result.blobTransaction.totalGasUsed?.toString() || '0',
+        estimatedL2Fee: result.blobTransaction.totalCostETH,
+        estimatedL1Fee: '0',
+        totalEstimatedFeeUSD: result.blobTransaction.totalCostUSD,
+        solidityCode: '',
+        compilationArtifacts: blobAnalysis,
+        functionParameters: { blobDataSize: blobAnalysis.blobDataSize }
+      });
+    }
+  }
+
   private async compileCode(code: string, contractName: string): Promise<CompilationResult> {
     const tempFileName = `${contractName}_${Date.now()}.sol`;
     const tempFilePath = path.join(this.tempContractsDir, tempFileName);
@@ -294,9 +479,12 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     gasPriceData: GasPriceData,
     ethPriceUSD: number
   ): Promise<NetworkAnalysisResult> {
+    // Ensure gas price is properly formatted (avoid scientific notation)
+    const safeGasPrice = Number(gasPriceData.totalFee.toFixed(9));
+    
     // Estimate deployment gas
     const deploymentGas = GasUtils.estimateDeploymentGas(compilation.bytecode);
-    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, gasPriceData.totalFee);
+    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, safeGasPrice);
     const deploymentCostUSD = parseFloat(deploymentCostETH) * ethPriceUSD;
 
     // Analyze functions
@@ -306,7 +494,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     for (const fragment of contractInterface.fragments) {
       if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
         const gasEstimate = GasUtils.estimateFunctionGas(fragment);
-        const costETH = GasUtils.calculateCostETH(gasEstimate, gasPriceData.totalFee);
+        const costETH = GasUtils.calculateCostETH(gasEstimate, safeGasPrice);
         const costUSD = parseFloat(costETH) * ethPriceUSD;
         
         functions.push({
@@ -338,11 +526,14 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     ethPriceUSD: number,
     networkName: string
   ): Promise<NetworkAnalysisResult> {
+    // Ensure gas price is properly formatted (avoid scientific notation)
+    const safeMainnetGasPrice = Number(mainnetGasPriceData.totalFee.toFixed(9));
+    
     // Estimate deployment gas using testnet conditions
     const deploymentGas = GasUtils.estimateDeploymentGas(compilation.bytecode);
     
     // Calculate costs using mainnet gas prices for realistic estimates
-    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, mainnetGasPriceData.totalFee);
+    const deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, safeMainnetGasPrice);
     const deploymentCostUSD = GasUtils.calculateCostUSD(deploymentCostETH, ethPriceUSD);
 
     // Analyze functions with mainnet pricing
@@ -353,7 +544,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
       if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
         const gasEstimate = GasUtils.estimateFunctionGas(fragment);
         // Use mainnet gas prices for cost calculation
-        const costETH = GasUtils.calculateCostETH(gasEstimate, mainnetGasPriceData.totalFee);
+        const costETH = GasUtils.calculateCostETH(gasEstimate, safeMainnetGasPrice);
         const costUSD = GasUtils.calculateCostUSD(costETH, ethPriceUSD);
         
         functions.push({
@@ -462,6 +653,71 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
         confidence: 50,
         source: 'provider'
       };
+    }
+  }
+
+  private async getBlocknativeBlobBaseFee(confidenceLevel: number = 99): Promise<number | null> {
+    const apiKey = process.env.BLOCKNATIVE_API_KEY;
+    if (!apiKey) {
+      this.logger.warn('BLOCKNATIVE_API_KEY not configured');
+      return null;
+    }
+
+    try {
+      const url = 'https://api.blocknative.com/gasprices/basefee-estimates';
+      
+      const response = await fetch(url, {
+        headers: {
+          'X-Api-Key': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Blocknative basefee-estimates API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Get current blob base fee
+      const currentBlobBaseFee = data.blobBaseFeePerGas;
+      if (currentBlobBaseFee !== undefined) {
+        this.logger.log(`Current blob base fee: ${currentBlobBaseFee} gwei`);
+        return currentBlobBaseFee;
+      }
+
+      // If current is not available, get prediction for next block
+      const estimatedBaseFees = data.estimatedBaseFees;
+      if (!estimatedBaseFees || estimatedBaseFees.length === 0) {
+        throw new Error('No estimated base fees available');
+      }
+
+      // Get the first prediction (pending+1)
+      const nextBlockEstimate = estimatedBaseFees[0]['pending+1'];
+      if (!nextBlockEstimate || nextBlockEstimate.length === 0) {
+        throw new Error('No next block estimates available');
+      }
+
+      // Find the estimate for the requested confidence level
+      let selectedEstimate = nextBlockEstimate.find((estimate: any) => estimate.confidence === confidenceLevel);
+      
+      if (!selectedEstimate) {
+        // Fallback to closest confidence level
+        selectedEstimate = nextBlockEstimate.reduce((closest: any, current: any) => {
+          return Math.abs(current.confidence - confidenceLevel) < Math.abs(closest.confidence - confidenceLevel) 
+            ? current : closest;
+        });
+      }
+
+      if (!selectedEstimate || selectedEstimate.blobBaseFee === undefined) {
+        throw new Error('No suitable blob base fee estimate found');
+      }
+
+      this.logger.log(`Predicted blob base fee: ${selectedEstimate.blobBaseFee} gwei (confidence: ${selectedEstimate.confidence}%, requested: ${confidenceLevel}%)`);
+      return selectedEstimate.blobBaseFee;
+    } catch (error) {
+      this.logger.error('Failed to fetch Blocknative blob base fee:', error);
+      return null;
     }
   }
 

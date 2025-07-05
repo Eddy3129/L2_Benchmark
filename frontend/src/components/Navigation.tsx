@@ -31,6 +31,7 @@ export function Navigation() {
       description: 'Real-time testing suite',
       gradient: 'from-green-500 to-emerald-500'
     },
+
     { 
       href: '/analysis', 
       label: 'Reports', 

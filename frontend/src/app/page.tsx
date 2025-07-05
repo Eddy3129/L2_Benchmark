@@ -19,6 +19,7 @@ export default function Home() {
       gradient: 'from-green-500 to-emerald-500',
       stats: 'Live testing'
     },
+
     {
       title: 'Reports & Analytics',
       description: 'Historical insights & trends',
@@ -34,13 +35,13 @@ export default function Home() {
    
       {/* Gas Dashboard */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* <div className="mb-6">
+        <div className="mb-6">
             <h2 className="text-2xl font-bold text-center mb-6">
               <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Quick Actions
               </span>
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {quickActions.map((action, index) => (
                 <Link
                   key={index}
@@ -57,7 +58,7 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-          </div> */}
+          </div>
         <div className="mb-12">
           <GasDashboard />
         </div>

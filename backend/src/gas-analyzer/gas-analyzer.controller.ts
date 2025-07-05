@@ -114,6 +114,44 @@ export class GasAnalyzerController {
       throw ValidationUtils.createInternalServerError(error.message || 'Comparison analysis failed');
     }
   }
+
+  @Post('blob-cost-comparison')
+  async compareBlobCosts(@Body() body: {
+    networks: string[];
+    blobDataSize?: number;
+    confidenceLevel?: number;
+    saveToDatabase?: boolean;
+  }) {
+    const { networks, blobDataSize = 131072, confidenceLevel = 70, saveToDatabase = false } = body;
+    
+    try {
+      // Validate L2 networks support EIP-4844
+      const supportedL2s = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
+      const validL2s = networks.filter(network => supportedL2s.includes(network));
+      
+      if (validL2s.length === 0) {
+        throw ValidationUtils.createValidationError(['No valid EIP-4844 supporting L2 networks provided']);
+      }
+      
+      const blobCostAnalysis = await this.gasAnalyzerService.analyzeBlobCosts(
+        validL2s,
+        blobDataSize,
+        confidenceLevel
+      );
+      
+      if (saveToDatabase) {
+        await this.gasAnalyzerService.saveBlobAnalysis(blobCostAnalysis);
+      }
+      
+      return blobCostAnalysis;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw ValidationUtils.createInternalServerError(error.message || 'Blob cost analysis failed');
+    }
+   }
   
   private generateComparisonReport(baselineResult: any, l2Result: any) {
     const baseline = baselineResult.results[0]; // Sepolia testnet result

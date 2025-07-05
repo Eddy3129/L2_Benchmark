@@ -19,6 +19,7 @@ import {
 import { multiChainGasService, type MultiChainGasData, type ChainConfig } from '@/lib/gasService';
 import { Tooltip } from '@heroui/tooltip';
 import { gasTerms } from '@/lib/dictionary';
+import { apiService } from '@/lib/api';
 
 ChartJS.register(
   CategoryScale,
@@ -42,6 +43,37 @@ const CG_OPTIONS = {
   }
 };
 
+// Blob cost interfaces
+interface BlobCostResult {
+  network: string;
+  networkName: string;
+  blobTransaction: {
+    totalCostUSD: number;
+    costPerL2Transaction: number;
+    blobsUsed: number;
+    regularGasUsed: number;
+    blobGasUsed: number;
+  };
+  comparison: {
+    vsTraditionalCalldata: {
+      costUSD: number;
+    };
+    efficiency: {
+      costReductionVsCalldata: number;
+    };
+  };
+  gasBreakdown: {
+    regularGasPrice: number;
+    estimatedBlobGasPrice: number;
+    tokenPriceUSD: number;
+  };
+}
+
+interface BlobAnalysisResult {
+  blobDataSize: number;
+  results: BlobCostResult[];
+}
+
 export function GasDashboard() {
   const [selectedChains, setSelectedChains] = useState<string[]>(['ethereum', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
   const [multiChainData, setMultiChainData] = useState<MultiChainGasData[]>([]);
@@ -49,6 +81,8 @@ export function GasDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [blobData, setBlobData] = useState<BlobAnalysisResult | null>(null);
+  const [blobLoading, setBlobLoading] = useState(false);
 
   const fetchTokenPrices = async () => {
     const idsToFetch = new Set<string>();
@@ -83,6 +117,32 @@ export function GasDashboard() {
     }
   };
 
+  const fetchBlobData = async () => {
+    try {
+      setBlobLoading(true);
+      // Only fetch for EIP-4844 supported networks
+      const eip4844Networks = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
+      const supportedNetworks = selectedChains.filter(chain => eip4844Networks.includes(chain));
+      
+      if (supportedNetworks.length === 0) {
+        setBlobData(null);
+        return;
+      }
+
+      const result = await apiService.compareBlobCosts({
+        networks: supportedNetworks,
+        blobDataSize: 131072, // Standard 128KB blob
+        confidenceLevel: 90,
+        saveToDatabase: false
+      });
+      setBlobData(result);
+    } catch (err) {
+      console.error('Failed to fetch blob data:', err);
+    } finally {
+      setBlobLoading(false);
+    }
+  };
+
   const fetchAllData = async () => {
     try {
       if (!loading) setLoading(true);
@@ -93,7 +153,8 @@ export function GasDashboard() {
           const validData = data.filter(d => d.gasData && d.distribution);
           setMultiChainData(validData);
         })(),
-        fetchTokenPrices()
+        fetchTokenPrices(),
+        fetchBlobData()
       ]);
       setLastUpdate(new Date());
     } catch (err) {
@@ -230,6 +291,32 @@ export function GasDashboard() {
     }]
   };
 
+  // Blob cost comparison data
+  const blobCostComparisonData = blobData ? {
+    labels: blobData.results.flatMap(r => [`${r.networkName} - Blob`, `${r.networkName} - Calldata`]),
+    datasets: [
+      {
+        label: 'Transaction Cost (USD)',
+        data: blobData.results.flatMap(r => [
+          r.blobTransaction.totalCostUSD,
+          r.comparison.vsTraditionalCalldata.costUSD
+        ]),
+        backgroundColor: blobData.results.flatMap(() => ['#3b82f6', '#ef4444']),
+        borderColor: blobData.results.flatMap(() => ['#1d4ed8', '#dc2626']),
+        borderWidth: 1,
+      }
+    ]
+  } : null;
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4
+    }).format(value);
+  };
+
   if (error) {
     return (
       <div className="card p-6 text-center">
@@ -277,6 +364,82 @@ export function GasDashboard() {
             <div className="h-72"><Bar data={gasCompositionData} options={gweiChartOptions} /></div>
         </div>
       </div>
+
+      {/* EIP-4844 Blob Cost Analysis */}
+      {(blobData && blobData.results.length > 0) || blobLoading ? (
+        <div className="bg-gray-800 p-4 rounded-lg mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white">EIP-4844 Blob Cost Analysis</h3>
+              <p className="text-sm text-gray-400">128KB blob vs traditional calldata costs (Real-time Blocknative data)</p>
+            </div>
+            {blobLoading && (
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></div>
+                <span className="text-xs text-gray-400">Loading blob data...</span>
+              </div>
+            )}
+          </div>
+          
+          {blobData && blobData.results.length > 0 ? (
+            <>
+              <div className="h-72 mb-4">
+                <Bar data={blobCostComparisonData!} options={gweiChartOptions} />
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="p-2 text-left font-medium text-gray-400">Network</th>
+                      <th className="p-2 text-right font-medium text-gray-400">Blob Gas (Units)</th>
+                       <th className="p-2 text-right font-medium text-gray-400">Blob Cost (USD)</th>
+                       <th className="p-2 text-right font-medium text-gray-400">Calldata Gas (Units)</th>
+                       <th className="p-2 text-right font-medium text-gray-400">Calldata Cost (USD)</th>
+                      <th className="p-2 text-right font-medium text-gray-400">Cost per L2 Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blobData.results.map((result) => {
+                      // Calculate Gwei values from gas breakdown
+                      const blobGasGwei = result.gasBreakdown?.regularGasPrice || 0;
+                      const blobGasPriceGwei = result.gasBreakdown?.estimatedBlobGasPrice || 0;
+                      const calldataGasGwei = result.gasBreakdown?.regularGasPrice || 0;
+                      
+                      return (
+                        <tr key={result.network} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700/50">
+                          <td className="p-2">
+                            <span className="font-medium text-white">{result.networkName}</span>
+                          </td>
+                          <td className="p-2 text-right font-mono text-blue-400">
+                             {(result.blobTransaction.regularGasUsed + result.blobTransaction.blobGasUsed).toLocaleString()}
+                           </td>
+                           <td className="p-2 text-right font-mono text-blue-400">
+                             {formatCurrency(result.blobTransaction.totalCostUSD)}
+                           </td>
+                           <td className="p-2 text-right font-mono text-red-400">
+                             {result.comparison.vsTraditionalCalldata.gasUsed.toLocaleString()}
+                           </td>
+                          <td className="p-2 text-right font-mono text-red-400">
+                            {formatCurrency(result.comparison.vsTraditionalCalldata.costUSD)}
+                          </td>
+                          <td className="p-2 text-right font-mono text-gray-300">
+                            {formatCurrency(result.blobTransaction.costPerL2Transaction)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : blobLoading ? (
+            <div className="h-32 flex items-center justify-center">
+              <div className="text-gray-400">Loading blob cost analysis...</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       
       <div className="bg-gray-800 p-4 rounded-lg">
         <h3 className="text-lg font-semibold text-white mb-4">Network Summary</h3>

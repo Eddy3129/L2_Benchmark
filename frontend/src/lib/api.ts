@@ -197,6 +197,28 @@ export interface ComparisonResult {
     return response.json();
   }
 
+  async compareBlobCosts(request: {
+    l2Networks: string[];
+    blobDataSize?: number;
+    confidenceLevel?: number;
+    saveToDatabase?: boolean;
+  }) {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/blob-cost-comparison`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Blob cost analysis failed');
+    }
+
+    return response.json();
+  }
+
   async getComparisonReportById(id: number): Promise<ComparisonReport> {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`);
     
