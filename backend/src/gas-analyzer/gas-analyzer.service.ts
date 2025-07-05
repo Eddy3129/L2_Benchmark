@@ -328,7 +328,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     // Get real-time blob gas price from Blocknative API
     let estimatedBlobGasPrice: number;
     try {
-      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(70); // Use 70% confidence for blob pricing
+      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(99); // Use 70% confidence for blob pricing
       if (blocknativeBlobBaseFee !== null) {
         estimatedBlobGasPrice = blocknativeBlobBaseFee;
         this.logger.log(`Using real-time blob base fee: ${estimatedBlobGasPrice} gwei`);

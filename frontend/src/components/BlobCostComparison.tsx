@@ -218,15 +218,20 @@ const BlobCostComparison: React.FC = () => {
         }
       },
       y: {
-        beginAtZero: true,
+        type: 'logarithmic',
         ticks: {
-          color: '#e5e7eb', // gray-200
-          callback: function(value: any) {
-            return formatCurrency(value);
+          color: '#e5e7eb',
+          callback: (val) => {
+            if (typeof val === 'number') {
+              if (val < 0.01) return `$${val.toPrecision(1)}`;
+              if (val >= 1000) return `$${val/1000}k`;
+              return `$${val.toFixed(2)}`;
+            }
+            return val;
           }
         },
         grid: {
-          color: '#4b5563' // gray-600
+          color: '#4b5563'
         }
       }
     }

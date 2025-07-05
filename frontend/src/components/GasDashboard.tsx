@@ -384,7 +384,40 @@ export function GasDashboard() {
           {blobData && blobData.results.length > 0 ? (
             <>
               <div className="h-72 mb-4">
-                <Bar data={blobCostComparisonData!} options={gweiChartOptions} />
+                <Bar data={blobCostComparisonData!} options={{
+                  ...gweiChartOptions,
+                  scales: {
+                    ...gweiChartOptions.scales,
+                    y: {
+                       type: 'logarithmic',
+                       ticks: {
+                         color: '#718096',
+                         callback: (val) => {
+                           if (typeof val === 'number') {
+                             if (val < 0.01) return `$${val.toPrecision(1)}`;
+                             if (val >= 1000) return `$${val/1000}k`;
+                             return `$${val.toFixed(2)}`;
+                           }
+                           return val;
+                         }
+                       },
+                       grid: { color: 'rgba(74, 85, 104, 0.2)' }
+                     }
+                  },
+                  plugins: {
+                    ...gweiChartOptions.plugins,
+                    tooltip: {
+                      ...gweiChartOptions.plugins?.tooltip,
+                      callbacks: {
+                        label: function(context: any) {
+                          const label = context.dataset.label || '';
+                          const value = context.parsed.y;
+                          return `${label}: ${formatCurrency(value)}`;
+                        }
+                      }
+                    }
+                  }
+                }} />
               </div>
               
               <div className="overflow-x-auto">
