@@ -33,7 +33,7 @@ interface AnalysisResult {
 
 // Import shared types and utilities
 import { NetworkResult, GasEstimate } from '@/types/shared';
-import { NETWORK_CONFIGS, getNetworkColor } from '@/utils/networkConfig';
+import { NETWORK_CONFIGS, getNetworkColor, CHART_COLORS } from '@/utils/networkConfig';
 import { formatCurrency, formatGasUsed } from '@/utils/gasUtils';
 import { createMultiDatasetChart, getLineChartOptions, getBarChartOptions } from '@/utils/chartConfig';
 

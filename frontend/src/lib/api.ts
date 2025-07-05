@@ -33,6 +33,27 @@ export interface BenchmarkSession {
     createdAt?: string;
   }
 
+export interface ComparisonReport {
+  id: number;
+  contractName: string;
+  networks: {
+    name: string;
+    deploymentGas: string;
+    deploymentFee: string;
+    functions: {
+      signature: string;
+      gasUsed: string;
+      estimatedFee: string;
+    }[];
+  }[];
+  solidityCode: string;
+  compilationArtifacts: any;
+  totalGasDifference: string;
+  savingsPercentage: number;
+  createdAt: string;
+  timestamp: string;
+}
+
 export interface ComparisonResult {
   contractName: string;
   timestamp: string;
@@ -93,6 +114,7 @@ export interface ComparisonResult {
     networks: string[];
     contractName: string;
     saveToDatabase?: boolean;
+    confidenceLevel?: number;
   }) {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/analyze`, {
       method: 'POST',
@@ -109,23 +131,19 @@ export interface ComparisonResult {
     return response.json();
   }
 
-  async compareLocalVsL2(
-    code: string, 
-    contractName: string, 
-    l2Networks: string[], 
-    saveToDatabase: boolean = false
-  ): Promise<ComparisonResult> {
+  async compareLocalVsL2(request: {
+    code: string;
+    contractName: string;
+    l2Networks: string[];
+    saveToDatabase: boolean;
+    confidenceLevel?: number;
+  }): Promise<ComparisonResult> {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        code, 
-        contractName, 
-        l2Networks, 
-        saveToDatabase 
-      }),
+      body: JSON.stringify(request),
     });
 
     if (!response.ok) {
@@ -165,6 +183,53 @@ export interface ComparisonResult {
     }
 
     return response.json();
+  }
+
+  // Comparison Reports methods
+  async getComparisonReports(limit?: number): Promise<ComparisonReport[]> {
+    const url = limit ? `${this.baseUrl}/gas-analyzer/comparison-reports?limit=${limit}` : `${this.baseUrl}/gas-analyzer/comparison-reports`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch comparison reports: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getComparisonReportById(id: number): Promise<ComparisonReport> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch comparison report: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getComparisonReportsStats(): Promise<{
+    totalReports: number;
+    avgGasDifference: string;
+    avgSavingsPercentage: number;
+    latestReport?: ComparisonReport;
+  }> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/stats`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch comparison reports stats: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteComparisonReport(id: number): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete comparison report: ${response.statusText}`);
+    }
   }
   }
   

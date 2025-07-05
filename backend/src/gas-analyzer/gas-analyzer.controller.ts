@@ -1,11 +1,15 @@
-import { Controller, Post, Get, Body, Query, Param, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Param, HttpException, HttpStatus, Delete } from '@nestjs/common';
 import { GasAnalyzerService } from './gas-analyzer.service';
+import { ComparisonReportService } from './comparison-report.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { AnalyzeContractRequest, CompareNetworksRequest } from '../shared/types';
 
 @Controller('api/gas-analyzer')
 export class GasAnalyzerController {
-  constructor(private readonly gasAnalyzerService: GasAnalyzerService) {}
+  constructor(
+    private readonly gasAnalyzerService: GasAnalyzerService,
+    private readonly comparisonReportService: ComparisonReportService
+  ) {}
 
   @Post('analyze')
   async analyzeContract(@Body() body: AnalyzeContractRequest) {
@@ -91,6 +95,9 @@ export class GasAnalyzerController {
       if (saveToDatabase) {
         await this.gasAnalyzerService.saveAnalysisResults(baselineResult, code);
         await this.gasAnalyzerService.saveAnalysisResults(l2Result, code);
+        
+        // Save comparison report
+        await this.saveComparisonReport(comparisonReport, code);
       }
       
       return comparisonReport;
@@ -189,5 +196,101 @@ export class GasAnalyzerController {
     };
   }
   
+  // Comparison Reports endpoints
+  @Get('comparison-reports')
+  async getComparisonReports(@Query('limit') limit?: string) {
+    try {
+      const limitNum = limit ? ValidationUtils.validatePaginationParams(limit).limit : undefined;
+      return await this.comparisonReportService.getAllReports(limitNum);
+    } catch (error) {
+      throw ValidationUtils.createInternalServerError('Failed to retrieve comparison reports');
+    }
+  }
+
+  @Get('comparison-reports/:id')
+  async getComparisonReportById(@Param('id') id: string) {
+    try {
+      const report = await this.comparisonReportService.getReportById(id);
+      if (!report) {
+        throw ValidationUtils.createNotFoundError('Comparison report', id);
+      }
+      return report;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw ValidationUtils.createInternalServerError('Failed to retrieve comparison report');
+    }
+  }
+
+  @Get('comparison-reports/stats')
+  async getComparisonReportStats() {
+    try {
+      return await this.comparisonReportService.getReportStats();
+    } catch (error) {
+      throw ValidationUtils.createInternalServerError('Failed to retrieve comparison report statistics');
+    }
+  }
+
+  @Delete('comparison-reports/:id')
+  async deleteComparisonReport(@Param('id') id: string) {
+    try {
+      await this.comparisonReportService.deleteReport(id);
+      return { message: 'Comparison report deleted successfully' };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw ValidationUtils.createInternalServerError('Failed to delete comparison report');
+    }
+  }
+
+  private async saveComparisonReport(comparisonReport: any, solidityCode: string) {
+    // Transform comparison report data to match entity structure
+    const networks = [
+      {
+        network: 'mainnet', // baseline (sepolia represents mainnet costs)
+        deploymentGas: parseInt(comparisonReport.local.deployment.gasUsed),
+        gasPrice: comparisonReport.local.gasPrice,
+        deploymentCost: comparisonReport.local.deployment.costETH,
+        functions: comparisonReport.local.functions.map(func => ({
+          functionName: func.functionName,
+          gasUsed: parseInt(func.gasUsed)
+        }))
+      },
+      ...comparisonReport.comparisons.map(comp => ({
+        network: comp.network,
+        deploymentGas: parseInt(comp.deployment.l2.gasUsed),
+        gasPrice: comp.gasPrice,
+        deploymentCost: comp.deployment.l2.costETH,
+        functions: comp.functions.map(func => ({
+          functionName: func.functionName,
+          gasUsed: parseInt(func.l2.gasUsed)
+        }))
+      }))
+    ];
+
+    const mainnetNetwork = networks.find(n => n.network === 'mainnet');
+    const l2Network = networks.find(n => n.network !== 'mainnet');
+    const totalGasDifference = mainnetNetwork && l2Network 
+      ? mainnetNetwork.deploymentGas - l2Network.deploymentGas 
+      : 0;
+    const savingsPercentage = mainnetNetwork && l2Network && mainnetNetwork.deploymentGas > 0
+      ? ((totalGasDifference / mainnetNetwork.deploymentGas) * 100)
+      : 0;
+
+    const reportData = {
+      contractName: comparisonReport.contractName,
+      networks,
+      solidityCode,
+      compilationArtifacts: {},
+      totalGasDifference,
+      savingsPercentage,
+      timestamp: comparisonReport.timestamp
+    };
+
+    return await this.comparisonReportService.createReport(reportData);
+  }
+
   // Compilation error extraction moved to shared/validation-utils.ts
 }

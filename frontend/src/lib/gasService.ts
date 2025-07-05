@@ -106,6 +106,30 @@ class MultiChainGasService {
       icon: 'B',
       apiChainId: 8453,
       coingeckoId: 'ethereum'
+    },
+    {
+      id: 'polygon-zkevm',
+      name: 'Polygon zkEVM',
+      symbol: 'ETH',
+      chainId: 1101,
+      rpcUrl: 'https://zkevm-rpc.com',
+      blockExplorer: 'https://zkevm.polygonscan.com',
+      color: '#7B3FE4',
+      icon: 'Z',
+      apiChainId: 1101,
+      coingeckoId: 'ethereum'
+    },
+    {
+      id: 'zksync-era',
+      name: 'zkSync Era',
+      symbol: 'ETH',
+      chainId: 324,
+      rpcUrl: 'https://mainnet.era.zksync.io',
+      blockExplorer: 'https://explorer.zksync.io',
+      color: '#4E529A',
+      icon: 'Z',
+      apiChainId: 324,
+      coingeckoId: 'ethereum'
     }
   ];
 
@@ -205,7 +229,7 @@ class MultiChainGasService {
     }
 
     const latestBlock = distribution.blockPrices[0];
-    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 95 }; // Using original confidence levels
+    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 99 }; // Using 99% confidence for fast transactions
     const targetConfidence = confidenceMap[urgency];
     
     const targetPrice = latestBlock.estimatedPrices.find(
@@ -229,7 +253,7 @@ class MultiChainGasService {
     }
 
     const latestBlock = distribution.blockPrices[0];
-    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 95 };
+    const confidenceMap = { 'slow': 70, 'standard': 80, 'fast': 99 };
     const targetConfidence = confidenceMap[urgency];
     
     const targetPrice = latestBlock.estimatedPrices.find(

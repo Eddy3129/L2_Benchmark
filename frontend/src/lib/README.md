@@ -87,6 +87,8 @@ The configuration includes support for multiple testnets:
 - **Optimism Sepolia** (Chain ID: 11155420)
 - **Base Sepolia** (Chain ID: 84532)
 - **Polygon Amoy** (Chain ID: 80002)
+- **Polygon zkEVM** (Chain ID: 1442)
+- **zkSync Era Sepolia** (Chain ID: 300)
 
 ## ABI Service Integration
 

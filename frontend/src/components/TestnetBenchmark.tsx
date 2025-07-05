@@ -7,6 +7,18 @@ import { apiService } from '@/lib/api';
 import { NETWORK_CONFIGS } from '@/utils/networkConfig';
 import { AbiService, ContractInfo } from '@/lib/abiService';
 
+// Extend Window interface for transaction resolvers
+declare global {
+  interface Window {
+    pendingTransactionResolvers?: {
+      [key: string]: {
+        resolve: () => void;
+        reject: (error: Error) => void;
+      };
+    };
+  }
+}
+
 // --- Types ---
 interface ContractConfig {
   address: Address;
@@ -58,7 +70,7 @@ export function TestnetBenchmark() {
   // --- Wagmi Hooks & Core State ---
   const { isConnected, address, chain } = useAccount();
   const { data: ethBalance } = useBalance({ address });
-  const { data: hash, isPending, writeContract, error } = useWriteContract();
+  const { data: hash, isPending, writeContract, writeContractAsync, error } = useWriteContract();
   
   // --- Handle client-side mounting ---
   useEffect(() => {
@@ -81,6 +93,16 @@ export function TestnetBenchmark() {
   const [isRunningBenchmark, setIsRunningBenchmark] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(-1);
   
+  // --- Enhanced Benchmarking Features ---
+  const [useSmartDefaults, setUseSmartDefaults] = useState(true);
+  const [benchmarkMode, setBenchmarkMode] = useState<'single' | 'batch' | 'stress'>('single');
+  const [batchCount, setBatchCount] = useState(5);
+  const [autoFillParams, setAutoFillParams] = useState(true);
+  const [preciseTimingMode, setPreciseTimingMode] = useState(true);
+  const [crossChainComparison, setCrossChainComparison] = useState(false);
+  const [selectedChainsForComparison, setSelectedChainsForComparison] = useState<number[]>([]);
+  const [parameterPresets, setParameterPresets] = useState<Record<string, Record<string, any[]>>>({});
+  
   // --- Transaction State ---
   const [transactionLog, setTransactionLog] = useState<TransactionLog[]>([]);
   const [sessionStats, setSessionStats] = useState<SessionStat[]>([]);
@@ -89,6 +111,59 @@ export function TestnetBenchmark() {
   // --- Transaction Receipt Handling ---
   const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt, isError: isTxError, error: txError } = useWaitForTransactionReceipt({ hash: latestTx?.hash });
   const isMining = isConfirming || isPending;
+
+  // --- Smart Parameter Generation ---
+  const generateSmartDefaults = (func: BenchmarkFunction, contractType?: string) => {
+    return func.inputs.map((input, index) => {
+      switch (input.type) {
+        case 'address':
+          if (input.name.toLowerCase().includes('to') || input.name.toLowerCase().includes('recipient')) {
+            return address || '0x0000000000000000000000000000000000000000';
+          }
+          if (input.name.toLowerCase().includes('from') || input.name.toLowerCase().includes('sender')) {
+            return address || '0x0000000000000000000000000000000000000000';
+          }
+          return '0x0000000000000000000000000000000000000000';
+        case 'uint256':
+        case 'uint':
+          if (input.name.toLowerCase().includes('amount') || input.name.toLowerCase().includes('value')) {
+            return '1000000000000000000'; // 1 ETH in wei
+          }
+          if (input.name.toLowerCase().includes('id') || input.name.toLowerCase().includes('tokenid')) {
+            return '1';
+          }
+          return '1';
+        case 'string':
+          if (input.name.toLowerCase().includes('uri') || input.name.toLowerCase().includes('url')) {
+            return 'https://example.com/metadata/1';
+          }
+          if (input.name.toLowerCase().includes('name')) {
+            return 'Test Token';
+          }
+          return 'test';
+        case 'bytes':
+        case 'bytes32':
+          return '0x0000000000000000000000000000000000000000000000000000000000000001';
+        case 'bool':
+          return true;
+        default:
+          if (input.type.includes('uint')) return '1';
+          if (input.type.includes('int')) return '1';
+          if (input.type.includes('bytes')) return '0x01';
+          return '';
+      }
+    });
+  };
+
+  // --- Precise Timing Measurement ---
+  const [transactionTimings, setTransactionTimings] = useState<Record<string, {
+    walletConfirmTime?: number;
+    submissionTime?: number;
+    miningTime?: number;
+    totalTime?: number;
+    gasUsed?: bigint;
+    gasPrice?: bigint;
+  }>>({});
 
   // --- ABI Fetching Logic ---
   const fetchContractAbi = async (address: string, chainId: number) => {
@@ -118,12 +193,25 @@ export function TestnetBenchmark() {
       setAvailableFunctions(contractInfo.writableFunctions);
       setContractName(contractInfo.name);
       
-      // Initialize default arguments for all functions
+      // Initialize default arguments for all functions using function signatures
       const defaultArgs: Record<string, any[]> = {};
       contractInfo.writableFunctions.forEach(func => {
-        defaultArgs[func.name] = AbiService.generateDefaultArgs(func.inputs);
+        const functionSignature = `${func.name}(${func.inputs.map(input => input.type).join(', ')})`;
+        if (useSmartDefaults && autoFillParams) {
+          defaultArgs[functionSignature] = generateSmartDefaults(func, contractInfo.name);
+        } else {
+          defaultArgs[functionSignature] = AbiService.generateDefaultArgs(func.inputs);
+        }
       });
       setFunctionArgs(defaultArgs);
+      
+      // Save as preset for this contract
+      if (useSmartDefaults) {
+        setParameterPresets(prev => ({
+          ...prev,
+          [contractAddress]: defaultArgs
+        }));
+      }
       
       console.log('ABI loaded successfully:', {
         name: contractInfo.name,
@@ -143,69 +231,96 @@ export function TestnetBenchmark() {
   };
 
   // --- Transaction Execution Logic ---
-  const handleTransaction = useCallback((action: string, functionName: string, args: any[]) => {
-    if (!address || !contractAbi || !contractAddress) {
-      alert('Please connect wallet and configure contract first.');
-      return;
-    }
-    
-    if (chain?.id !== selectedChainId) {
-      alert(`Please switch to the correct network (Chain ID: ${selectedChainId})`);
-      return;
-    }
-    
-    setLatestTx(null);
-    
-    const logId = `${action}-${Date.now()}`;
-    setLatestTx({ action, startTime: Date.now() });
-    setTransactionLog(prev => [{ 
-      id: logId, 
-      timestamp: new Date().toISOString(), 
-      action, 
-      status: 'pending', 
-      message: `⏳ ${action}: Waiting for wallet confirmation...` 
-    }, ...prev]);
-    
-    const config = {
-      address: contractAddress as Address,
-      abi: contractAbi,
-      functionName,
-      args,
-      gas: 500000n,
-      maxFeePerGas: parseGwei('50'),
-      maxPriorityFeePerGas: parseGwei('2'),
-    };
-    
-    try {
-      writeContract(config);
-    } catch (e: any) {
-      const errorMessage = e.shortMessage || e.message;
-      setTransactionLog(prev => prev.map(log => 
-        log.id === logId ? { ...log, status: 'failed', message: `❌ ${action} failed: ${errorMessage}` } : log
-      ));
+  const handleTransaction = useCallback(async (action: string, functionName: string, args: any[]): Promise<void> => {
+    return new Promise(async (resolve, reject) => {
+      if (!address || !contractAbi || !contractAddress) {
+        const error = 'Please connect wallet and configure contract first.';
+        alert(error);
+        reject(new Error(error));
+        return;
+      }
+      
+      if (chain?.id !== selectedChainId) {
+        const error = `Please switch to the correct network (Chain ID: ${selectedChainId})`;
+        alert(error);
+        reject(new Error(error));
+        return;
+      }
+      
       setLatestTx(null);
-      setIsRunningBenchmark(false);
-    }
-  }, [writeContract, address, contractAbi, contractAddress, chain, selectedChainId]);
+      
+      const logId = `${action}-${Date.now()}`;
+      const startTime = Date.now();
+      setLatestTx({ action, startTime });
+      
+      // Initialize precise timing for this transaction
+      if (preciseTimingMode) {
+        setTransactionTimings(prev => ({
+          ...prev,
+          [logId]: { walletConfirmTime: startTime }
+        }));
+      }
+      
+      setTransactionLog(prev => [{ 
+        id: logId, 
+        timestamp: new Date().toISOString(), 
+        action, 
+        status: 'pending', 
+        message: `⏳ ${action}: Waiting for wallet confirmation...` 
+      }, ...prev]);
+      
+      const config = {
+        address: contractAddress as Address,
+        abi: contractAbi,
+        functionName,
+        args,
+        gas: 500000n,
+        maxFeePerGas: parseGwei('50'),
+        maxPriorityFeePerGas: parseGwei('2'),
+      };
+      
+      try {
+        // Use writeContractAsync which returns a proper promise
+        const txHash = await writeContractAsync(config);
+        
+        // Record wallet confirmation time when transaction is submitted
+        if (preciseTimingMode) {
+          const confirmTime = Date.now();
+          setTransactionTimings(prev => ({
+            ...prev,
+            [logId]: { 
+              ...prev[logId], 
+              submissionTime: confirmTime,
+              walletConfirmTime: confirmTime - startTime 
+            }
+          }));
+        }
+        
+        // Update transaction log with hash
+        setTransactionLog(prev => prev.map(log => 
+          log.id === logId ? { ...log, hash: txHash, message: `⏳ ${action}: Transaction submitted. Confirming...` } : log
+        ));
+        
+        // Set latest transaction for receipt tracking
+        setLatestTx(prev => ({ ...prev!, hash: txHash }));
+        
+        // Store resolve/reject for this transaction to be called when receipt is confirmed
+        window.pendingTransactionResolvers = window.pendingTransactionResolvers || {};
+        window.pendingTransactionResolvers[logId] = { resolve, reject };
+        
+      } catch (e: any) {
+        const errorMessage = e.shortMessage || e.message || 'Unknown transaction error';
+        setTransactionLog(prev => prev.map(log => 
+          log.id === logId ? { ...log, status: 'failed', message: `❌ ${action} failed: ${errorMessage}` } : log
+        ));
+        setLatestTx(null);
+        setIsRunningBenchmark(false);
+        reject(new Error(errorMessage));
+      }
+    });
+  }, [writeContractAsync, address, contractAbi, contractAddress, chain, selectedChainId, preciseTimingMode]);
 
   // --- Transaction Receipt Effects ---
-  useEffect(() => {
-    if (hash && latestTx) {
-      setLatestTx(prev => ({ ...prev!, hash }));
-      setTransactionLog(prev => prev.map(log => 
-        log.action === latestTx.action && log.status === 'pending' 
-          ? { ...log, hash, message: `⏳ ${latestTx.action}: Transaction submitted. Confirming...` } 
-          : log
-      ));
-      
-      if (isRunningBenchmark && currentStepIndex >= 0) {
-        setBenchmarkSteps(prev => prev.map((step, idx) => 
-          idx === currentStepIndex ? { ...step, status: 'running' } : step
-        ));
-      }
-    }
-  }, [hash, latestTx, isRunningBenchmark, currentStepIndex]);
-
   useEffect(() => {
     if (!latestTx) return;
 
@@ -213,16 +328,26 @@ export function TestnetBenchmark() {
       const confirmationTime = Date.now() - latestTx.startTime;
       const fee = receipt.gasUsed * receipt.effectiveGasPrice;
       
-      setTransactionLog(prev => prev.map(log => 
-        log.hash === latestTx.hash ? { 
-          ...log, 
-          status: 'confirmed', 
-          message: `✅ ${latestTx.action} confirmed in ${confirmationTime}ms. Fee: ${formatEther(fee)} ETH`,
-          gasUsed: receipt.gasUsed,
-          fee,
-          confirmationTime
-        } : log
-      ));
+      setTransactionLog(prev => prev.map(log => {
+        if (log.hash === latestTx.hash) {
+          // Resolve the promise for this transaction
+          const logId = log.id;
+          if (window.pendingTransactionResolvers && window.pendingTransactionResolvers[logId]) {
+            window.pendingTransactionResolvers[logId].resolve();
+            delete window.pendingTransactionResolvers[logId];
+          }
+          
+          return {
+            ...log, 
+            status: 'confirmed', 
+            message: `✅ ${latestTx.action} confirmed in ${confirmationTime}ms. Fee: ${formatEther(fee)} ETH`,
+            gasUsed: receipt.gasUsed,
+            fee,
+            confirmationTime
+          };
+        }
+        return log;
+      }));
       
       setSessionStats(prev => [...prev, { 
         action: latestTx.action, 
@@ -240,17 +365,27 @@ export function TestnetBenchmark() {
       setLatestTx(null);
     } else if (isTxError && txError) {
       const errorMessage = txError.message || 'Transaction failed';
-      setTransactionLog(prev => prev.map(log => 
-        log.hash === latestTx.hash ? { 
-          ...log, 
-          status: 'failed', 
-          message: `❌ ${latestTx.action} failed: ${errorMessage}` 
-        } : log
-      ));
+      setTransactionLog(prev => prev.map(log => {
+        if (log.hash === latestTx.hash) {
+          // Reject the promise for this transaction
+          const logId = log.id;
+          if (window.pendingTransactionResolvers && window.pendingTransactionResolvers[logId]) {
+            window.pendingTransactionResolvers[logId].reject(new Error(errorMessage));
+            delete window.pendingTransactionResolvers[logId];
+          }
+          
+          return {
+            ...log, 
+            status: 'failed', 
+            message: `❌ ${latestTx.action} failed: ${errorMessage}` 
+          };
+        }
+        return log;
+      }));
       setLatestTx(null);
       setIsRunningBenchmark(false);
     }
-  }, [isConfirmed, isTxError, receipt, txError, latestTx, isRunningBenchmark, currentStepIndex]);
+  }, [isConfirmed, isTxError, receipt, txError, latestTx?.hash, latestTx?.action, latestTx?.startTime, isRunningBenchmark, currentStepIndex]);
 
   // --- Benchmark Configuration ---
   const generateBenchmarkSteps = () => {
@@ -288,10 +423,25 @@ export function TestnetBenchmark() {
     setSessionStats([]);
     setCurrentStepIndex(0);
     
+    try {
+      if (benchmarkMode === 'batch' || benchmarkMode === 'stress') {
+        await runBatchBenchmark();
+      } else {
+        await runSingleBenchmark();
+      }
+    } catch (error) {
+      console.error('Benchmark failed:', error);
+      alert(`Benchmark failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsRunningBenchmark(false);
+      setCurrentStepIndex(-1);
+    }
+  };
+  
+  const runSingleBenchmark = async () => {
     for (let i = 0; i < selectedFunctions.length; i++) {
       setCurrentStepIndex(i);
       const functionSignature = selectedFunctions[i];
-      // Extract function name from signature
       const functionName = functionSignature.split('(')[0];
       const func = availableFunctions.find(f => {
         const signature = `${f.name}(${f.inputs.map(input => input.type).join(', ')})`;
@@ -300,49 +450,109 @@ export function TestnetBenchmark() {
       
       if (!func) continue;
       
-      // Use user-provided arguments or generate defaults
       const userArgs = functionArgs[functionSignature];
       const args = userArgs && userArgs.length > 0 
-        ? userArgs.map((arg: string, index: number) => {
+        ? userArgs.map((arg: any, index: number) => {
             const inputType = func.inputs[index]?.type;
             if (!inputType) return arg;
             
-            // Convert string inputs to appropriate types
+            // Ensure arg is a string for processing
+            const argStr = String(arg || '');
+            
             if (inputType.includes('uint') || inputType.includes('int')) {
-              return arg === '' ? '0' : arg;
+              return argStr === '' ? '0' : argStr;
             } else if (inputType === 'bool') {
-              return arg.toLowerCase() === 'true';
+              return argStr.toLowerCase() === 'true';
             } else if (inputType === 'address') {
-              return arg || '0x0000000000000000000000000000000000000000';
+              return argStr || '0x0000000000000000000000000000000000000000';
             }
-            return arg;
+            return argStr;
           })
         : AbiService.generateDefaultArgs(func.inputs);
       
       try {
-        handleTransaction(functionSignature, functionName, args);
+        await handleTransaction(functionSignature, functionName, args);
         
-        // Wait for transaction to complete
-        await new Promise(resolve => {
-          const interval = setInterval(() => {
-            if (!isMining) { 
-              clearInterval(interval); 
-              resolve(true); 
-            }
-          }, 500);
-        });
-        
-        // Small delay between steps
-        await new Promise(r => setTimeout(r, 2000));
+        // Small delay between transactions
+        await new Promise(r => setTimeout(r, 1000));
       } catch (e) {
         console.error(`Error during step ${functionSignature}:`, e);
-        setIsRunningBenchmark(false);
-        return;
+        throw e;
+      }
+    }
+  };
+  
+  const runBatchBenchmark = async () => {
+    const iterations = benchmarkMode === 'stress' ? Math.min(batchCount, 50) : batchCount;
+    const batchStartTime = Date.now();
+    const results: any[] = [];
+    
+    for (let batch = 0; batch < iterations; batch++) {
+      setCurrentStepIndex(batch);
+      
+      for (let i = 0; i < selectedFunctions.length; i++) {
+        const functionSignature = selectedFunctions[i];
+        const functionName = functionSignature.split('(')[0];
+        const func = availableFunctions.find(f => {
+          const signature = `${f.name}(${f.inputs.map(input => input.type).join(', ')})`;
+          return signature === functionSignature;
+        });
+        
+        if (!func) continue;
+        
+        const userArgs = functionArgs[functionSignature];
+        const args = userArgs && userArgs.length > 0 
+          ? userArgs.map((arg: any, index: number) => {
+              const inputType = func.inputs[index]?.type;
+              if (!inputType) return arg;
+              
+              // Ensure arg is a string for processing
+              const argStr = String(arg || '');
+              
+              if (inputType.includes('uint') || inputType.includes('int')) {
+                return argStr === '' ? '0' : argStr;
+              } else if (inputType === 'bool') {
+                return argStr.toLowerCase() === 'true';
+              } else if (inputType === 'address') {
+                return argStr || '0x0000000000000000000000000000000000000000';
+              }
+              return argStr;
+            })
+          : AbiService.generateDefaultArgs(func.inputs);
+        
+        try {
+          const txStartTime = Date.now();
+          await handleTransaction(functionSignature, functionName, args);
+          
+          const txEndTime = Date.now();
+          results.push({
+            batch: batch + 1,
+            function: functionSignature,
+            executionTime: txEndTime - txStartTime,
+            timestamp: txEndTime
+          });
+          
+        } catch (error) {
+          console.error(`Batch ${batch + 1}, function ${functionSignature} failed:`, error);
+        }
+      }
+      
+      // Shorter delay for stress testing
+      if (batch < iterations - 1) {
+        const delay = benchmarkMode === 'stress' ? 200 : 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     
-    setIsRunningBenchmark(false);
-    setCurrentStepIndex(-1);
+    const totalTime = Date.now() - batchStartTime;
+    const avgTime = results.length > 0 ? results.reduce((sum, r) => sum + r.executionTime, 0) / results.length : 0;
+    
+    console.log(`${benchmarkMode.charAt(0).toUpperCase() + benchmarkMode.slice(1)} test completed:`, {
+      successful: results.length,
+      total: iterations * selectedFunctions.length,
+      avgTime: avgTime.toFixed(0) + 'ms',
+      totalTime: (totalTime/1000).toFixed(1) + 's'
+    });
   };
 
   // --- Save Results ---
@@ -521,6 +731,106 @@ export function TestnetBenchmark() {
               )}
             </CompactCard>
 
+            {/* Enhanced Benchmark Configuration */}
+            {availableFunctions.length > 0 && (
+              <CompactCard title="Benchmark Configuration">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="space-y-3">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={useSmartDefaults}
+                        onChange={(e) => setUseSmartDefaults(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">Smart Parameter Defaults</span>
+                    </label>
+                    
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={autoFillParams}
+                        onChange={(e) => setAutoFillParams(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">Auto-fill Parameters</span>
+                    </label>
+                    
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={preciseTimingMode}
+                        onChange={(e) => setPreciseTimingMode(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">Precise Timing (excludes user interaction)</span>
+                    </label>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Benchmark Mode</label>
+                    <select
+                      value={benchmarkMode}
+                      onChange={(e) => setBenchmarkMode(e.target.value as 'single' | 'batch' | 'stress')}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="single">Single Execution</option>
+                      <option value="batch">Batch Testing</option>
+                      <option value="stress">Stress Testing</option>
+                    </select>
+                    
+                    {benchmarkMode !== 'single' && (
+                      <div className="mt-2">
+                        <label className="block text-xs text-gray-400 mb-1">Iterations</label>
+                        <input
+                          type="number"
+                          min="2"
+                          max="50"
+                          value={batchCount}
+                          onChange={(e) => setBatchCount(Number(e.target.value))}
+                          className="w-full px-2 py-1 text-sm bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={crossChainComparison}
+                        onChange={(e) => setCrossChainComparison(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">Cross-Chain Comparison</span>
+                    </label>
+                    
+                    {crossChainComparison && (
+                      <div className="space-y-1">
+                        {Object.values(NETWORK_CONFIGS).map((network) => (
+                          <label key={network.chainId} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedChainsForComparison.includes(network.chainId)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedChainsForComparison(prev => [...prev, network.chainId]);
+                                } else {
+                                  setSelectedChainsForComparison(prev => prev.filter(id => id !== network.chainId));
+                                }
+                              }}
+                              className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-400">{network.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CompactCard>
+            )}
+
             {/* Function Selection */}
             {availableFunctions.length > 0 && (
               <CompactCard title="Function Selection & Arguments">
@@ -555,7 +865,51 @@ export function TestnetBenchmark() {
                       {/* Function Arguments */}
                       {selectedFunctions.includes(functionSignature) && func.inputs.length > 0 && (
                         <div className="ml-7 space-y-2">
-                          <div className="text-xs text-gray-400 mb-2">Function Arguments:</div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-xs text-gray-400">Function Arguments:</div>
+                            <div className="flex space-x-1">
+                              <button
+                                onClick={() => {
+                                  const smartArgs = generateSmartDefaults(func, contractName);
+                                  setFunctionArgs(prev => ({
+                                    ...prev,
+                                    [functionSignature]: smartArgs
+                                  }));
+                                }}
+                                className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                title="Generate smart defaults"
+                              >
+                                🧠 Smart
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const defaultArgs = AbiService.generateDefaultArgs(func.inputs);
+                                  setFunctionArgs(prev => ({
+                                    ...prev,
+                                    [functionSignature]: defaultArgs
+                                  }));
+                                }}
+                                className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
+                                title="Reset to basic defaults"
+                              >
+                                🔄 Reset
+                              </button>
+                              {parameterPresets[contractAddress]?.[functionSignature] && (
+                                <button
+                                  onClick={() => {
+                                    setFunctionArgs(prev => ({
+                                      ...prev,
+                                      [functionSignature]: parameterPresets[contractAddress][functionSignature]
+                                    }));
+                                  }}
+                                  className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                                  title="Load saved preset"
+                                >
+                                  📋 Preset
+                                </button>
+                              )}
+                            </div>
+                          </div>
                           {func.inputs.map((input: any, inputIndex: number) => (
                             <div key={inputIndex} className="flex items-center space-x-2">
                               <label className="text-xs text-gray-400 w-20 truncate" title={input.name}>
@@ -614,9 +968,95 @@ export function TestnetBenchmark() {
               </CompactCard>
             )}
 
-            {/* Transaction Log */}
+            {/* Enhanced Results Display */}
             {transactionLog.length > 0 && (
-              <CompactCard title="Transaction Log">
+              <CompactCard title="Benchmark Results">
+                {preciseTimingMode && Object.keys(transactionTimings).length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+                    <h4 className="text-sm font-semibold text-blue-300 mb-2">⚡ Precise Timing Analysis</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div className="text-center">
+                        <div className="text-gray-400">Avg Wallet Confirm</div>
+                        <div className="text-white font-mono">
+                          {Object.values(transactionTimings)
+                            .filter(t => t.walletConfirmTime)
+                            .reduce((sum, t, _, arr) => sum + (t.walletConfirmTime! / arr.length), 0)
+                            .toFixed(0)}ms
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Avg Mining Time</div>
+                        <div className="text-white font-mono">
+                          {Object.values(transactionTimings)
+                            .filter(t => t.miningTime)
+                            .reduce((sum, t, _, arr) => sum + (t.miningTime! / arr.length), 0)
+                            .toFixed(0)}ms
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Avg Gas Used</div>
+                        <div className="text-white font-mono">
+                          {sessionStats.length > 0 
+                            ? (sessionStats.reduce((sum, s) => sum + Number(s.gasUsed), 0) / sessionStats.length).toFixed(0)
+                            : '0'
+                          }
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400">Success Rate</div>
+                        <div className="text-green-400 font-mono">
+                          {transactionLog.length > 0 
+                            ? ((transactionLog.filter(log => log.status === 'confirmed').length / transactionLog.length) * 100).toFixed(1)
+                            : '0'
+                          }%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Cross-Chain Comparison */}
+                {crossChainComparison && sessionStats.length > 0 && (
+                  <div className="mb-4 p-3 bg-purple-900/30 border border-purple-700/50 rounded-lg">
+                    <h4 className="text-sm font-semibold text-purple-300 mb-2">🔗 Cross-Chain Performance</h4>
+                    <div className="text-xs text-gray-300 mb-2">
+                      Current Network: <span className="text-white font-semibold">{NETWORK_CONFIGS[selectedChainId]?.name}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                      <div className="bg-gray-800/50 p-2 rounded">
+                        <div className="text-gray-400">Avg Transaction Time</div>
+                        <div className="text-white font-mono">
+                          {sessionStats.length > 0
+                            ? (sessionStats.reduce((sum, s) => sum + s.executionTime, 0) / sessionStats.length).toFixed(0)
+                            : '0'
+                          }ms
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/50 p-2 rounded">
+                        <div className="text-gray-400">Avg Gas Price</div>
+                        <div className="text-white font-mono">
+                          {sessionStats.length > 0
+                            ? (sessionStats.reduce((sum, s) => sum + Number(s.gasPrice), 0) / sessionStats.length / 1e9).toFixed(2)
+                            : '0'
+                          } Gwei
+                        </div>
+                      </div>
+                      <div className="bg-gray-800/50 p-2 rounded">
+                        <div className="text-gray-400">Network Score</div>
+                        <div className="text-green-400 font-mono">
+                          {sessionStats.length > 0
+                            ? Math.max(0, 100 - (sessionStats.reduce((sum, s) => sum + s.executionTime, 0) / sessionStats.length / 10)).toFixed(0)
+                            : '0'
+                          }/100
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-400">
+                      💡 Switch networks to compare performance across different Layer 2 solutions
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {transactionLog.slice(0, 10).map((log) => (
                     <div key={log.id} className="p-2 bg-gray-700/50 rounded text-sm">
@@ -628,7 +1068,20 @@ export function TestnetBenchmark() {
                       </div>
                       {log.hash && (
                         <div className="text-xs text-blue-400 mt-1 font-mono">
-                          {log.hash}
+                          <a 
+                            href={`${NETWORK_CONFIGS[selectedChainId]?.blockExplorer}/tx/${log.hash}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            View on Explorer ↗
+                          </a>
+                        </div>
+                      )}
+                      {preciseTimingMode && log.id && transactionTimings[log.id] && (
+                        <div className="text-xs text-green-400 mt-1 font-mono">
+                          {transactionTimings[log.id].walletConfirmTime && `Wallet: ${transactionTimings[log.id].walletConfirmTime}ms`}
+                          {transactionTimings[log.id].miningTime && ` | Mining: ${transactionTimings[log.id].miningTime}ms`}
                         </div>
                       )}
                     </div>

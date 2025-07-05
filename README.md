@@ -23,6 +23,16 @@ A comprehensive blockchain application for testing and analyzing decentralized e
 - **Blockchain**: Hardhat, Solidity, OpenZeppelin
 - **Visualization**: Chart.js, React-ChartJS-2
 
+### Supported Networks
+- **Ethereum**: Sepolia Testnet
+- **Layer 2 Solutions**:
+  - Arbitrum Sepolia
+  - Optimism Sepolia
+  - Base Sepolia
+  - Polygon Amoy
+  - Polygon zkEVM
+  - zkSync Era Sepolia
+
 ## 🛠️ Setup Instructions
 
 ### Prerequisites

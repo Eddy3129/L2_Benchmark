@@ -34,6 +34,14 @@ const ANALYSIS_MODES = [
   { id: 'comparison', name: 'Local vs L2 Comparison', description: 'Compare local Hardhat deployment with L2 networks' },
 ];
 
+const CONFIDENCE_LEVELS = [
+  { value: 70, label: '70% - Fast', description: 'Quick confirmation, lower confidence' },
+  { value: 80, label: '80% - Standard', description: 'Balanced speed and confidence' },
+  { value: 90, label: '90% - Safe', description: 'Higher confidence, slower confirmation' },
+  { value: 95, label: '95% - Very Safe', description: 'Very high confidence' },
+  { value: 99, label: '99% - Maximum', description: 'Maximum confidence, slowest confirmation' },
+];
+
 const PROGRESS_STAGES = {
   idle: { message: 'Ready to analyze', progress: 0 },
   compiling: { message: 'Compiling Solidity contract...', progress: 25 },
@@ -47,7 +55,8 @@ export function GasEstimatorIDE() {
   const [code, setCode] = useState('');
   const [contractName, setContractName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>(CONTRACT_TEMPLATES[0].id);
-  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['arbitrumSepolia']);
+  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['ethereum', 'polygon', 'arbitrum']);
+  const [confidenceLevel, setConfidenceLevel] = useState<number>(99);
   const [saveToDatabase, setSaveToDatabase] = useState(true);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<'standard' | 'comparison'>('standard');
@@ -138,12 +147,13 @@ export function GasEstimatorIDE() {
       
       if (analysisMode === 'comparison') {
         // Local vs L2 Comparison Mode
-        const result = await apiService.compareLocalVsL2(
+        const result = await apiService.compareLocalVsL2({
           code,
           contractName,
-          selectedNetworks,
-          saveToDatabase
-        );
+          l2Networks: selectedNetworks,
+          saveToDatabase,
+          confidenceLevel
+        });
         
         updateProgress('deploying');
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -156,7 +166,8 @@ export function GasEstimatorIDE() {
           code,
           contractName,
           networks: selectedNetworks,
-          saveToDatabase
+          saveToDatabase,
+          confidenceLevel
         });
 
         updateProgress('deploying');
@@ -407,6 +418,44 @@ export function GasEstimatorIDE() {
                           <span className="text-sm font-medium text-gray-300">
                             {network.name}
                           </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Gas Price Confidence Level */}
+              <div className="bg-gray-800 rounded-lg border border-gray-700">
+                <div className="p-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white">Gas Price Confidence</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Select confidence level for gas price estimation
+                  </p>
+                </div>
+                
+                <div className="p-4">
+                  <div className="space-y-3">
+                    {CONFIDENCE_LEVELS.map((level) => (
+                      <label
+                        key={level.value}
+                        className="flex items-start space-x-3 cursor-pointer p-3 rounded-md hover:bg-gray-700 transition-colors border border-gray-600"
+                      >
+                        <input
+                          type="radio"
+                          name="confidenceLevel"
+                          value={level.value}
+                          checked={confidenceLevel === level.value}
+                          onChange={(e) => setConfidenceLevel(Number(e.target.value))}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 bg-gray-700 mt-0.5"
+                        />
+                        <div>
+                          <div className="text-sm font-medium text-gray-300">
+                            {level.label}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {level.description}
+                          </div>
                         </div>
                       </label>
                     ))}

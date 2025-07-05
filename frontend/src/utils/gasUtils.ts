@@ -1,15 +1,18 @@
 import { GasPriceBreakdown } from '@/types/shared';
 
 // Gas price calculation utilities
-export const formatGasPrice = (gasPrice: string | number, unit: string = 'gwei'): string => {
+export const formatGasPrice = (gasPrice: string | number | undefined | null, unit: string = 'gwei'): string => {
+  if (gasPrice === null || gasPrice === undefined) return '0';
   const price = typeof gasPrice === 'string' ? parseFloat(gasPrice) : gasPrice;
   if (isNaN(price)) return '0';
   
   return `${price.toFixed(2)} ${unit}`;
 };
 
-export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
-  if (isNaN(amount)) return '$0.00';
+export const formatCurrency = (amount: number | string | undefined | null, currency: string = 'USD'): string => {
+  if (amount === null || amount === undefined) return '$0.00';
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(numAmount)) return '$0.00';
   
   if (currency === 'USD') {
     return new Intl.NumberFormat('en-US', {
@@ -17,15 +20,17 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
       currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 6
-    }).format(amount);
+    }).format(numAmount);
   }
   
-  return `${amount.toFixed(6)} ${currency}`;
+  return `${numAmount.toFixed(6)} ${currency}`;
 };
 
-export const formatPercentage = (value: number): string => {
-  if (isNaN(value)) return '0%';
-  return `${value.toFixed(1)}%`;
+export const formatPercentage = (value: number | string | undefined | null): string => {
+  if (value === null || value === undefined) return '0%';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '0%';
+  return `${numValue.toFixed(1)}%`;
 };
 
 export const calculateSavingsPercentage = (originalCost: number, newCost: number): number => {

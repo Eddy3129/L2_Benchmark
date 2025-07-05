@@ -29,6 +29,72 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     color: '#7c3aed',
     symbol: 'POL',
     chainId: 80002
+  },
+  polygonZkEvm: {
+    id: 'polygonZkEvm',
+    name: 'Polygon zkEVM',
+    color: '#8b5cf6',
+    symbol: 'ETH',
+    chainId: 1442
+  },
+  zkSyncSepolia: {
+    id: 'zkSyncSepolia',
+    name: 'zkSync Era',
+    color: '#06b6d4',
+    symbol: 'ETH',
+    chainId: 300
+  },
+  
+  // Mainnet networks
+  ethereum: {
+    id: 'ethereum',
+    name: 'Ethereum',
+    color: '#627EEA',
+    symbol: 'ETH',
+    chainId: 1
+  },
+  polygon: {
+    id: 'polygon',
+    name: 'Polygon PoS',
+    color: '#8247E5',
+    symbol: 'POL',
+    chainId: 137
+  },
+  'polygon-zkevm': {
+    id: 'polygon-zkevm',
+    name: 'Polygon zkEVM',
+    color: '#7B3FE4',
+    symbol: 'ETH',
+    chainId: 1101
+  },
+  arbitrum: {
+    id: 'arbitrum',
+    name: 'Arbitrum One',
+    color: '#28A0F0',
+    symbol: 'ETH',
+    chainId: 42161
+  },
+  optimism: {
+    id: 'optimism',
+    name: 'Optimism',
+    color: '#FF0420',
+    symbol: 'ETH',
+    chainId: 10
+  },
+  base: {
+    id: 'base',
+    name: 'Base',
+    color: '#0052FF',
+    symbol: 'ETH',
+    chainId: 8453
+  },
+
+  'zksync-era': {
+    id: 'zksync-era',
+    name: 'zkSync Era',
+    color: '#4E529A',
+    symbol: 'ETH',
+    chainId: 324
   }
 };
 
@@ -38,7 +104,17 @@ export const getNetworkDisplayName = (networkId: string): string => {
     'arbitrumSepolia': 'Arbitrum One',
     'optimismSepolia': 'Optimism Mainnet',
     'baseSepolia': 'Base',
-    'polygonAmoy': 'Polygon'
+    'polygonAmoy': 'Polygon',
+    'polygonZkEvm': 'Polygon zkEVM',
+    'zkSyncSepolia': 'zkSync Era',
+    'ethereum': 'Ethereum',
+    'polygon': 'Polygon PoS',
+    'polygon-zkevm': 'Polygon zkEVM',
+    'arbitrum': 'Arbitrum One',
+    'optimism': 'Optimism',
+    'base': 'Base',
+
+    'zksync-era': 'zkSync Era'
   };
   return networkMap[networkId] || networkId.toUpperCase();
 };

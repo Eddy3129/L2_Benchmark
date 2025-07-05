@@ -43,7 +43,7 @@ const CG_OPTIONS = {
 };
 
 export function GasDashboard() {
-  const [selectedChains, setSelectedChains] = useState<string[]>(['ethereum', 'polygon', 'arbitrum', 'optimism', 'base']);
+  const [selectedChains, setSelectedChains] = useState<string[]>(['ethereum', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
   const [multiChainData, setMultiChainData] = useState<MultiChainGasData[]>([]);
   const [tokenPrices, setTokenPrices] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);

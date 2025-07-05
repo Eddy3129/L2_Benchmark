@@ -66,6 +66,46 @@ export class AbiService {
         v2ApiUrl: 'https://api.etherscan.io/v2/api',
       },
     },
+    137: {
+      id: 137,
+      name: 'Polygon PoS',
+      explorer: {
+        name: 'PolygonScan',
+        apiUrl: 'https://api.polygonscan.com/api',
+      },
+    },
+    1101: {
+      id: 1101,
+      name: 'Polygon zkEVM',
+      explorer: {
+        name: 'Polygon zkEVM Explorer',
+        apiUrl: 'https://api-zkevm.polygonscan.com/api',
+      },
+    },
+    10: {
+      id: 10,
+      name: 'Optimism',
+      explorer: {
+        name: 'Optimistic Etherscan',
+        apiUrl: 'https://api-optimistic.etherscan.io/api',
+      },
+    },
+    8453: {
+      id: 8453,
+      name: 'Base',
+      explorer: {
+        name: 'BaseScan',
+        apiUrl: 'https://api.basescan.org/api',
+      },
+    },
+    324: {
+      id: 324,
+      name: 'zkSync Era',
+      explorer: {
+        name: 'zkSync Era Explorer',
+        apiUrl: 'https://block-explorer-api.mainnet.zksync.io/api',
+      },
+    },
   };
 
   constructor(private configService: ConfigService) {}

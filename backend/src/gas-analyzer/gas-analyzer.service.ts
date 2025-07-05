@@ -40,7 +40,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
   }
 
-  async analyzeContract(code: string, networks: string[], contractName: string, confidenceLevel: number = 70): Promise<AnalysisResult> {
+  async analyzeContract(code: string, networks: string[], contractName: string, confidenceLevel: number = 99): Promise<AnalysisResult> {
     this.logger.log(`Starting analysis for contract: ${contractName}`);
     
     // Validate inputs
@@ -98,7 +98,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
   }
 
   // New method for actual local deployment and gas measurement
-  private async deployAndAnalyzeLocal(compilation: CompilationResult, networkConfig: NetworkConfig, confidenceLevel: number = 70): Promise<NetworkAnalysisResult> {
+  private async deployAndAnalyzeLocal(compilation: CompilationResult, networkConfig: NetworkConfig, confidenceLevel: number = 99): Promise<NetworkAnalysisResult> {
     this.logger.log('Performing actual deployment on local network');
     
     try {
@@ -387,7 +387,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
 
   // Function gas estimation methods moved to shared/gas-utils.ts
 
-  private async getOptimalGasPrice(networkConfig: NetworkConfig, confidenceLevel: number = 70): Promise<GasPriceData> {
+  private async getOptimalGasPrice(networkConfig: NetworkConfig, confidenceLevel: number = 99): Promise<GasPriceData> {
     // For local networks, use minimal gas prices for fair Layer 2 comparison
     if (networkConfig.chainId === 31337) {
       return {
@@ -465,7 +465,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     }
   }
 
-  private async getBlocknativeGasPrice(chainId: number, confidenceLevel: number = 70): Promise<GasPriceData | null> {
+  private async getBlocknativeGasPrice(chainId: number, confidenceLevel: number = 99): Promise<GasPriceData | null> {
     const apiKey = process.env.BLOCKNATIVE_API_KEY;
     if (!apiKey) {
       this.logger.warn('BLOCKNATIVE_API_KEY not configured');
@@ -595,7 +595,11 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
           10: { id: 'ethereum', name: 'ETH' },          // Optimism
           11155420: { id: 'ethereum', name: 'ETH' },    // Optimism Sepolia
           8453: { id: 'ethereum', name: 'ETH' },        // Base
-          84532: { id: 'ethereum', name: 'ETH' }        // Base Sepolia
+          84532: { id: 'ethereum', name: 'ETH' },       // Base Sepolia
+          1101: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Mainnet
+          1442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
+          324: { id: 'ethereum', name: 'ETH' },         // zkSync Era Mainnet
+          300: { id: 'ethereum', name: 'ETH' }          // zkSync Era Sepolia
       };
   
       const token = tokenMap[networkConfig.chainId] || { id: 'ethereum', name: 'ETH' };

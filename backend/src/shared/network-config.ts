@@ -47,6 +47,56 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     chainId: 80002,
     gasPriceChainId: 137 // Use Polygon Mainnet for gas prices
   },
+  polygonZkEvm: {
+    name: 'Polygon zkEVM',
+    rpcUrl: process.env.POLYGON_ZKEVM_RPC_URL || 'https://rpc.public.zkevm-test.net',
+    chainId: 1442,
+    gasPriceChainId: 1101 // Use Polygon zkEVM Mainnet for gas prices
+  },
+  zkSyncSepolia: {
+    name: 'zkSync Era',
+    rpcUrl: process.env.ZKSYNC_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',
+    chainId: 300,
+    gasPriceChainId: 324 // Use zkSync Era Mainnet for gas prices
+  },
+  
+  // Mainnet networks
+  ethereum: {
+    name: 'Ethereum Mainnet',
+    rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+    chainId: 1
+  },
+  polygon: {
+    name: 'Polygon PoS',
+    rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+    chainId: 137
+  },
+  'polygon-zkevm': {
+    name: 'Polygon zkEVM',
+    rpcUrl: process.env.POLYGON_ZKEVM_MAINNET_RPC_URL || 'https://zkevm-rpc.com',
+    chainId: 1101
+  },
+  arbitrum: {
+    name: 'Arbitrum One',
+    rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+    chainId: 42161
+  },
+  optimism: {
+    name: 'Optimism',
+    rpcUrl: process.env.OPTIMISM_RPC_URL || 'https://mainnet.optimism.io',
+    chainId: 10
+  },
+  base: {
+    name: 'Base',
+    rpcUrl: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
+    chainId: 8453
+  },
+
+  'zksync-era': {
+    name: 'zkSync Era',
+    rpcUrl: process.env.ZKSYNC_ERA_RPC_URL || 'https://mainnet.era.zksync.io',
+    chainId: 324
+  },
 };
 
 // Utility functions for network operations
