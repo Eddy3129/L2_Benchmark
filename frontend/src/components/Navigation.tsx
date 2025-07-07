@@ -31,13 +31,33 @@ export function Navigation() {
       description: 'Real-time testing suite',
       gradient: 'from-green-500 to-emerald-500'
     },
-
+    { 
+      href: '/sequencer-analysis', 
+      label: 'Sequencer Analysis', 
+      icon: '🔍', 
+      description: 'Censorship resistance testing',
+      gradient: 'from-indigo-500 to-purple-500'
+    },
+    { 
+      href: '/l1-finality', 
+      label: 'L1 Finality', 
+      icon: '⛓️', 
+      description: 'Settlement tracking',
+      gradient: 'from-teal-500 to-blue-500'
+    },
+    { 
+      href: '/contract-complexity', 
+      label: 'Contract Profiling', 
+      icon: '🧬', 
+      description: 'Gas complexity analysis',
+      gradient: 'from-amber-500 to-orange-500'
+    },
     { 
       href: '/analysis', 
       label: 'Reports', 
       icon: '📊', 
       description: 'Historical insights',
-      gradient: 'from-orange-500 to-red-500'
+      gradient: 'from-rose-500 to-red-500'
     },
   ];
 
