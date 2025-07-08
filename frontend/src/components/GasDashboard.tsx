@@ -75,7 +75,7 @@ interface BlobAnalysisResult {
 }
 
 export function GasDashboard() {
-  const [selectedChains, setSelectedChains] = useState<string[]>(['ethereum', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
+  const [selectedChains, setSelectedChains] = useState<string[]>(['mainnet', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
   const [multiChainData, setMultiChainData] = useState<MultiChainGasData[]>([]);
   const [tokenPrices, setTokenPrices] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
@@ -130,7 +130,7 @@ export function GasDashboard() {
       }
 
       const result = await apiService.compareBlobCosts({
-        networks: supportedNetworks,
+        l2Networks: supportedNetworks,
         blobDataSize: 131072, // Standard 128KB blob
         confidenceLevel: 90,
         saveToDatabase: false
@@ -292,7 +292,7 @@ export function GasDashboard() {
   };
 
   // Blob cost comparison data
-  const blobCostComparisonData = blobData ? {
+  const blobCostComparisonData = blobData && blobData.results && blobData.results.length > 0 ? {
     labels: blobData.results.flatMap(r => [`${r.networkName} - Blob`, `${r.networkName} - Calldata`]),
     datasets: [
       {
@@ -366,7 +366,7 @@ export function GasDashboard() {
       </div>
 
       {/* EIP-4844 Blob Cost Analysis */}
-      {(blobData && blobData.results.length > 0) || blobLoading ? (
+      {(blobData && blobData.results && blobData.results.length > 0) || blobLoading ? (
         <div className="bg-gray-800 p-4 rounded-lg mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -381,7 +381,7 @@ export function GasDashboard() {
             )}
           </div>
           
-          {blobData && blobData.results.length > 0 ? (
+          {blobData && blobData.results && blobData.results.length > 0 ? (
             <>
               <div className="h-72 mb-4">
                 <Bar data={blobCostComparisonData!} options={{

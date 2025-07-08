@@ -12,7 +12,7 @@ import { AdvancedAnalysisController } from './controllers/advanced-analysis.cont
 import { BlockchainMonitorService } from './blockchain-monitor.service';
 import { FinalityCalculatorService } from './finality-calculator.service';
 import { PriceOracleService } from './price-oracle.service';
-import { GasAnalysis } from './gas-analysis.entity';
+import { GasAnalysis } from '../modules/gas-analysis/entities/gas-analysis.entity';
 import { ComparisonReport } from './comparison-report.entity';
 import { SequencerPerformanceTest } from './sequencer-performance.entity';
 import { L1FinalityTracking } from './l1-finality.entity';

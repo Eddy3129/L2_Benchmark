@@ -4,7 +4,7 @@ import { ComparisonReportService } from './comparison-report.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { AnalyzeContractRequest, CompareNetworksRequest } from '../shared/types';
 
-@Controller('api/gas-analyzer')
+@Controller('gas-analyzer')
 export class GasAnalyzerController {
   constructor(
     private readonly gasAnalyzerService: GasAnalyzerService,
@@ -23,7 +23,8 @@ export class GasAnalyzerController {
       
       // Save to database if requested
       if (saveToDatabase) {
-        await this.gasAnalyzerService.saveAnalysisResults(result, code);
+        // Note: Database saving has been moved to the new gas-analysis module
+        console.log('Database saving requested but deprecated. Use the new gas-analysis module endpoints.');
       }
       
       return result;
@@ -40,7 +41,7 @@ export class GasAnalyzerController {
       
       // Handle other service errors
       if (error.message) {
-        throw ValidationUtils.createValidationError(error.message);
+        throw ValidationUtils.createValidationError([error.message]);
       }
       
       // Fallback for unknown errors
@@ -93,8 +94,8 @@ export class GasAnalyzerController {
       
       // Save to database if requested
       if (saveToDatabase) {
-        await this.gasAnalyzerService.saveAnalysisResults(baselineResult, code);
-        await this.gasAnalyzerService.saveAnalysisResults(l2Result, code);
+        // Note: Database saving has been moved to the new gas-analysis module
+        console.log('Database saving requested but deprecated. Use the new gas-analysis module endpoints.');
         
         // Save comparison report
         await this.saveComparisonReport(comparisonReport, code);
@@ -117,17 +118,17 @@ export class GasAnalyzerController {
 
   @Post('blob-cost-comparison')
   async compareBlobCosts(@Body() body: {
-    networks: string[];
+    l2Networks: string[];
     blobDataSize?: number;
     confidenceLevel?: number;
     saveToDatabase?: boolean;
   }) {
-    const { networks, blobDataSize = 131072, confidenceLevel = 70, saveToDatabase = false } = body;
+    const { l2Networks, blobDataSize = 131072, confidenceLevel = 70, saveToDatabase = false } = body;
     
     try {
       // Validate L2 networks support EIP-4844
       const supportedL2s = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
-      const validL2s = networks.filter(network => supportedL2s.includes(network));
+      const validL2s = l2Networks.filter(network => supportedL2s.includes(network));
       
       if (validL2s.length === 0) {
         throw ValidationUtils.createValidationError(['No valid EIP-4844 supporting L2 networks provided']);
@@ -140,7 +141,8 @@ export class GasAnalyzerController {
       );
       
       if (saveToDatabase) {
-        await this.gasAnalyzerService.saveBlobAnalysis(blobCostAnalysis);
+        // Note: Database saving has been moved to the new gas-analysis module
+        console.log('Blob analysis database saving requested but deprecated. Use the new gas-analysis module endpoints.');
       }
       
       return blobCostAnalysis;

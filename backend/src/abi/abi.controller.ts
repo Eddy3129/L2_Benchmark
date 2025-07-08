@@ -1,7 +1,7 @@
 import { Controller, Get, Query, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { AbiService, SupportedChain } from './abi.service';
 
-@Controller('api/abi')
+@Controller('abi')
 export class AbiController {
   private readonly logger = new Logger(AbiController.name);
 

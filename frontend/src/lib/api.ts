@@ -82,7 +82,8 @@ export interface ComparisonResult {
       });
   
       if (!response.ok) {
-        throw new Error(`Failed to create benchmark session: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to create benchmark session: ${response.statusText}`);
       }
   
       return response.json();
@@ -92,7 +93,8 @@ export interface ComparisonResult {
       const response = await fetch(`${this.baseUrl}/benchmark/sessions`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch benchmark sessions: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch benchmark sessions: ${response.statusText}`);
       }
   
       return response.json();
@@ -102,7 +104,8 @@ export interface ComparisonResult {
       const response = await fetch(`${this.baseUrl}/benchmark/sessions/${id}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch benchmark session: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch benchmark session: ${response.statusText}`);
       }
   
       return response.json();
@@ -125,7 +128,8 @@ export interface ComparisonResult {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to analyze contract: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to analyze contract: ${response.statusText}`);
     }
 
     return response.json();
@@ -159,7 +163,8 @@ export interface ComparisonResult {
     const response = await fetch(url);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis history: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis history: ${response.statusText}`);
     }
 
     return response.json();
@@ -169,7 +174,8 @@ export interface ComparisonResult {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/contract/${contractName}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis for contract: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis for contract: ${response.statusText}`);
     }
 
     return response.json();
@@ -179,7 +185,8 @@ export interface ComparisonResult {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/analysis/${id}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis: ${response.statusText}`);
     }
 
     return response.json();
@@ -191,7 +198,8 @@ export interface ComparisonResult {
     const response = await fetch(url);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch comparison reports: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison reports: ${response.statusText}`);
     }
 
     return response.json();
@@ -203,12 +211,20 @@ export interface ComparisonResult {
     confidenceLevel?: number;
     saveToDatabase?: boolean;
   }) {
+    // Send l2Networks directly to match backend expectation
+    const backendRequest = {
+      l2Networks: request.l2Networks,
+      blobDataSize: request.blobDataSize,
+      confidenceLevel: request.confidenceLevel,
+      saveToDatabase: request.saveToDatabase
+    };
+    
     const response = await fetch(`${this.baseUrl}/gas-analyzer/blob-cost-comparison`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(backendRequest),
     });
 
     if (!response.ok) {
@@ -223,7 +239,8 @@ export interface ComparisonResult {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch comparison report: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison report: ${response.statusText}`);
     }
 
     return response.json();
@@ -238,7 +255,8 @@ export interface ComparisonResult {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/stats`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch comparison reports stats: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison reports stats: ${response.statusText}`);
     }
 
     return response.json();
@@ -250,7 +268,8 @@ export interface ComparisonResult {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to delete comparison report: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to delete comparison report: ${response.statusText}`);
     }
   }
   }

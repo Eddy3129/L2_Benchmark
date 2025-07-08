@@ -48,7 +48,7 @@ class MultiChainGasService {
 
   public readonly supportedChains: ChainConfig[] = [
     {
-      id: 'ethereum',
+      id: 'mainnet',
       name: 'Ethereum',
       symbol: 'ETH',
       chainId: 1,
@@ -174,7 +174,7 @@ class MultiChainGasService {
     }
   }
 
-  async getGasPrices(chainId: string = 'ethereum'): Promise<GasPriceData> {
+  async getGasPrices(chainId: string = 'mainnet'): Promise<GasPriceData> {
     const chain = this.getChainConfig(chainId);
     if (!chain) {
       throw new Error(`Unsupported chain: ${chainId}`);
@@ -182,7 +182,7 @@ class MultiChainGasService {
     return this.fetchBlockPrices(chain);
   }
 
-  async getGasDistribution(chainId: string = 'ethereum'): Promise<GasDistribution> {
+  async getGasDistribution(chainId: string = 'mainnet'): Promise<GasDistribution> {
     const chain = this.getChainConfig(chainId);
     if (!chain) {
       throw new Error(`Unsupported chain: ${chainId}`);

@@ -46,8 +46,8 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
   },
   
   // Mainnet networks
-  ethereum: {
-    id: 'ethereum',
+  mainnet: {
+    id: 'mainnet',
     name: 'Ethereum',
     color: '#627EEA',
     symbol: 'ETH',
@@ -107,7 +107,7 @@ export const getNetworkDisplayName = (networkId: string): string => {
     'polygonAmoy': 'Polygon Amoy',
     'polygonZkEvm': 'Polygon zkEVM Testnet',
     'zkSyncSepolia': 'zkSync Era Sepolia',
-    'ethereum': 'Ethereum',
+    'mainnet': 'Ethereum',
     'polygon': 'Polygon',
     'polygon-zkevm': 'Polygon zkEVM',
     'arbitrum': 'Arbitrum',

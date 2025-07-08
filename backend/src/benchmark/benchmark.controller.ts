@@ -4,7 +4,7 @@ import { BenchmarkSession } from './benchmark.entity';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BenchmarkSessionData } from '../shared/types';
 
-@Controller('api/benchmark')
+@Controller('benchmark')
 export class BenchmarkController {
   constructor(private readonly benchmarkService: BenchmarkService) {}
 

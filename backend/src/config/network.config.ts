@@ -335,6 +335,21 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     finalityBlocks: 1
   },
   {
+    name: 'polygon-zkevm',
+    displayName: 'Polygon zkEVM',
+    rpcUrl: process.env.POLYGON_ZKEVM_MAINNET_RPC_URL || 'https://zkevm-rpc.com',
+    chainId: 1101,
+    gasPriceChainId: 1,
+    type: NetworkType.L2,
+    category: NetworkCategory.POLYGON,
+    nativeCurrency: 'ETH',
+    blockExplorerUrl: 'https://zkevm.polygonscan.com',
+    blockTime: 1,
+    gasLimit: 30000000,
+    parentChain: 'mainnet',
+    finalityBlocks: 1
+  },
+  {
     name: 'zkSyncSepolia',
     displayName: 'zkSync Era Sepolia',
     rpcUrl: process.env.ZKSYNC_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',

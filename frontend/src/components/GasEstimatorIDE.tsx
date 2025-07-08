@@ -57,7 +57,7 @@ export function GasEstimatorIDE() {
   const [code, setCode] = useState('');
   const [contractName, setContractName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>(CONTRACT_TEMPLATES[0].id);
-  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['ethereum', 'polygon', 'arbitrum']);
+  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['mainnet', 'polygon', 'arbitrum']);
   const [confidenceLevel, setConfidenceLevel] = useState<number>(99);
   const [saveToDatabase, setSaveToDatabase] = useState(true);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
