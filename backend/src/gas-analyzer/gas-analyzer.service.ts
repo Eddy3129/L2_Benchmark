@@ -174,24 +174,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     }
   }
 
-  // Add method to save gas analysis results
-  async saveGasAnalysis(analysisData: {
-    contractName: string;
-    functionSignature: string;
-    l2Network: string;
-    gasUsed: string;
-    estimatedL2Fee: string;
-    estimatedL1Fee: string;
-    totalEstimatedFeeUSD: number;
-    solidityCode: string;
-    compilationArtifacts: any;
-    functionParameters: any;
-  }): Promise<GasAnalysis> {
-    // This method is deprecated - the new entity structure requires
-    // proper compilation and network result entities
-    // For backward compatibility, we'll create a minimal structure
-    throw new Error('saveGasAnalysis method is deprecated. Use the new gas-analysis module for saving analysis results.');
-  }
+
 
   // Helper method to generate source code hash
   private generateSourceCodeHash(sourceCode: string): string {
@@ -199,13 +182,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     return crypto.createHash('sha256').update(sourceCode).digest('hex');
   }
 
-  // Add method to save multiple gas analyses from a complete analysis
-  async saveAnalysisResults(analysisResult: AnalysisResult, solidityCode: string): Promise<GasAnalysis[]> {
-    // This method is deprecated - use the new gas-analysis module
-    // which properly handles the entity relationships
-    this.logger.warn('saveAnalysisResults is deprecated. Use the new gas-analysis module for saving analysis results.');
-    return [];
-  }
+
 
   // Add method to get gas analysis history
   async getGasAnalysisHistory(limit: number = 50): Promise<GasAnalysis[]> {
@@ -393,14 +370,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     };
   }
 
-  // Save blob analysis results
-  async saveBlobAnalysis(blobAnalysis: any): Promise<void> {
-    // Save blob analysis results to database
-    // This method is deprecated - blob analysis should use the new gas-analysis module
-    this.logger.warn('saveBlobAnalysis is deprecated. Use the new gas-analysis module for saving blob analysis results.');
-    // For now, just log the analysis without saving to avoid constraint violations
-    this.logger.log(`Blob analysis completed for ${blobAnalysis.results?.length || 0} networks`);
-  }
+
 
   private async compileCode(code: string, contractName: string): Promise<CompilationResult> {
     const tempFileName = `${contractName}_${Date.now()}.sol`;

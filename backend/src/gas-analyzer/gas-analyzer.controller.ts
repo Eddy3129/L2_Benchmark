@@ -21,11 +21,8 @@ export class GasAnalyzerController {
     try {
       const result = await this.gasAnalyzerService.analyzeContract(code, networks, contractName, confidenceLevel);
       
-      // Save to database if requested
-      if (saveToDatabase) {
-        // Note: Database saving has been moved to the new gas-analysis module
-        console.log('Database saving requested but deprecated. Use the new gas-analysis module endpoints.');
-      }
+      // Note: Database saving has been moved to the new gas-analysis module
+      // Use the gas-analysis module endpoints for saving analysis results
       
       return result;
     } catch (error) {
@@ -95,7 +92,7 @@ export class GasAnalyzerController {
       // Save to database if requested
       if (saveToDatabase) {
         // Note: Database saving has been moved to the new gas-analysis module
-        console.log('Database saving requested but deprecated. Use the new gas-analysis module endpoints.');
+        // Use the gas-analysis module endpoints for saving analysis results
         
         // Save comparison report
         await this.saveComparisonReport(comparisonReport, code);
@@ -140,10 +137,8 @@ export class GasAnalyzerController {
         confidenceLevel
       );
       
-      if (saveToDatabase) {
-        // Note: Database saving has been moved to the new gas-analysis module
-        console.log('Blob analysis database saving requested but deprecated. Use the new gas-analysis module endpoints.');
-      }
+      // Note: Database saving has been moved to the new gas-analysis module
+      // Use the gas-analysis module endpoints for saving blob analysis results
       
       return blobCostAnalysis;
     } catch (error) {
