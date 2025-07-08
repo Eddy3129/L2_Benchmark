@@ -1,12 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-
-interface MessageEvent {
-  data: string;
-}
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { L1FinalityTracking } from './l1-finality.entity';
 import { ethers } from 'ethers';
+import { randomUUID } from 'crypto';
 import { NetworkConfigService } from '../shared/network-config';
 import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
@@ -16,6 +13,10 @@ import { FinalityCalculatorService } from './finality-calculator.service';
 import { PriceOracleService } from './price-oracle.service';
 import { EventEmitter } from 'events';
 import { Observable, Subject, map } from 'rxjs';
+
+interface MessageEvent {
+  data: string;
+}
 
 interface L1FinalityConfig {
   l2Network: string;
@@ -88,7 +89,7 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
       throw ValidationUtils.createValidationError([`Invalid L2 network: ${config.l2Network}`]);
     }
 
-    const sessionId = `l1-finality-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = randomUUID();
     
     try {
       // Connect to real blockchain networks

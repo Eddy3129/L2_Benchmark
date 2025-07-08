@@ -354,6 +354,29 @@ export class AdvancedAnalysisController {
     }
   }
 
+  @Get('l1-finality/history')
+  @ApiOperation({ summary: 'Get L1 finality tracking history' })
+  @ApiResponse({ status: 200, description: 'History retrieved successfully', type: [L1FinalityResultDto] })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of results to return', type: Number })
+  @ApiQuery({ name: 'offset', required: false, description: 'Number of results to skip', type: Number })
+  async getL1FinalityHistory(@Query() query: GetL1FinalityHistoryDto): Promise<L1FinalityResultDto[]> {
+    try {
+      const limit = query.limit || 50;
+      const offset = query.offset || 0;
+      
+      const results = await this.l1FinalityService.getL1FinalityHistory(limit);
+      return results.map(result => this.transformToL1FinalityResultDto(result));
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Failed to retrieve L1 finality history: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   // Contract Complexity Analysis Endpoints
   @Post('contract-complexity/analyze')
   @ApiOperation({ summary: 'Analyze contract complexity' })

@@ -14,88 +14,81 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     chainId: 31337 
   },
   
-  // Ethereum networks
-  sepolia: { 
-    name: 'Sepolia Testnet', 
-    rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org', 
+  // Testnets - Using your configured RPC URLs
+  sepolia: {
+    name: 'Sepolia',
+    rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
     chainId: 11155111,
-    gasPriceChainId: 1 // Use Ethereum Mainnet for gas prices
   },
-  
-  // Layer 2 networks
-  arbitrumSepolia: { 
-    name: 'Arbitrum One', 
-    rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc', 
+  'arbitrum-sepolia': {
+    name: 'Arbitrum Sepolia',
+    rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://arb-sepolia.g.alchemy.com/v2/demo',
     chainId: 421614,
-    gasPriceChainId: 42161 // Use Arbitrum One for gas prices
   },
-  optimismSepolia: { 
-    name: 'Optimism Mainnet', 
-    rpcUrl: process.env.OP_SEPOLIA_RPC_URL || 'https://sepolia.optimism.io/', 
+  'optimism-sepolia': {
+    name: 'Optimism Sepolia',
+    rpcUrl: process.env.OP_SEPOLIA_RPC_URL || 'https://opt-sepolia.g.alchemy.com/v2/demo',
     chainId: 11155420,
-    gasPriceChainId: 10 // Use Optimism Mainnet for gas prices
   },
-  baseSepolia: { 
-    name: 'Base', 
-    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org', 
+  'base-sepolia': {
+    name: 'Base Sepolia',
+    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/demo',
     chainId: 84532,
-    gasPriceChainId: 8453 // Use Base Mainnet for gas prices
   },
   polygonAmoy: { 
-    name: 'Polygon', 
-    rpcUrl: process.env.POLYGON_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology/', 
+    name: 'Polygon Amoy', 
+    rpcUrl: process.env.POLYGON_AMOY_RPC_URL || 'https://polygon-amoy.g.alchemy.com/v2/demo', 
     chainId: 80002,
     gasPriceChainId: 137 // Use Polygon Mainnet for gas prices
   },
   polygonZkEvm: {
-    name: 'Polygon zkEVM',
-    rpcUrl: process.env.POLYGON_ZKEVM_RPC_URL || 'https://rpc.public.zkevm-test.net',
+    name: 'Polygon zkEVM Testnet',
+    rpcUrl: process.env.POLYGON_ZKEVM_RPC_URL || 'https://polygonzkevm-testnet.g.alchemy.com/v2/demo',
     chainId: 1442,
     gasPriceChainId: 1101 // Use Polygon zkEVM Mainnet for gas prices
   },
   zkSyncSepolia: {
-    name: 'zkSync Era',
+    name: 'zkSync Sepolia',
     rpcUrl: process.env.ZKSYNC_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',
     chainId: 300,
     gasPriceChainId: 324 // Use zkSync Era Mainnet for gas prices
   },
   
-  // Mainnet networks
+  // Mainnets - Using your configured RPC URLs
   ethereum: {
-    name: 'Ethereum Mainnet',
-    rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
-    chainId: 1
-  },
-  polygon: {
-    name: 'Polygon PoS',
-    rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
-    chainId: 137
-  },
-  'polygon-zkevm': {
-    name: 'Polygon zkEVM',
-    rpcUrl: process.env.POLYGON_ZKEVM_MAINNET_RPC_URL || 'https://zkevm-rpc.com',
-    chainId: 1101
+    name: 'Ethereum',
+    rpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+    chainId: 1,
   },
   arbitrum: {
     name: 'Arbitrum One',
-    rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
-    chainId: 42161
-  },
-  optimism: {
-    name: 'Optimism',
-    rpcUrl: process.env.OPTIMISM_RPC_URL || 'https://mainnet.optimism.io',
-    chainId: 10
+    rpcUrl: process.env.ARBITRUM_MAINNET_RPC_URL || 'https://arb-mainnet.g.alchemy.com/v2/demo',
+    chainId: 42161,
   },
   base: {
     name: 'Base',
-    rpcUrl: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
-    chainId: 8453
+    rpcUrl: process.env.BASE_MAINNET_RPC_URL || 'https://base-mainnet.g.alchemy.com/v2/demo',
+    chainId: 8453,
   },
-
+  optimism: {
+    name: 'Optimism',
+    rpcUrl: process.env.OPTIMISM_RPC_URL || 'https://opt-mainnet.g.alchemy.com/v2/demo',
+    chainId: 10,
+  },
+  polygon: {
+    name: 'Polygon',
+    rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-mainnet.g.alchemy.com/v2/demo',
+    chainId: 137,
+  },
+  'polygon-zkevm': {
+    name: 'Polygon zkEVM',
+    rpcUrl: process.env.POLYGON_ZKEVM_MAINNET_RPC_URL || 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo',
+    chainId: 1101,
+  },
   'zksync-era': {
     name: 'zkSync Era',
-    rpcUrl: process.env.ZKSYNC_ERA_RPC_URL || 'https://mainnet.era.zksync.io',
-    chainId: 324
+    rpcUrl: process.env.ZKSYNC_ERA_RPC_URL || 'https://zksync-mainnet.g.alchemy.com/v2/demo',
+    chainId: 324,
   },
 };
 

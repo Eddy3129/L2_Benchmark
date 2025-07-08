@@ -31,31 +31,84 @@ export class BlockchainMonitorService extends EventEmitter {
   private activeMonitors: Map<string, NodeJS.Timeout> = new Map();
   
   private readonly networkConfigs: Record<string, NetworkConfig> = {
+    // Testnet configurations
     'arbitrum-sepolia': {
-      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_PROJECT_ID',
-      l2RpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://arb-sepolia.g.alchemy.com/v2/demo',
       batchPosterAddresses: ['0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a'], // Real Arbitrum Sepolia batch poster
       rollupType: 'optimistic',
       challengePeriodHours: 168 // 7 days
     },
     'optimism-sepolia': {
-      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_PROJECT_ID',
-      l2RpcUrl: process.env.OPTIMISM_SEPOLIA_RPC_URL || 'https://sepolia.optimism.io',
+      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.OP_SEPOLIA_RPC_URL || 'https://opt-sepolia.g.alchemy.com/v2/demo',
       batchPosterAddresses: ['0x6887246668a3b87F54DeB3b94Ba47a6f63F32985'], // Real Optimism Sepolia batch poster
       rollupType: 'optimistic',
       challengePeriodHours: 168 // 7 days
     },
     'base-sepolia': {
-      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_PROJECT_ID',
-      l2RpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/demo',
       batchPosterAddresses: ['0x99199a22125034c808ff20f377d856DE6329D675'], // Real Base Sepolia batch poster
       rollupType: 'optimistic',
       challengePeriodHours: 168 // 7 days
     },
     'polygon-zkevm-testnet': {
-      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_PROJECT_ID',
-      l2RpcUrl: process.env.POLYGON_ZKEVM_TESTNET_RPC_URL || 'https://rpc.public.zkevm-test.net',
+      l1RpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.POLYGON_ZKEVM_RPC_URL || 'https://polygonzkevm-testnet.g.alchemy.com/v2/demo',
       batchPosterAddresses: ['0x99199a22125034c808ff20f377d856DE6329D675'], // Real Polygon zkEVM testnet sequencer
+      rollupType: 'zk',
+      challengePeriodHours: 0 // No challenge period for ZK proofs
+    },
+    
+    // Mainnet configurations - REAL L1 FINALITY TRACKING
+    'arbitrum': {
+      l1RpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.ARBITRUM_MAINNET_RPC_URL || 'https://arb-mainnet.g.alchemy.com/v2/demo',
+      batchPosterAddresses: [
+        '0x1c479675ad559DC151F6Ec7ed3FbF8ceE79582B6', // Primary Arbitrum batch poster
+        '0x4c6f947Ae67F572afa4ae0730947DE7C874F95Ef'  // Secondary Arbitrum batch poster
+      ],
+      rollupType: 'optimistic',
+      challengePeriodHours: 168 // 7 days
+    },
+    'optimism': {
+      l1RpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.OPTIMISM_RPC_URL || 'https://opt-mainnet.g.alchemy.com/v2/demo',
+      batchPosterAddresses: [
+        '0x6887246668a3b87F54DeB3b94Ba47a6f63F32985', // Primary Optimism batch poster
+        '0x473300df21D047806A082244b417f96b32f13A33'  // Secondary Optimism batch poster
+      ],
+      rollupType: 'optimistic',
+      challengePeriodHours: 168 // 7 days
+    },
+    'base': {
+      l1RpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.BASE_MAINNET_RPC_URL || 'https://base-mainnet.g.alchemy.com/v2/demo',
+      batchPosterAddresses: [
+        '0x5050F69a9786F081509234F1a7F4684b5E5b76C9', // Primary Base batch poster
+        '0x99199a22125034c808ff20f377d856DE6329D675'  // Secondary Base batch poster
+      ],
+      rollupType: 'optimistic',
+      challengePeriodHours: 168 // 7 days
+    },
+    'polygon-zkevm': {
+      l1RpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.POLYGON_ZKEVM_MAINNET_RPC_URL || 'https://polygonzkevm-mainnet.g.alchemy.com/v2/demo',
+      batchPosterAddresses: [
+        '0x148Ee7dAF16574cD020aFa34CC658f8F3fbd2800', // Primary Polygon zkEVM sequencer
+        '0x5132A183E9F3CB7C848b0AAC5Ae0c4f0491B7aB2'  // Secondary Polygon zkEVM sequencer
+      ],
+      rollupType: 'zk',
+      challengePeriodHours: 0 // No challenge period for ZK proofs
+    },
+    'zksync-era': {
+      l1RpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/demo',
+      l2RpcUrl: process.env.ZKSYNC_ERA_RPC_URL || 'https://zksync-mainnet.g.alchemy.com/v2/demo',
+      batchPosterAddresses: [
+        '0x3527439923a63F8C13CF72b8Fe80a77f6e508A06', // Primary zkSync Era sequencer
+        '0xa0425d71cB1D6fb80E65a5361a04096E0672De03'  // Secondary zkSync Era sequencer
+      ],
       rollupType: 'zk',
       challengePeriodHours: 0 // No challenge period for ZK proofs
     }

@@ -5,6 +5,7 @@ export interface NetworkConfig {
   rpcUrl: string;
   chainId: number;
   gasPriceChainId?: number; // Optional chain ID to use for gas price fetching
+  type?: 'testnet' | 'mainnet'; // Network type for L1 finality tracking
 }
 
 export interface GasPriceData {

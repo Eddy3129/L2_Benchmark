@@ -61,27 +61,54 @@ interface MonitoringSession {
 }
 
 const NETWORK_OPTIONS = [
-  { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', l1: 'sepolia' },
-  { value: 'optimism-sepolia', label: 'Optimism Sepolia', l1: 'sepolia' },
-  { value: 'base-sepolia', label: 'Base Sepolia', l1: 'sepolia' },
+  // Testnet options
+  { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia (Testnet)', l1: 'sepolia' },
+  { value: 'optimism-sepolia', label: 'Optimism Sepolia (Testnet)', l1: 'sepolia' },
+  { value: 'base-sepolia', label: 'Base Sepolia (Testnet)', l1: 'sepolia' },
   { value: 'polygon-zkevm-testnet', label: 'Polygon zkEVM Testnet', l1: 'sepolia' },
-  { value: 'scroll-sepolia', label: 'Scroll Sepolia', l1: 'sepolia' },
-  { value: 'linea-sepolia', label: 'Linea Sepolia', l1: 'sepolia' }
+  
+  // Mainnet options - REAL L1 FINALITY TRACKING
+  { value: 'arbitrum', label: 'Arbitrum One (Mainnet)', l1: 'ethereum' },
+  { value: 'optimism', label: 'Optimism (Mainnet)', l1: 'ethereum' },
+  { value: 'base', label: 'Base (Mainnet)', l1: 'ethereum' },
+  { value: 'polygon-zkevm', label: 'Polygon zkEVM (Mainnet)', l1: 'ethereum' },
+  { value: 'zksync-era', label: 'zkSync Era (Mainnet)', l1: 'ethereum' }
 ];
 
 const BATCH_POSTER_ADDRESSES = {
-  'arbitrum-sepolia': ['0x6c1c0c8d8e8b8f8a8b8c8d8e8f8a8b8c8d8e8f8a'],
-  'optimism-sepolia': ['0x7d2d2d8e8f8a8b8c8d8e8f8a8b8c8d8e8f8a8b8c'],
-  'base-sepolia': ['0x8e3e3e8f8a8b8c8d8e8f8a8b8c8d8e8f8a8b8c8d'],
-  'polygon-zkevm-testnet': ['0x9f4f4f8a8b8c8d8e8f8a8b8c8d8e8f8a8b8c8d8e'],
-  'scroll-sepolia': ['0xa05050a8b8c8d8e8f8a8b8c8d8e8f8a8b8c8d8e8f'],
-  'linea-sepolia': ['0xb16161b8c8d8e8f8a8b8c8d8e8f8a8b8c8d8e8f8a']
+  // Testnet addresses (placeholder)
+  'arbitrum-sepolia': ['0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a'],
+  'optimism-sepolia': ['0x6887246668a3b87F54DeB3b94Ba47a6f63F32985'],
+  'base-sepolia': ['0x99199a22125034c808ff20f377d856DE6329D675'],
+  'polygon-zkevm-testnet': ['0x99199a22125034c808ff20f377d856DE6329D675'],
+  
+  // Mainnet addresses - REAL BATCH POSTERS
+  'arbitrum': [
+    '0x1c479675ad559DC151F6Ec7ed3FbF8ceE79582B6', // Primary Arbitrum batch poster
+    '0x4c6f947Ae67F572afa4ae0730947DE7C874F95Ef'  // Secondary Arbitrum batch poster
+  ],
+  'optimism': [
+    '0x6887246668a3b87F54DeB3b94Ba47a6f63F32985', // Primary Optimism batch poster
+    '0x473300df21D047806A082244b417f96b32f13A33'  // Secondary Optimism batch poster
+  ],
+  'base': [
+    '0x5050F69a9786F081509234F1a7F4684b5E5b76C9', // Primary Base batch poster
+    '0x99199a22125034c808ff20f377d856DE6329D675'  // Secondary Base batch poster
+  ],
+  'polygon-zkevm': [
+    '0x148Ee7dAF16574cD020aFa34CC658f8F3fbd2800', // Primary Polygon zkEVM sequencer
+    '0x5132A183E9F3CB7C848b0AAC5Ae0c4f0491B7aB2'  // Secondary Polygon zkEVM sequencer
+  ],
+  'zksync-era': [
+    '0x3527439923a63F8C13CF72b8Fe80a77f6e508A06', // Primary zkSync Era sequencer
+    '0xa0425d71cB1D6fb80E65a5361a04096E0672De03'  // Secondary zkSync Era sequencer
+  ]
 };
 
 export default function L1FinalityPage() {
   const [trackingConfig, setTrackingConfig] = useState<L1FinalityConfig>({
     l2Network: '',
-    l1Network: 'sepolia',
+    l1Network: 'ethereum', // Default to mainnet for real finality tracking
     monitoringDurationHours: 24,
     batchPosterAddresses: undefined,
     saveToDatabase: true
@@ -92,6 +119,7 @@ export default function L1FinalityPage() {
   const [currentResults, setCurrentResults] = useState<L1FinalityResult | null>(null);
   const [batchHistory, setBatchHistory] = useState<BatchData[]>([]);
   const [statisticsData, setStatisticsData] = useState<L1FinalityResult[]>([]);
+  const [aggregatedStats, setAggregatedStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
 
@@ -121,14 +149,77 @@ export default function L1FinalityPage() {
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/advanced-analysis/l1-finality/statistics?limit=20');
-      if (response.ok) {
-        const data = await response.json();
-        setStatisticsData(data);
+      // Fetch aggregated statistics
+      const statsResponse = await fetch('http://localhost:3001/api/advanced-analysis/l1-finality/statistics?limit=20');
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setAggregatedStats(statsData);
+      }
+      
+      // Fetch historical session data
+      const historyResponse = await fetch('http://localhost:3001/api/advanced-analysis/l1-finality/history?limit=20');
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        // Transform the raw tracking data into L1FinalityResult format
+        const transformedData = transformTrackingDataToResults(historyData);
+        setStatisticsData(transformedData);
       }
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
     }
+  };
+  
+  const transformTrackingDataToResults = (trackingData: any[]): L1FinalityResult[] => {
+    // Group tracking data by sessionId
+    const sessionGroups = trackingData.reduce((groups, record) => {
+      const sessionId = record.sessionId;
+      if (!groups[sessionId]) {
+        groups[sessionId] = [];
+      }
+      groups[sessionId].push(record);
+      return groups;
+    }, {});
+    
+    // Transform each session group into L1FinalityResult
+    return Object.entries(sessionGroups).map(([sessionId, records]: [string, any[]]) => {
+      const firstRecord = records[0];
+      const batchesTracked = records.length;
+      const totalL2Transactions = records.reduce((sum, record) => sum + (record.transactionCount || 0), 0);
+      
+      // Calculate average metrics
+      const avgTimeToL1Settlement = records.reduce((sum, record) => {
+        return sum + (record.finalityMetrics?.timeToL1SettlementMs || 0);
+      }, 0) / records.length / 1000; // Convert to seconds
+      
+      const avgL1SettlementCostPerBatch = records.reduce((sum, record) => {
+        return sum + (record.finalityMetrics?.l1SettlementCostPerBatch || 0);
+      }, 0) / records.length;
+      
+      const avgAmortizedL1CostPerTransaction = records.reduce((sum, record) => {
+        return sum + (record.finalityMetrics?.amortizedL1CostPerTransaction || 0);
+      }, 0) / records.length;
+      
+      const finalityConfidenceLevel = records.reduce((sum, record) => {
+        return sum + (record.finalityMetrics?.finalityConfidenceLevel || 95);
+      }, 0) / records.length;
+      
+      return {
+        sessionId,
+        l2Network: firstRecord.l2Network || 'unknown',
+        l1Network: firstRecord.l1Network || 'ethereum',
+        status: 'completed' as const,
+        metrics: {
+          avgTimeToL1Settlement,
+          avgL1SettlementCostPerBatch: avgL1SettlementCostPerBatch.toString(),
+          avgAmortizedL1CostPerTransaction: avgAmortizedL1CostPerTransaction.toString(),
+          finalityConfidenceLevel
+        },
+        batchesTracked,
+        totalL2Transactions,
+        startedAt: firstRecord.createdAt,
+        completedAt: records[records.length - 1].createdAt
+      };
+    });
   };
 
   const checkActiveSessions = async () => {
@@ -321,24 +412,76 @@ export default function L1FinalityPage() {
                 <div className="space-y-2">
                   <Label htmlFor="l2Network">L2 Network</Label>
                   <Select
-                    value={trackingConfig.l2Network}
-                    onValueChange={(value) => setTrackingConfig(prev => ({ ...prev, l2Network: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select L2 network" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {NETWORK_OPTIONS.map((network) => (
-                        <SelectItem key={network.value} value={network.value}>
-                          {network.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      value={trackingConfig.l2Network}
+                      onValueChange={(value) => {
+                       const selectedNetwork = NETWORK_OPTIONS.find(n => n.value === value);
+                       const isMainnet = ['arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era'].includes(value);
+                       
+                       setTrackingConfig(prev => ({
+                         ...prev,
+                         l2Network: value,
+                         l1Network: isMainnet ? 'ethereum' : 'sepolia',
+                         batchPosterAddresses: BATCH_POSTER_ADDRESSES[value as keyof typeof BATCH_POSTER_ADDRESSES]
+                       }));
+                     }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select L2 Network" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {NETWORK_OPTIONS.map((network) => {
+                          const isMainnet = ['arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era'].includes(network.value);
+                          return (
+                            <SelectItem key={network.value} value={network.value}>
+                              <div className="flex items-center gap-2">
+                                <span>{network.label}</span>
+                                {isMainnet && (
+                                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full font-medium">
+                                    MAINNET
+                                  </span>
+                                )}
+                                {!isMainnet && (
+                                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full font-medium">
+                                    TESTNET
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="l1Network">L1 Network</Label>
+                 {/* Mainnet Warning */}
+                 {['arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era'].includes(trackingConfig.l2Network) && (
+                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                     <div className="flex items-start gap-3">
+                       <div className="flex-shrink-0">
+                         <svg className="w-5 h-5 text-green-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                         </svg>
+                       </div>
+                       <div className="flex-1">
+                         <h4 className="text-sm font-medium text-green-800 mb-1">
+                           🎯 Real Mainnet L1 Finality Tracking
+                         </h4>
+                         <p className="text-sm text-green-700 mb-2">
+                           You're about to monitor <strong>real blockchain data</strong> on {trackingConfig.l2Network.charAt(0).toUpperCase() + trackingConfig.l2Network.slice(1)} mainnet.
+                         </p>
+                         <ul className="text-xs text-green-600 space-y-1">
+                           <li>✅ <strong>Read-only monitoring</strong> - No wallet transactions required</li>
+                           <li>✅ <strong>No fees</strong> - Uses free Alchemy RPC endpoints</li>
+                           <li>✅ <strong>Real insights</strong> - Track actual L1 finality performance</li>
+                           <li>✅ <strong>Safe operation</strong> - Only observes blockchain state</li>
+                         </ul>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+
+                 <div className="space-y-2">
+                   <Label htmlFor="l1Network">L1 Network</Label>
                   <Input
                     id="l1Network"
                     value={trackingConfig.l1Network}
@@ -650,7 +793,7 @@ export default function L1FinalityPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {statisticsData.length === 0 ? (
+              {!aggregatedStats && statisticsData.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   No historical data available. Complete monitoring sessions to see statistics.
                 </div>
@@ -673,7 +816,7 @@ export default function L1FinalityPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">
-                          {statisticsData.reduce((sum, stat) => sum + stat.batchesTracked, 0)}
+                          {aggregatedStats?.totalBatches || statisticsData.reduce((sum, stat) => sum + stat.batchesTracked, 0)}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">L1 batch settlements</p>
                       </CardContent>
@@ -681,19 +824,21 @@ export default function L1FinalityPage() {
 
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Total L2 Transactions</CardTitle>
+                        <CardTitle className="text-sm font-medium">Average Settlement Time</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="text-2xl font-bold">
-                          {statisticsData.reduce((sum, stat) => sum + stat.totalL2Transactions, 0).toLocaleString()}
+                          {aggregatedStats ? formatTime(aggregatedStats.averageSettlementTime / 1000) : 
+                           statisticsData.length > 0 ? formatTime(statisticsData.reduce((sum, stat) => sum + stat.metrics.avgTimeToL1Settlement, 0) / statisticsData.length) : 'N/A'}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Tracked in batches</p>
+                        <p className="text-xs text-gray-500 mt-1">Time to L1 settlement</p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  <div className="space-y-4">
-                    {statisticsData.map((stat) => (
+                  {statisticsData.length > 0 && (
+                    <div className="space-y-4">
+                      {statisticsData.map((stat) => (
                       <div key={stat.sessionId} className="border rounded-lg p-4 space-y-3">
                         <div className="flex justify-between items-start">
                           <div>
@@ -736,14 +881,15 @@ export default function L1FinalityPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {statisticsData.length > 0 && (
+          {statisticsData && statisticsData.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Settlement Cost Trends</CardTitle>
@@ -753,9 +899,9 @@ export default function L1FinalityPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={statisticsData.slice(-10).map((stat, index) => ({
                       session: index + 1,
-                      settlementTime: stat.metrics.avgTimeToL1Settlement / 60, // Convert to minutes
-                      batchCost: parseFloat(stat.metrics.avgL1SettlementCostPerBatch) * 1000, // Convert to mETH
-                      txCost: parseFloat(stat.metrics.avgAmortizedL1CostPerTransaction) * 1000000, // Convert to µETH
+                      settlementTime: (stat.metrics?.avgTimeToL1Settlement || 0) / 60, // Convert to minutes
+                      batchCost: parseFloat(stat.metrics?.avgL1SettlementCostPerBatch || '0') * 1000, // Convert to mETH
+                      txCost: parseFloat(stat.metrics?.avgAmortizedL1CostPerTransaction || '0') * 1000000, // Convert to µETH
                       network: stat.l2Network
                     }))}>
                       <CartesianGrid strokeDasharray="3 3" />
