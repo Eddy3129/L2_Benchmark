@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BenchmarkModule } from './benchmark/benchmark.module';
 import { GasAnalyzerModule } from './gas-analyzer/gas-analyzer.module';
 import { AbiModule } from './abi/abi.module';
+import { GasAnalysisModule } from './modules/gas-analysis/gas-analysis.module';
+import { ComparisonReportModule } from './modules/comparison-report/comparison-report.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { AbiModule } from './abi/abi.module';
     BenchmarkModule,
     GasAnalyzerModule,
     AbiModule,
+    GasAnalysisModule,
+    ComparisonReportModule,
   ],
 })
 export class AppModule {}

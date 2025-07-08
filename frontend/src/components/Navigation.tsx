@@ -45,13 +45,7 @@ export function Navigation() {
       description: 'Settlement tracking',
       gradient: 'from-teal-500 to-blue-500'
     },
-    { 
-      href: '/contract-complexity', 
-      label: 'Contract Profiling', 
-      icon: '🧬', 
-      description: 'Gas complexity analysis',
-      gradient: 'from-amber-500 to-orange-500'
-    },
+
     { 
       href: '/analysis', 
       label: 'Reports', 

@@ -15,11 +15,7 @@ export enum L1FinalityStatus {
   FAILED = 'failed'
 }
 
-export enum ComplexityAnalysisType {
-  FUNCTION_LEVEL = 'function_level',
-  OPCODE_LEVEL = 'opcode_level',
-  FULL_TRACE = 'full_trace'
-}
+
 
 // Sequencer Performance DTOs
 export class RunSequencerTestDto {
@@ -196,129 +192,7 @@ export class L1FinalityResultDto {
   completedAt?: Date;
 }
 
-// Contract Complexity DTOs
-export class AnalyzeContractComplexityDto {
-  @ApiProperty({ description: 'Solidity contract code' })
-  @IsString()
-  code: string;
 
-  @ApiProperty({ description: 'Contract name' })
-  @IsString()
-  contractName: string;
-
-  @ApiProperty({ description: 'Function name to analyze' })
-  @IsString()
-  functionName: string;
-
-  @ApiProperty({ description: 'L2 network for analysis', example: 'arbitrumSepolia' })
-  @IsString()
-  l2Network: string;
-
-  @ApiProperty({ description: 'Function parameters as JSON array' })
-  @IsArray()
-  functionParameters: any[];
-
-  @ApiPropertyOptional({ enum: ComplexityAnalysisType, description: 'Type of complexity analysis', default: ComplexityAnalysisType.FULL_TRACE })
-  @IsOptional()
-  @IsEnum(ComplexityAnalysisType)
-  analysisType?: ComplexityAnalysisType;
-
-  @ApiPropertyOptional({ description: 'Whether to include optimization recommendations', default: true })
-  @IsOptional()
-  @IsBoolean()
-  includeOptimizations?: boolean;
-
-  @ApiPropertyOptional({ description: 'Whether to save results to database', default: true })
-  @IsOptional()
-  @IsBoolean()
-  saveToDatabase?: boolean;
-}
-
-export class CompareContractComplexityDto {
-  @ApiProperty({ description: 'Solidity contract code' })
-  @IsString()
-  code: string;
-
-  @ApiProperty({ description: 'Contract name' })
-  @IsString()
-  contractName: string;
-
-  @ApiProperty({ description: 'Function name to analyze' })
-  @IsString()
-  functionName: string;
-
-  @ApiProperty({ description: 'L2 networks to compare', type: [String] })
-  @IsArray()
-  @IsString({ each: true })
-  l2Networks: string[];
-
-  @ApiProperty({ description: 'Function parameters as JSON array' })
-  @IsArray()
-  functionParameters: any[];
-
-  @ApiPropertyOptional({ enum: ComplexityAnalysisType, description: 'Type of complexity analysis', default: ComplexityAnalysisType.FULL_TRACE })
-  @IsOptional()
-  @IsEnum(ComplexityAnalysisType)
-  analysisType?: ComplexityAnalysisType;
-
-  @ApiPropertyOptional({ description: 'Whether to include optimization recommendations', default: true })
-  @IsOptional()
-  @IsBoolean()
-  includeOptimizations?: boolean;
-
-  @ApiPropertyOptional({ description: 'Whether to save results to database', default: true })
-  @IsOptional()
-  @IsBoolean()
-  saveToDatabase?: boolean;
-}
-
-export class ContractComplexityResultDto {
-  @ApiProperty({ description: 'Analysis session ID' })
-  sessionId: string;
-
-  @ApiProperty({ description: 'Contract name' })
-  contractName: string;
-
-  @ApiProperty({ description: 'Function name analyzed' })
-  functionName: string;
-
-  @ApiProperty({ description: 'L2 network' })
-  l2Network: string;
-
-  @ApiProperty({ description: 'Transaction hash of the analyzed execution' })
-  transactionHash: string;
-
-  @ApiProperty({ description: 'Gas analysis results' })
-  gasAnalysis: any;
-
-  @ApiProperty({ description: 'Total gas used' })
-  totalGasUsed: number;
-
-  @ApiProperty({ description: 'Complexity metrics' })
-  complexityMetrics: {
-    cyclomaticComplexity: number;
-    codeSize: number;
-    stackDepth: number;
-    memoryUsage: number;
-    storageSlots: number;
-    externalCalls: number;
-    loops: number;
-    conditionals: number;
-    gasEfficiencyScore: number;
-  };
-
-  @ApiProperty({ description: 'Optimization suggestions' })
-  optimizationSuggestions: any;
-
-  @ApiProperty({ description: 'Execution trace' })
-  executionTrace: any;
-
-  @ApiProperty({ description: 'Compilation artifacts' })
-  compilationArtifacts: any;
-
-  @ApiProperty({ description: 'Analysis timestamp' })
-  createdAt: Date;
-}
 
 // Query DTOs for retrieving historical data
 export class GetSequencerHistoryDto {
@@ -363,38 +237,6 @@ export class GetL1FinalityHistoryDto {
   @IsOptional()
   @IsEnum(L1FinalityStatus)
   status?: L1FinalityStatus;
-
-  @ApiPropertyOptional({ description: 'Number of results to return', default: 50, minimum: 1, maximum: 1000 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @Max(1000)
-  limit?: number;
-
-  @ApiPropertyOptional({ description: 'Number of results to skip', default: 0, minimum: 0 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  offset?: number;
-}
-
-export class GetComplexityHistoryDto {
-  @ApiPropertyOptional({ description: 'Contract name filter' })
-  @IsOptional()
-  @IsString()
-  contractName?: string;
-
-  @ApiPropertyOptional({ description: 'Function name filter' })
-  @IsOptional()
-  @IsString()
-  functionName?: string;
-
-  @ApiPropertyOptional({ description: 'L2 network filter' })
-  @IsOptional()
-  @IsString()
-  l2Network?: string;
 
   @ApiPropertyOptional({ description: 'Number of results to return', default: 50, minimum: 1, maximum: 1000 })
   @IsOptional()

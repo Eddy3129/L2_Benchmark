@@ -3,22 +3,20 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 import { Observable } from 'rxjs';
 import { SequencerPerformanceService } from '../sequencer-performance.service';
 import { L1FinalityService } from '../l1-finality.service';
-import { ContractComplexityService } from '../contract-complexity.service';
+
 import { ValidationUtils } from '../../shared/validation-utils';
 import { SequencerPerformanceTest } from '../sequencer-performance.entity';
-import { ContractComplexityProfile } from '../contract-complexity.entity';
+
 import {
   RunSequencerTestDto,
   SequencerTestResultDto,
   StartL1FinalityTrackingDto,
   StopL1FinalityTrackingDto,
   L1FinalityResultDto,
-  AnalyzeContractComplexityDto,
-  CompareContractComplexityDto,
-  ContractComplexityResultDto,
+
   GetSequencerHistoryDto,
   GetL1FinalityHistoryDto,
-  GetComplexityHistoryDto
+
 } from '../dto/advanced-analysis.dto';
 
 @ApiTags('Advanced Analysis')
@@ -27,7 +25,7 @@ export class AdvancedAnalysisController {
   constructor(
     private readonly sequencerPerformanceService: SequencerPerformanceService,
     private readonly l1FinalityService: L1FinalityService,
-    private readonly contractComplexityService: ContractComplexityService,
+
   ) {}
 
   private transformToSequencerTestResultDto(test: SequencerPerformanceTest): SequencerTestResultDto {
@@ -94,22 +92,7 @@ export class AdvancedAnalysisController {
     };
   }
 
-  private transformToContractComplexityResultDto(profile: ContractComplexityProfile): ContractComplexityResultDto {
-    return {
-      sessionId: profile.sessionId,
-      contractName: profile.contractName,
-      functionName: profile.functionName,
-      l2Network: profile.l2Network,
-      transactionHash: profile.transactionHash,
-      gasAnalysis: profile.gasBreakdown,
-      totalGasUsed: parseInt(profile.executionTrace.totalGasUsed) || 0,
-      complexityMetrics: profile.complexityMetrics,
-      optimizationSuggestions: profile.optimizationRecommendations,
-      executionTrace: profile.executionTrace,
-      compilationArtifacts: profile.compilationArtifacts,
-      createdAt: profile.createdAt
-    };
-  }
+
 
   private transformToL1FinalityResultDto(tracking: any): L1FinalityResultDto {
     return {
@@ -377,119 +360,7 @@ export class AdvancedAnalysisController {
     }
   }
 
-  // Contract Complexity Analysis Endpoints
-  @Post('contract-complexity/analyze')
-  @ApiOperation({ summary: 'Analyze contract complexity' })
-  @ApiResponse({ status: 201, description: 'Analysis completed successfully', type: ContractComplexityResultDto })
-  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
-  async analyzeContractComplexity(@Body() dto: AnalyzeContractComplexityDto): Promise<ContractComplexityResultDto> {
-    try {
-      // Validate the request
-      this.validateContractComplexityRequest(dto);
-      
-      // Perform analysis
-      const result = await this.contractComplexityService.analyzeContractComplexity({
-        solidityCode: dto.code,
-        contractName: dto.contractName,
-        functionName: dto.functionName,
-        l2Network: dto.l2Network,
-        functionParameters: dto.functionParameters || [],
-        enableDetailedTracing: true,
-        enableOptimizationAnalysis: dto.includeOptimizations !== false
-      });
-      
-      return this.transformToContractComplexityResultDto(result);
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(
-        `Failed to analyze contract complexity: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
 
-  @Post('contract-complexity/compare')
-  @ApiOperation({ summary: 'Compare contract complexity across networks' })
-  @ApiResponse({ status: 201, description: 'Comparison completed successfully', type: [ContractComplexityResultDto] })
-  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
-  async compareContractComplexity(@Body() dto: CompareContractComplexityDto): Promise<ContractComplexityResultDto[]> {
-    try {
-      // Validate the request
-      this.validateContractComplexityCompareRequest(dto);
-      
-      // Perform comparison across networks
-      const results = await this.contractComplexityService.compareComplexityAcrossNetworks(
-        dto.contractName,
-        dto.functionName
-      );
-      
-      return results.map(result => this.transformToContractComplexityResultDto(result));
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(
-        `Failed to compare contract complexity: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  @Get('contract-complexity/history')
-  @ApiOperation({ summary: 'Get contract complexity analysis history' })
-  @ApiResponse({ status: 200, description: 'History retrieved successfully', type: [ContractComplexityResultDto] })
-  @ApiQuery({ name: 'contractName', required: false, description: 'Filter by contract name' })
-  @ApiQuery({ name: 'functionName', required: false, description: 'Filter by function name' })
-  @ApiQuery({ name: 'l2Network', required: false, description: 'Filter by L2 network' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of results to return' })
-  @ApiQuery({ name: 'offset', required: false, description: 'Number of results to skip' })
-  async getContractComplexityHistory(@Query() query: GetComplexityHistoryDto): Promise<ContractComplexityResultDto[]> {
-    try {
-      const limit = query.limit || 50;
-      const offset = query.offset || 0;
-      
-      let results: ContractComplexityProfile[];
-      if (query.contractName) {
-        results = await this.contractComplexityService.getComplexityProfileByContract(query.contractName);
-      } else if (query.l2Network) {
-        results = await this.contractComplexityService.getComplexityProfileByNetwork(query.l2Network);
-      } else {
-        results = await this.contractComplexityService.getComplexityProfileHistory(limit);
-      }
-      return results.map(result => this.transformToContractComplexityResultDto(result));
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(
-        `Failed to retrieve complexity analysis history: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  @Get('contract-complexity/analysis/:sessionId')
-  @ApiOperation({ summary: 'Get specific complexity analysis result' })
-  @ApiResponse({ status: 200, description: 'Analysis result retrieved successfully', type: ContractComplexityResultDto })
-  @ApiResponse({ status: 404, description: 'Analysis result not found' })
-  @ApiParam({ name: 'sessionId', description: 'Analysis session ID' })
-  async getContractComplexityResult(@Param('sessionId') sessionId: string): Promise<ContractComplexityResultDto> {
-    try {
-      ValidationUtils.validateUUID(sessionId);
-      const result = await this.contractComplexityService.getComplexityAnalysisResult(sessionId);
-      return this.transformToContractComplexityResultDto(result);
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(
-        `Failed to retrieve complexity analysis result: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
 
   // Private validation methods
   private validateSequencerTestRequest(dto: RunSequencerTestDto): void {
@@ -536,59 +407,5 @@ export class AdvancedAnalysisController {
     }
   }
 
-  private validateContractComplexityRequest(dto: AnalyzeContractComplexityDto): void {
-    const errors: string[] = [];
-    
-    if (!dto.code || typeof dto.code !== 'string' || dto.code.trim().length === 0) {
-      errors.push('Code is required and must be a non-empty string');
-    }
-    
-    if (!dto.contractName || typeof dto.contractName !== 'string' || dto.contractName.trim().length === 0) {
-      errors.push('Contract name is required and must be a non-empty string');
-    }
-    
-    if (!dto.functionName || typeof dto.functionName !== 'string' || dto.functionName.trim().length === 0) {
-      errors.push('Function name is required and must be a non-empty string');
-    }
-    
-    if (!dto.l2Network || typeof dto.l2Network !== 'string') {
-      errors.push('L2 network is required and must be a string');
-    }
-    
-    if (!Array.isArray(dto.functionParameters)) {
-      errors.push('Function parameters must be an array');
-    }
-    
-    if (errors.length > 0) {
-      throw ValidationUtils.createValidationError(errors);
-    }
-  }
 
-  private validateContractComplexityCompareRequest(dto: CompareContractComplexityDto): void {
-    const errors: string[] = [];
-    
-    if (!dto.code || typeof dto.code !== 'string' || dto.code.trim().length === 0) {
-      errors.push('Code is required and must be a non-empty string');
-    }
-    
-    if (!dto.contractName || typeof dto.contractName !== 'string' || dto.contractName.trim().length === 0) {
-      errors.push('Contract name is required and must be a non-empty string');
-    }
-    
-    if (!dto.functionName || typeof dto.functionName !== 'string' || dto.functionName.trim().length === 0) {
-      errors.push('Function name is required and must be a non-empty string');
-    }
-    
-    if (!Array.isArray(dto.l2Networks) || dto.l2Networks.length === 0) {
-      errors.push('L2 networks must be a non-empty array');
-    }
-    
-    if (!Array.isArray(dto.functionParameters)) {
-      errors.push('Function parameters must be an array');
-    }
-    
-    if (errors.length > 0) {
-      throw ValidationUtils.createValidationError(errors);
-    }
-  }
 }

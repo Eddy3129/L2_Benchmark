@@ -8,31 +8,31 @@ export class GasAnalysis {
   @Column()
   contractName: string;
 
-  @Column()
+  @Column({ nullable: true })
   functionSignature: string;
 
-  @Column()
+  @Column({ nullable: true })
   l2Network: string;
 
-  @Column('bigint')
+  @Column('bigint',{ nullable: true })
   gasUsed: string;
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { precision: 18, scale: 8, nullable: true })
   estimatedL2Fee: string; // in ETH
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { precision: 18, scale: 8, nullable: true })
   estimatedL1Fee: string; // in ETH
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2, nullable:true })
   totalEstimatedFeeUSD: number;
 
-  @Column('text')
+  @Column('text', { nullable: true })
   solidityCode: string;
 
-  @Column('jsonb')
+  @Column('jsonb', { nullable: true })
   compilationArtifacts: any;
 
-  @Column('jsonb')
+  @Column('jsonb', { nullable: true })
   functionParameters: any;
 
   @CreateDateColumn()
