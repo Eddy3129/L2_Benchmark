@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ApiError, AnalyzeContractRequest, CompareNetworksRequest } from './types';
-import { NetworkConfigService } from './network-config';
+import { NetworkConfigService } from '../config/network.config';
 
 /**
  * Utility class for request validation and error handling

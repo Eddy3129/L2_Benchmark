@@ -10,7 +10,6 @@ import { ethers, ContractFactory, Interface, FunctionFragment, Signer } from 'et
 
 // Import shared utilities
 import { 
-  NetworkConfig, 
   GasPriceData, 
   CompilationResult, 
   GasEstimate, 
@@ -19,7 +18,7 @@ import {
   AnalysisResult,
   GasAnalysisData
 } from '../shared/types';
-import { NetworkConfigService, NETWORK_CONFIGS } from '../shared/network-config';
+import { NetworkConfigService, NetworkConfig, NetworkType } from '../config/network.config';
 import { GasUtils } from '../shared/gas-utils';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BaseService } from '../shared/base.service';
@@ -59,7 +58,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     const results: NetworkResult[] = [];
     
     for (const networkKey of validNetworks) {
-      const networkConfig = NetworkConfigService.getNetworkConfig(networkKey);
+      const networkConfig = NetworkConfigService.getNetwork(networkKey);
       if (!networkConfig || !networkConfig.rpcUrl) {
         this.logger.warn(`RPC URL not configured for network: ${networkKey}. Skipping.`);
         continue;
@@ -264,7 +263,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     const results: any[] = [];
     
     for (const networkKey of l2Networks) {
-      const networkConfig = NetworkConfigService.getNetworkConfig(networkKey);
+      const networkConfig = NetworkConfigService.getNetwork(networkKey);
       if (!networkConfig) {
         this.logger.warn(`Network configuration not found for: ${networkKey}`);
         continue;

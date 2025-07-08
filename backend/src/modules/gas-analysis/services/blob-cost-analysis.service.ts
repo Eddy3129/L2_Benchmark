@@ -34,6 +34,7 @@ interface NetworkBlobConfig {
 export class BlobCostAnalysisService extends BaseService {
 
   private readonly networkConfigs: Map<string, NetworkBlobConfig> = new Map([
+    // Mainnets
     [
       'ethereum',
       {
@@ -99,6 +100,140 @@ export class BlobCostAnalysisService extends BaseService {
         alternativeCost: {
           calldataCostPerByte: 16,
           description: 'Uses calldata for data storage',
+        },
+      },
+    ],
+    // Testnets
+    [
+      'sepolia',
+      {
+        networkId: 'sepolia',
+        networkName: 'Sepolia Testnet',
+        chainId: 11155111,
+        supportsBlobTx: true,
+        blobPricing: {
+          baseFeePerBlob: 1,
+          blobGasPrice: 1,
+          targetBlobsPerBlock: 3,
+          maxBlobsPerBlock: 6,
+          blobSize: 131072,
+        },
+      },
+    ],
+    [
+      'arbitrumSepolia',
+      {
+        networkId: 'arbitrumSepolia',
+        networkName: 'Arbitrum Sepolia',
+        chainId: 421614,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata compression instead of blob transactions',
+        },
+      },
+    ],
+    [
+      'arbitrum-sepolia',
+      {
+        networkId: 'arbitrum-sepolia',
+        networkName: 'Arbitrum Sepolia',
+        chainId: 421614,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata compression instead of blob transactions',
+        },
+      },
+    ],
+    [
+      'optimismSepolia',
+      {
+        networkId: 'optimismSepolia',
+        networkName: 'Optimism Sepolia',
+        chainId: 11155420,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata for data availability',
+        },
+      },
+    ],
+    [
+      'optimism-sepolia',
+      {
+        networkId: 'optimism-sepolia',
+        networkName: 'Optimism Sepolia',
+        chainId: 11155420,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata for data availability',
+        },
+      },
+    ],
+    [
+      'baseSepolia',
+      {
+        networkId: 'baseSepolia',
+        networkName: 'Base Sepolia',
+        chainId: 84532,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata for data storage',
+        },
+      },
+    ],
+    [
+      'base-sepolia',
+      {
+        networkId: 'base-sepolia',
+        networkName: 'Base Sepolia',
+        chainId: 84532,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses calldata for data storage',
+        },
+      },
+    ],
+    [
+      'polygonAmoy',
+      {
+        networkId: 'polygonAmoy',
+        networkName: 'Polygon Amoy',
+        chainId: 80002,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses traditional calldata approach',
+        },
+      },
+    ],
+    [
+      'polygonZkEvm',
+      {
+        networkId: 'polygonZkEvm',
+        networkName: 'Polygon zkEVM Testnet',
+        chainId: 1442,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses zkEVM calldata approach',
+        },
+      },
+    ],
+    [
+      'zkSyncSepolia',
+      {
+        networkId: 'zkSyncSepolia',
+        networkName: 'zkSync Sepolia',
+        chainId: 300,
+        supportsBlobTx: false,
+        alternativeCost: {
+          calldataCostPerByte: 16,
+          description: 'Uses zkSync calldata approach',
         },
       },
     ],

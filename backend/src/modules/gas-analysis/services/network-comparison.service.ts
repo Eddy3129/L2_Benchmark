@@ -426,11 +426,28 @@ export class NetworkComparisonService extends BaseService {
    */
   public validateNetworks(networks: string[]): void {
     const supportedNetworks = [
+      // Mainnets
       'ethereum',
       'arbitrum',
       'optimism',
       'polygon',
       'base',
+      'polygon-zkevm',
+      'zksync-era',
+      // Testnets
+      'sepolia',
+      'arbitrumSepolia',
+      'arbitrum-sepolia',
+      'optimismSepolia',
+      'optimism-sepolia',
+      'baseSepolia',
+      'base-sepolia',
+      'polygonAmoy',
+      'polygonZkEvm',
+      'zkSyncSepolia',
+      // Local networks
+      'hardhat',
+      'localhost',
     ];
 
     for (const network of networks) {

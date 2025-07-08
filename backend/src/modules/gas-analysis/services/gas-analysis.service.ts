@@ -27,6 +27,7 @@ import { CompilationResult } from '../entities/compilation-result.entity';
 import { ContractCompilationService } from './contract-compilation.service';
 import { NetworkAnalysisService } from './network-analysis.service';
 import { BytecodeAnalysisService } from './bytecode-analysis.service';
+import { NetworkConfigService } from '../../../config/network.config';
 
 // Types for network analysis result
 // NetworkAnalysisResultDto is imported from DTO file
@@ -103,14 +104,7 @@ const PAGINATION_CONSTANTS = {
   MAX_LIMIT: 100
 };
 
-// Network config service (simplified)
-class NetworkConfigService {
-  static validateNetworks(networks: string[]) {
-    const validNetworks = ['ethereum', 'polygon', 'arbitrum', 'optimism', 'bsc'];
-    const invalid = networks.filter(network => !validNetworks.includes(network));
-    return { invalid };
-  }
-}
+
 
 @Injectable()
 export class GasAnalysisService extends BaseService {

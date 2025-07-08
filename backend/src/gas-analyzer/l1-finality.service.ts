@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { L1FinalityTracking } from './l1-finality.entity';
 import { ethers } from 'ethers';
 import { randomUUID } from 'crypto';
-import { NetworkConfigService } from '../shared/network-config';
+import { NetworkConfigService } from '../config/network.config';
 import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { Cron, CronExpression } from '@nestjs/schedule';

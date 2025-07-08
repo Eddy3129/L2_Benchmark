@@ -1,10 +1,17 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import { NetworkConfigService } from './config/network.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // Initialize NetworkConfigService
+  const configService = app.get(ConfigService);
+  const networksConfig = configService.get('networks');
+  NetworkConfigService.initialize(networksConfig);
   
   // Enable global validation pipe
   app.useGlobalPipes(new ValidationPipe({

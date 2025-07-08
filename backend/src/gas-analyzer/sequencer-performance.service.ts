@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SequencerPerformanceTest } from './sequencer-performance.entity';
 import { ethers } from 'ethers';
-import { NetworkConfigService } from '../shared/network-config';
+import { NetworkConfigService } from '../config/network.config';
 import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
 
@@ -45,7 +45,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     this.logger.log(`Starting sequencer performance test for ${config.l2Network}`);
     
     // Validate network configuration
-    const networkConfig = NetworkConfigService.getNetworkConfig(config.l2Network);
+    const networkConfig = NetworkConfigService.getNetwork(config.l2Network);
     if (!networkConfig) {
       throw ValidationUtils.createValidationError([`Invalid network: ${config.l2Network}`]);
     }
@@ -421,7 +421,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     timeoutSeconds: number
   ): Promise<void> {
     const provider = new ethers.JsonRpcProvider(
-      NetworkConfigService.getNetworkConfig(testRecord.l2Network)?.rpcUrl
+      NetworkConfigService.getNetwork(testRecord.l2Network)?.rpcUrl
     );
     
     const endTime = Date.now() + (timeoutSeconds * 1000);
