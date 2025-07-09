@@ -28,37 +28,10 @@ import { ContractCompilationService } from './contract-compilation.service';
 import { NetworkAnalysisService } from './network-analysis.service';
 import { BytecodeAnalysisService } from './bytecode-analysis.service';
 import { NetworkConfigService } from '../../../config/network.config';
+import { ValidationUtils } from '../../../shared/validation-utils';
 
 // Types for network analysis result
 // NetworkAnalysisResultDto is imported from DTO file
-
-// Utility classes (simplified implementations)
-class ValidationUtils {
-  static validatePagination(page?: number, limit?: number) {
-    return {
-      page: page || 1,
-      limit: Math.min(limit || 10, 100)
-    };
-  }
-
-  static validateContractName(name: string): boolean {
-    return !!(name && name.trim().length > 0 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name.trim()));
-  }
-
-  static validateSolidityCode(code: string): { isValid: boolean; errors: string[] } {
-    if (!code || code.trim().length === 0) {
-      return { isValid: false, errors: ['Source code is required'] };
-    }
-    if (!code.includes('contract ') && !code.includes('library ') && !code.includes('interface ')) {
-      return { isValid: false, errors: ['Source code must contain a contract, library, or interface'] };
-    }
-    return { isValid: true, errors: [] };
-  }
-
-  static validateSolidityVersion(version: string): boolean {
-    return /^\d+\.\d+\.\d+$/.test(version);
-  }
-}
 
 class DateUtils {
   static getLastNDays(days: number) {
@@ -263,7 +236,8 @@ export class GasAnalysisService extends BaseService {
     meta: PaginationMetaDto;
   }> {
     try {
-      const { page, limit } = ValidationUtils.validatePagination(query.page, query.limit);
+      const { limit, offset } = ValidationUtils.validatePaginationParams(String(query.limit), query.page ? String((parseInt(String(query.page)) - 1) * parseInt(String(query.limit || '10'))) : undefined);
+      const page = query.page ? parseInt(String(query.page)) : 1;
       const skip = (page - 1) * limit;
       
       // Build query

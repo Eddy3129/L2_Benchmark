@@ -180,9 +180,25 @@ export function GasDashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top', labels: { color: '#a0aec0', font: { family: 'Inter', size: 12 }, usePointStyle: true, pointStyle: 'circle' } },
+      legend: { 
+        position: 'top', 
+        labels: { 
+          color: '#D1D5DB', 
+          font: { family: 'Lekton', size: 11 }, 
+          usePointStyle: true, 
+          pointStyle: 'circle',
+          padding: 12
+        } 
+      },
       tooltip: {
-        backgroundColor: 'rgba(36, 41, 56, 0.95)', titleColor: '#ffffff', bodyColor: '#a0aec0', borderColor: '#4a5568', borderWidth: 1, cornerRadius: 8,
+        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+        titleColor: '#F9FAFB', 
+        bodyColor: '#D1D5DB', 
+        borderColor: '#374151', 
+        borderWidth: 1, 
+        cornerRadius: 6,
+        titleFont: { family: 'Lekton', size: 11 },
+        bodyFont: { family: 'Lekton', size: 10 },
         callbacks: {
           label: function(context: any) {
             let label = context.dataset.label || '';
@@ -194,8 +210,28 @@ export function GasDashboard() {
       }
     },
     scales: {
-      x: { stacked: true, ticks: { color: '#718096' }, grid: { color: 'rgba(74, 85, 104, 0.2)' } },
-      y: { type: 'logarithmic', stacked: true, ticks: { color: '#718096', callback: (val) => { if(typeof val === 'number') { if (val < 1) return val.toPrecision(1); if (val >= 1000) return `${val/1000}k`; return val.toString(); } return val; } }, grid: { color: 'rgba(74, 85, 104, 0.2)' } }
+      x: { 
+        stacked: true, 
+        ticks: { color: '#9CA3AF', font: { family: 'Lekton', size: 9 } }, 
+        grid: { color: '#374151', lineWidth: 0.5 } 
+      },
+      y: { 
+        type: 'logarithmic', 
+        stacked: true, 
+        ticks: { 
+          color: '#9CA3AF', 
+          font: { family: 'Lekton', size: 9 },
+          callback: (val) => { 
+            if(typeof val === 'number') { 
+              if (val < 1) return val.toPrecision(1); 
+              if (val >= 1000) return `${val/1000}k`; 
+              return val.toString(); 
+            } 
+            return val; 
+          } 
+        }, 
+        grid: { color: '#374151', lineWidth: 0.5 } 
+      }
     }
   };
 
@@ -205,12 +241,14 @@ export function GasDashboard() {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(36, 41, 56, 0.95)', 
-        titleColor: '#ffffff', 
-        bodyColor: '#a0aec0', 
-        borderColor: '#4a5568', 
+        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+        titleColor: '#F9FAFB', 
+        bodyColor: '#D1D5DB', 
+        borderColor: '#374151', 
         borderWidth: 1, 
-        cornerRadius: 8,
+        cornerRadius: 6,
+        titleFont: { family: 'Lekton', size: 11 },
+        bodyFont: { family: 'Lekton', size: 10 },
         callbacks: {
           label: function(context: any) {
             let label = context.dataset.label || 'Cost';
@@ -223,29 +261,30 @@ export function GasDashboard() {
     },
     scales: {
       x: { 
-        ticks: { color: '#718096' }, 
+        ticks: { color: '#9CA3AF', font: { family: 'Lekton', size: 9 } }, 
         grid: { display: false } 
       },
       y: { 
         type: 'linear', 
         ticks: { 
-          color: '#718096', 
+          color: '#9CA3AF', 
+          font: { family: 'Lekton', size: 9 },
           callback: (val) => `$${Number(val).toFixed(2)}` 
         }, 
-        grid: { color: 'rgba(74, 85, 104, 0.2)' } 
+        grid: { color: '#374151', lineWidth: 0.5 } 
       }
     },
     elements: {
       point: {
-        radius: 6,
-        hoverRadius: 8,
-        backgroundColor: '#10b981',
+        radius: 3,
+        hoverRadius: 5,
+        backgroundColor: '#3B82F6',
         borderColor: '#ffffff',
-        borderWidth: 2
+        borderWidth: 1
       },
       line: {
-        tension: 0.3,
-        borderWidth: 3
+        tension: 0.2,
+        borderWidth: 1
       }
     }
   };
@@ -319,49 +358,49 @@ export function GasDashboard() {
 
   if (error) {
     return (
-      <div className="card p-6 text-center">
-        <div className="text-red-400 mb-4"><svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
-        <h3 className="text-lg font-semibold text-white">Failed to Load Data</h3>
-        <p className="text-sm mt-1 text-gray-400">{error}</p>
-        <button onClick={fetchAllData} className="btn-primary mt-4 px-4 py-2">Retry</button>
+      <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-lg text-center">
+        <div className="text-red-400 mb-3"><svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
+        <h3 className="text-base font-funnel font-medium text-white">Failed to Load Data</h3>
+        <p className="text-sm mt-1 text-gray-400 font-lekton">{error}</p>
+        <button onClick={fetchAllData} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-lekton mt-3 transition-colors">Retry</button>
       </div>
     );
   }
 
   return (
-    <div className="card p-6 bg-gray-900 text-white rounded-xl">
+    <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-lg">
       
-      <div className="flex flex-col md:flex-row justify-between md:items-start gap-6 mb-6">
+      <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-4">
         <div className="flex-1">
-          <h2 className="text-2xl font-bold text-white">Multi-Chain Gas Tracker</h2>
-          <p className="text-sm text-gray-400 mt-1">Real-time gas prices across {selectedChains.length} supported networks.</p>
+          <h2 className="text-xl font-funnel font-semibold text-white">Multi-Chain Gas Tracker</h2>
+          <p className="text-sm text-gray-400 mt-1 font-lekton">Real-time gas prices across {selectedChains.length} supported networks.</p>
         </div>
-        <div className="w-full md:w-auto md:min-w-[300px]">
-           <p className="text-xs text-gray-500 text-left md:text-right mb-2">Data from <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-400">CoinGecko</a> & <a href="https://www.blocknative.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Blocknative</a></p>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.entries(tokenPrices).map(([id, price]) => ( <div key={id} className="bg-gray-800 p-3 rounded-lg"><p className="text-sm text-gray-400 capitalize">{id.replace('-network', '')} Price</p><p className="text-xl font-bold text-white">${price.toLocaleString()}</p></div> ))}
+        <div className="w-full md:w-auto md:min-w-[280px]">
+           <p className="text-xs text-gray-500 text-left md:text-right mb-2 font-lekton">Data from <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">CoinGecko</a> & <a href="https://www.blocknative.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Blocknative</a></p>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(tokenPrices).map(([id, price]) => ( <div key={id} className="bg-gray-800/70 p-2 rounded border border-gray-700"><p className="text-xs text-gray-400 capitalize font-lekton">{id.replace('-network', '')} Price</p><p className="text-sm font-lekton font-medium text-white">${price.toLocaleString()}</p></div> ))}
             </div>
         </div>
       </div>
 
-      <div className="mb-6 flex items-center justify-between">
-          <div className="flex flex-wrap gap-2">
-            {multiChainGasService.supportedChains.map((chain) => ( <button key={chain.id} onClick={() => toggleChain(chain.id)} className={`border border-gray-700 hover:bg-gray-700 text-white text-sm px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors ${selectedChains.includes(chain.id) ? 'bg-blue-600 border-blue-600' : 'bg-gray-800'}`}><span className="font-mono text-lg" style={{color: chain.color}}>{chain.icon}</span><span>{chain.name}</span></button> ))}
+      <div className="mb-4 flex items-center justify-between">
+          <div className="flex flex-wrap gap-1.5">
+            {multiChainGasService.supportedChains.map((chain) => ( <button key={chain.id} onClick={() => toggleChain(chain.id)} className={`border border-gray-700 hover:bg-gray-700 text-white text-xs px-2 py-1.5 rounded font-lekton flex items-center space-x-1.5 transition-colors ${selectedChains.includes(chain.id) ? 'bg-blue-600/20 border-blue-600/30' : 'bg-gray-800/50'}`}><span className="text-sm" style={{color: chain.color}}>{chain.icon}</span><span>{chain.name}</span></button> ))}
           </div>
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-ping' : 'bg-green-400'} transition-colors`}></div>
-            <span className="text-xs text-gray-500">{loading ? 'Updating...' : `Updated ${lastUpdate.toLocaleTimeString()}`}</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-blue-400 animate-ping' : 'bg-green-400'} transition-colors`}></div>
+            <span className="text-xs text-gray-500 font-lekton">{loading ? 'Updating...' : `Updated ${lastUpdate.toLocaleTimeString()}`}</span>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-4">Std. Tx Cost (USD)</h3>
-            <div className="h-72"><Line data={txCostComparisonData} options={usdChartOptions} /></div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div className="bg-gray-800/30 border border-gray-700 p-3 rounded">
+            <h3 className="text-base font-funnel font-medium text-white mb-3">Std. Tx Cost (USD)</h3>
+            <div className="h-64"><Line data={txCostComparisonData} options={usdChartOptions} /></div>
         </div>
-        <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-4">Gas Price Composition (Gwei)</h3>
-            <div className="h-72"><Bar data={gasCompositionData} options={gweiChartOptions} /></div>
+        <div className="bg-gray-800/30 border border-gray-700 p-3 rounded">
+            <h3 className="text-base font-funnel font-medium text-white mb-3">Gas Price Composition (Gwei)</h3>
+            <div className="h-64"><Bar data={gasCompositionData} options={gweiChartOptions} /></div>
         </div>
       </div>
 

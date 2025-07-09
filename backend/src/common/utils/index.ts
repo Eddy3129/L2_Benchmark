@@ -4,156 +4,9 @@ import { plainToClass } from 'class-transformer';
 import { VALIDATION_CONSTANTS, ERROR_MESSAGES } from '../constants';
 import { ValidationErrorDto } from '../dto/base.dto';
 
-// Validation Utilities
-export class ValidationUtils {
-  /**
-   * Validates a DTO class instance
-   */
-  static async validateDto<T extends object>(
-    dtoClass: new () => T,
-    data: any,
-    options?: {
-      skipMissingProperties?: boolean;
-      whitelist?: boolean;
-      forbidNonWhitelisted?: boolean;
-    }
-  ): Promise<T> {
-    const dto = plainToClass(dtoClass, data);
-    const errors = await validate(dto, {
-      skipMissingProperties: options?.skipMissingProperties ?? false,
-      whitelist: options?.whitelist ?? true,
-      forbidNonWhitelisted: options?.forbidNonWhitelisted ?? true,
-    });
-
-    if (errors.length > 0) {
-      const validationErrors = this.formatValidationErrors(errors);
-      throw new BadRequestException({
-        message: ERROR_MESSAGES.VALIDATION.INVALID_PAGINATION,
-        validationErrors,
-      });
-    }
-
-    return dto;
-  }
-
-  /**
-   * Formats validation errors into a standardized format
-   */
-  static formatValidationErrors(errors: ValidationError[]): ValidationErrorDto[] {
-    const result: ValidationErrorDto[] = [];
-
-    const processError = (error: ValidationError, parentPath = '') => {
-      const fieldPath = parentPath ? `${parentPath}.${error.property}` : error.property;
-
-      if (error.constraints) {
-        Object.values(error.constraints).forEach(message => {
-          result.push(new ValidationErrorDto(fieldPath, message, error.value));
-        });
-      }
-
-      if (error.children && error.children.length > 0) {
-        error.children.forEach(child => processError(child, fieldPath));
-      }
-    };
-
-    errors.forEach(error => processError(error));
-    return result;
-  }
-
-  /**
-   * Validates contract name
-   */
-  static validateContractName(name: string): boolean {
-    if (!name || typeof name !== 'string') return false;
-    if (name.length < VALIDATION_CONSTANTS.CONTRACT_NAME.MIN_LENGTH) return false;
-    if (name.length > VALIDATION_CONSTANTS.CONTRACT_NAME.MAX_LENGTH) return false;
-    return VALIDATION_CONSTANTS.CONTRACT_NAME.PATTERN.test(name);
-  }
-
-  /**
-   * Validates Ethereum address
-   */
-  static validateAddress(address: string): boolean {
-    if (!address || typeof address !== 'string') return false;
-    return VALIDATION_CONSTANTS.ADDRESS.PATTERN.test(address);
-  }
-
-  /**
-   * Validates transaction hash
-   */
-  static validateTransactionHash(hash: string): boolean {
-    if (!hash || typeof hash !== 'string') return false;
-    return VALIDATION_CONSTANTS.TRANSACTION_HASH.PATTERN.test(hash);
-  }
-
-  /**
-   * Validates UUID
-   */
-  static validateUUID(uuid: string): boolean {
-    if (!uuid || typeof uuid !== 'string') return false;
-    return VALIDATION_CONSTANTS.UUID.PATTERN.test(uuid);
-  }
-
-  /**
-   * Validates Solidity version
-   */
-  static validateSolidityVersion(version: string): boolean {
-    if (!version || typeof version !== 'string') return false;
-    if (!VALIDATION_CONSTANTS.SOLIDITY_VERSION.PATTERN.test(version)) return false;
-    return VALIDATION_CONSTANTS.SOLIDITY_VERSION.SUPPORTED_VERSIONS.includes(version as any);
-  }
-
-  /**
-   * Validates Solidity code syntax (basic validation)
-   */
-  static validateSolidityCode(code: string): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    if (!code || typeof code !== 'string') {
-      errors.push('Code must be a non-empty string');
-      return { isValid: false, errors };
-    }
-
-    if (code.length < VALIDATION_CONSTANTS.CODE.MIN_LENGTH) {
-      errors.push(`Code must be at least ${VALIDATION_CONSTANTS.CODE.MIN_LENGTH} characters`);
-    }
-
-    if (code.length > VALIDATION_CONSTANTS.CODE.MAX_LENGTH) {
-      errors.push(`Code must not exceed ${VALIDATION_CONSTANTS.CODE.MAX_LENGTH} characters`);
-    }
-
-    // Basic Solidity syntax checks
-    if (!code.includes('pragma solidity')) {
-      errors.push('Code must include pragma solidity directive');
-    }
-
-    if (!code.includes('contract ')) {
-      errors.push('Code must contain at least one contract definition');
-    }
-
-    // Check for balanced braces
-    const openBraces = (code.match(/{/g) || []).length;
-    const closeBraces = (code.match(/}/g) || []).length;
-    if (openBraces !== closeBraces) {
-      errors.push('Unbalanced braces in code');
-    }
-
-    return { isValid: errors.length === 0, errors };
-  }
-
-  /**
-   * Validates pagination parameters
-   */
-  static validatePagination(page?: number, limit?: number): { page: number; limit: number } {
-    const validPage = Math.max(1, page || 1);
-    const validLimit = Math.min(
-      Math.max(1, limit || 10),
-      100 // Max limit
-    );
-
-    return { page: validPage, limit: validLimit };
-  }
-}
+// Import consolidated validation utilities
+// ValidationUtils have been moved to shared/validation-utils.ts to avoid duplication
+export { ValidationUtils } from '../../shared/validation-utils';
 
 // String Utilities
 export class StringUtils {
@@ -566,7 +419,6 @@ export class ArrayUtils {
 
 // Export all utilities
 export const Utils = {
-  Validation: ValidationUtils,
   String: StringUtils,
   Number: NumberUtils,
   Date: DateUtils,

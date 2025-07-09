@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Navigation } from '@/components/Navigation';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Multi-Chain Gas Analytics Platform',
@@ -18,11 +15,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&family=Lekton:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+      </head>
+      <body className="font-lekton text-body">
         <Providers>
-          <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)' }}>
+          <div className="min-h-screen bg-gray-950">
             <Navigation />
-            <main className="pt-4">
+            <main className="pt-2">
               {children}
             </main>
           </div>

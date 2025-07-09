@@ -4,6 +4,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { WalletConnect } from './WalletConnect';
 import { useState } from 'react';
+import { 
+  BarChart3, 
+  Fuel, 
+  Zap, 
+  Search, 
+  Link as LinkIcon, 
+  FileText,
+  Menu,
+  X,
+  Activity
+} from 'lucide-react';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -13,67 +24,56 @@ export function Navigation() {
     { 
       href: '/', 
       label: 'Dashboard', 
-      icon: '🏠', 
-      description: 'Overview & Analytics',
-      gradient: 'from-blue-500 to-cyan-500'
+      icon: BarChart3, 
+      description: 'Overview & Analytics'
     },
     { 
       href: '/estimator', 
       label: 'Gas Estimator', 
-      icon: '⛽', 
-      description: 'Multi-chain cost analysis',
-      gradient: 'from-purple-500 to-pink-500'
+      icon: Fuel, 
+      description: 'Multi-chain cost analysis'
     },
     { 
       href: '/benchmark', 
       label: 'Live Benchmark', 
-      icon: '🚀', 
-      description: 'Real-time testing suite',
-      gradient: 'from-green-500 to-emerald-500'
+      icon: Zap, 
+      description: 'Real-time testing suite'
     },
     { 
       href: '/sequencer-analysis', 
       label: 'Sequencer Analysis', 
-      icon: '🔍', 
-      description: 'Censorship resistance testing',
-      gradient: 'from-indigo-500 to-purple-500'
+      icon: Search, 
+      description: 'Censorship resistance testing'
     },
     { 
       href: '/l1-finality', 
       label: 'L1 Finality', 
-      icon: '⛓️', 
-      description: 'Settlement tracking',
-      gradient: 'from-teal-500 to-blue-500'
+      icon: LinkIcon, 
+      description: 'Settlement tracking'
     },
-
     { 
       href: '/analysis', 
       label: 'Reports', 
-      icon: '📊', 
-      description: 'Historical insights',
-      gradient: 'from-rose-500 to-red-500'
+      icon: FileText, 
+      description: 'Historical insights'
     },
   ];
 
   return (
     <>
       {/* Main Navigation */}
-      <nav className="bg-gray-900/95 backdrop-blur-xl border-b border-gray-800/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+      <nav className="bg-gray-900/90 backdrop-blur border-b border-gray-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <div className="flex justify-between items-center h-12">
             {/* Logo */}
-            <Link href="/" className="flex items-center space-x-3 group">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative bg-gradient-to-r from-blue-500 to-purple-600 p-1 rounded-xl">
-                  <span className="text-white text-xl font-bold">⚡</span>
-                </div>
+            <Link href="/" className="flex items-center space-x-2 group">
+              <div className="bg-blue-600 p-1.5 rounded-lg group-hover:bg-blue-500 transition-colors">
+                <Activity className="w-4 h-4 text-white" />
               </div>
-              <div className='ml-4'>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  L2 Benchmarker
+              <div>
+                <span className="text-lg font-lekton font-semibold text-white group-hover:text-blue-400 transition-colors">
+                  Layer2X
                 </span>
-                <div className="text-xs text-gray-400">Research Platform</div>
               </div>
             </Link>
 
@@ -81,33 +81,20 @@ export function Navigation() {
             <div className="hidden md:flex items-center space-x-1">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
+                const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group relative flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-lekton transition-all duration-200 ${
                       isActive
-                        ? 'text-white'
-                        : 'text-gray-300 hover:text-white'
+                        ? 'text-white bg-blue-600/20 border border-blue-600/30 shadow-lg'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:border hover:border-gray-700'
                     }`}
                     title={item.description}
                   >
-                    {/* Active background */}
-                    {isActive && (
-                      <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl opacity-20`}></div>
-                    )}
-                    
-                    {/* Hover effect */}
-                    <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl opacity-0 group-hover:opacity-10 transition-opacity`}></div>
-                    
-                    {/* Content */}
-                    <span className="relative text-lg">{item.icon}</span>
-                    <span className="relative">{item.label}</span>
-                    
-                    {/* Active indicator */}
-                    {isActive && (
-                      <div className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-gradient-to-r ${item.gradient} rounded-full`}></div>
-                    )}
+                    <Icon className="w-4 h-4" />
+                    <span>{item.label}</span>
                   </Link>
                 );
               })}
@@ -117,15 +104,13 @@ export function Navigation() {
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="text-gray-300 hover:text-white p-2 rounded-lg transition-colors"
+                className="text-gray-300 hover:text-white p-1.5 rounded-lg hover:bg-gray-800/50 transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {isMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  )}
-                </svg>
+                {isMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
               </button>
             </div>
 
@@ -136,26 +121,27 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
+        {/* Mobile Navigation Menu */}
         {isMenuOpen && (
-          <div className="md:hidden bg-gray-900/98 backdrop-blur-xl border-t border-gray-800/50">
-            <div className="px-4 py-4 space-y-2">
+          <div className="md:hidden bg-gray-900/95 backdrop-blur border-b border-gray-800">
+            <div className="px-4 py-2 space-y-1">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
+                const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-lekton text-sm transition-all duration-200 ${
                       isActive
-                        ? `bg-gradient-to-r ${item.gradient} bg-opacity-20 text-white border border-white/10`
+                        ? 'text-white bg-blue-600/20 border border-blue-600/30'
                         : 'text-gray-300 hover:text-white hover:bg-gray-800/50'
                     }`}
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    <Icon className="w-4 h-4" />
                     <div>
-                      <div>{item.label}</div>
+                      <div className="font-medium">{item.label}</div>
                       <div className="text-xs text-gray-400">{item.description}</div>
                     </div>
                   </Link>
@@ -169,18 +155,11 @@ export function Navigation() {
         )}
       </nav>
 
-      {/* Navigation Enhancement - Floating Action Button for Quick Access */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
-          <Link
-            href="/benchmark"
-            className="relative flex items-center justify-center w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-            title="Quick Benchmark"
-          >
-            <span className="text-xl">🚀</span>
-          </Link>
-        </div>
+      {/* Floating Action Button */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg shadow-lg transition-all duration-200 hover:scale-105">
+          <Zap className="w-5 h-5" />
+        </button>
       </div>
     </>
   );

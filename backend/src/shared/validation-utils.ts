@@ -1,9 +1,13 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ApiError, AnalyzeContractRequest, CompareNetworksRequest } from './types';
 import { NetworkConfigService } from '../config/network.config';
+import { ValidationError } from '@nestjs/common';
+import { validate } from 'class-validator';
+import { plainToClass } from 'class-transformer';
 
 /**
- * Utility class for request validation and error handling
+ * Consolidated utility class for request validation and error handling
+ * This replaces duplicate validation utilities across the codebase
  */
 export class ValidationUtils {
   /**
@@ -95,7 +99,7 @@ export class ValidationUtils {
   /**
    * Validate Solidity code basic syntax
    */
-  static validateSolidityCode(code: string): void {
+  static validateSolidityCode(code: string): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
     
     // Check for basic Solidity structure
@@ -122,9 +126,10 @@ export class ValidationUtils {
       errors.push('Unbalanced parentheses in Solidity code');
     }
     
-    if (errors.length > 0) {
-      throw this.createValidationError(errors);
-    }
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   }
   
   /**
@@ -189,6 +194,94 @@ export class ValidationUtils {
     return new HttpException(apiError, HttpStatus.BAD_REQUEST);
   }
   
+  /**
+   * Validates a DTO class instance (consolidated from common/utils)
+   */
+  static async validateDto<T extends object>(
+    dtoClass: new () => T,
+    data: any,
+    options?: {
+      skipMissingProperties?: boolean;
+      whitelist?: boolean;
+      forbidNonWhitelisted?: boolean;
+    }
+  ): Promise<T> {
+    const dto = plainToClass(dtoClass, data);
+    const errors = await validate(dto, {
+      skipMissingProperties: options?.skipMissingProperties ?? false,
+      whitelist: options?.whitelist ?? true,
+      forbidNonWhitelisted: options?.forbidNonWhitelisted ?? true,
+    });
+
+    if (errors.length > 0) {
+      const validationErrors = this.formatValidationErrors(errors);
+      throw new BadRequestException({
+        message: 'Validation failed',
+        validationErrors,
+      });
+    }
+
+    return dto;
+  }
+
+  /**
+   * Formats validation errors into a standardized format
+   */
+  static formatValidationErrors(errors: ValidationError[]): any[] {
+    const result: any[] = [];
+
+    const processError = (error: ValidationError, parentPath = '') => {
+      const fieldPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+
+      if (error.constraints) {
+        Object.values(error.constraints).forEach(message => {
+          result.push({ field: fieldPath, message, value: error.value });
+        });
+      }
+
+      if (error.children && error.children.length > 0) {
+        error.children.forEach(child => processError(child, fieldPath));
+      }
+    };
+
+    errors.forEach(error => processError(error));
+    return result;
+  }
+
+  /**
+   * Validates contract name (consolidated from multiple services)
+   */
+  static validateContractName(name: string): boolean {
+    if (!name || typeof name !== 'string') return false;
+    const trimmed = name.trim();
+    if (trimmed.length < 1 || trimmed.length > 100) return false;
+    return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmed);
+  }
+
+  /**
+   * Validates Ethereum address
+   */
+  static validateAddress(address: string): boolean {
+    if (!address || typeof address !== 'string') return false;
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  }
+
+  /**
+   * Validates transaction hash
+   */
+  static validateTransactionHash(hash: string): boolean {
+    if (!hash || typeof hash !== 'string') return false;
+    return /^0x[a-fA-F0-9]{64}$/.test(hash);
+  }
+
+  /**
+   * Validates Solidity version (consolidated)
+   */
+  static validateSolidityVersion(version: string): boolean {
+    if (!version || typeof version !== 'string') return false;
+    return /^\d+\.\d+\.\d+$/.test(version);
+  }
+
   /**
    * Create a standardized not found error
    */

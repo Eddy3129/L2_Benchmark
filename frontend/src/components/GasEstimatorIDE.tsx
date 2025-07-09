@@ -2,8 +2,18 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { UnifiedGasResults } from './UnifiedGasResults';
 import { ExportButton } from './ExportButton';
+import { NetworkConfidenceSelector } from './NetworkConfidenceSelector';
 import { apiService } from '../lib/api';
 import { CONTRACT_TEMPLATES, ContractTemplate, loadContractTemplate } from '@/lib/contractTemplate';
+import { 
+  Code, 
+  BarChart3, 
+  Play, 
+  Save, 
+  FileText,
+  Settings,
+  Zap
+} from 'lucide-react';
 
 interface AnalysisResult {
   contractName: string;
@@ -204,9 +214,7 @@ export function GasEstimatorIDE() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
+                <Code className="w-5 h-5" />
                 <span>Contract Editor</span>
               </div>
             </button>
@@ -220,9 +228,7 @@ export function GasEstimatorIDE() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+                <BarChart3 className="w-5 h-5" />
                 <span>Analysis Results</span>
                 {analysisResult && (
                   <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
@@ -238,19 +244,34 @@ export function GasEstimatorIDE() {
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto p-6">
         {activeTab === 'editor' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Contract Editor - Takes 2/3 width */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gray-800 rounded-lg border border-gray-700">
+          <div className="space-y-6">
+            {/* Network & Confidence Selector */}
+            <NetworkConfidenceSelector
+              selectedNetwork={selectedNetworks[0] || 'ethereum'}
+              onNetworkChange={(networkId) => setSelectedNetworks([networkId])}
+              confidenceLevel={confidenceLevel}
+              onConfidenceChange={setConfidenceLevel}
+              className="mb-6"
+              showAdvanced={true}
+            />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Contract Editor - Takes 2/3 width */}
+              <div className="lg:col-span-2 space-y-6">
+              <div className="card card-elevated">
                 <div className="p-4 border-b border-gray-700">
-                  <h2 className="text-xl font-semibold text-white">Solidity Contract</h2>
-                  <p className="text-sm text-gray-400 mt-1">Write or paste your contract code for comprehensive gas analysis</p>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Code className="w-5 h-5 text-blue-400" />
+                    <h2 className="text-xl font-semibold text-white font-lekton">Solidity Contract</h2>
+                  </div>
+                  <p className="text-sm text-gray-400">Write or paste your contract code for comprehensive gas analysis</p>
                 </div>
                 
                 <div className="p-6 space-y-4">
                   {/* Contract Template Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
+                      <FileText className="w-4 h-4 inline mr-2" />
                       Contract Template
                     </label>
                     <div className="flex items-center space-x-4">
@@ -258,7 +279,7 @@ export function GasEstimatorIDE() {
                         value={selectedTemplate}
                         onChange={(e) => handleTemplateChange(e.target.value)}
                         disabled={isLoadingTemplate}
-                        className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                        className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-lekton focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 transition-all"
                       >
                         {CONTRACT_TEMPLATES.map((template) => (
                           <option key={template.id} value={template.id}>
@@ -279,14 +300,15 @@ export function GasEstimatorIDE() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
+                      <Settings className="w-4 h-4 inline mr-2" />
                       Contract Name
                     </label>
                     <input
                       type="text"
                       value={contractName}
                       onChange={(e) => setContractName(e.target.value)}
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 font-lekton focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       placeholder="Enter contract name"
                     />
                   </div>
@@ -301,16 +323,18 @@ export function GasEstimatorIDE() {
                       onChange={(e) => setSaveToDatabase(e.target.checked)}
                       className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                     />
-                    <label htmlFor="saveToDatabase" className="text-sm font-medium text-gray-300">
+                    <label htmlFor="saveToDatabase" className="text-sm font-medium text-gray-300 font-lekton flex items-center">
+                      <Save className="w-4 h-4 mr-2" />
                       Save results to database for reporting
                     </label>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
+                      <Code className="w-4 h-4 inline mr-2" />
                       Solidity Code
                     </label>
-                    <div className="border border-gray-600 rounded-md overflow-hidden">
+                    <div className="border border-gray-600 rounded-lg overflow-hidden">
                       <Editor
                         height="500px"
                         defaultLanguage="solidity"
@@ -336,93 +360,21 @@ export function GasEstimatorIDE() {
 
             {/* Configuration Panel - Takes 1/3 width */}
             <div className="space-y-6">
-              {/* Network Selection */}
-              <div className="bg-gray-800 rounded-lg border border-gray-700">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">
-                    Target Networks
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">
-                    Select networks for gas cost analysis and comparison
-                  </p>
-                </div>
-                
-                <div className="p-4">
-                  <div className="space-y-3">
-                    {NETWORKS.map((network) => (
-                      <label
-                        key={network.id}
-                        className="flex items-center space-x-3 cursor-pointer p-3 rounded-md hover:bg-gray-700 transition-colors border border-gray-600"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedNetworks.includes(network.id)}
-                          onChange={() => handleNetworkToggle(network.id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 bg-gray-700 rounded"
-                        />
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: network.color }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-300">
-                            {network.name}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Gas Price Confidence Level */}
-              <div className="bg-gray-800 rounded-lg border border-gray-700">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">Gas Price Confidence</h3>
-                  <p className="text-sm text-gray-400 mt-1">
-                    Select confidence level for gas price estimation
-                  </p>
-                </div>
-                
-                <div className="p-4">
-                  <div className="space-y-3">
-                    {CONFIDENCE_LEVELS.map((level) => (
-                      <label
-                        key={level.value}
-                        className="flex items-start space-x-3 cursor-pointer p-3 rounded-md hover:bg-gray-700 transition-colors border border-gray-600"
-                      >
-                        <input
-                          type="radio"
-                          name="confidenceLevel"
-                          value={level.value}
-                          checked={confidenceLevel === level.value}
-                          onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 bg-gray-700 mt-0.5"
-                        />
-                        <div>
-                          <div className="text-sm font-medium text-gray-300">
-                            {level.label}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {level.description}
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
               {/* Progress Bar */}
               {(isAnalyzing || analysisProgress.stage === 'complete') && (
-                <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                <div className="card card-elevated p-4">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />
+                    <h3 className="text-lg font-semibold text-white font-lekton">Analysis Progress</h3>
+                  </div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-300">{analysisProgress.message}</span>
+                    <span className="text-sm font-medium text-gray-300 font-lekton">{analysisProgress.message}</span>
                     <span className="text-sm text-gray-400">{analysisProgress.progress}%</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2">
                     <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${analysisProgress.progress}%` }}
                     ></div>
                   </div>
@@ -430,20 +382,42 @@ export function GasEstimatorIDE() {
               )}
 
               {/* Analyze Button */}
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || selectedNetworks.length === 0 || isLoadingTemplate}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-colors text-lg"
-              >
-                {isAnalyzing ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Analyzing...</span>
+              <div className="card card-elevated">
+                <div className="p-4 border-b border-gray-700">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Zap className="w-5 h-5 text-yellow-400" />
+                    <h3 className="text-lg font-semibold text-white font-lekton">Analysis Actions</h3>
                   </div>
-                ) : (
-                  'Analyze Gas & Costs'
-                )}
-              </button>
+                  <p className="text-sm text-gray-400">Run gas analysis and export results</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing || selectedNetworks.length === 0 || isLoadingTemplate}
+                    className="btn btn-primary w-full text-lg py-4 font-lekton"
+                  >
+                    {isAnalyzing ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Analyzing...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-2">
+                        <Play className="w-5 h-5" />
+                        <span>Analyze Gas & Costs</span>
+                      </div>
+                    )}
+                  </button>
+
+                  {analysisResult && (
+                    <ExportButton 
+                      sessions={[]}
+                      analysisResult={analysisResult}
+                      className="w-full btn btn-secondary"
+                    />
+                  )}
+                </div>
+              </div>
 
               {error && (
                 <div className={`border rounded-lg p-4 ${
@@ -485,8 +459,11 @@ export function GasEstimatorIDE() {
 
               {/* Quick Stats */}
               {analysisResult && (
-                <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-                  <h3 className="text-lg font-semibold text-white mb-3">Quick Stats</h3>
+                <div className="card card-elevated p-4">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <BarChart3 className="w-5 h-5 text-blue-400" />
+                    <h3 className="text-lg font-semibold text-white font-lekton">Quick Stats</h3>
+                  </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Networks:</span>

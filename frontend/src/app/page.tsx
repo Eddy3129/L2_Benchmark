@@ -35,7 +35,7 @@ export default function Home() {
    
       {/* Gas Dashboard */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
+        {/* <div className="mb-6">
             <h2 className="text-2xl font-bold text-center mb-6">
               <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Quick Actions
@@ -58,7 +58,7 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-          </div>
+          </div> */}
         <div className="mb-12">
           <GasDashboard />
         </div>

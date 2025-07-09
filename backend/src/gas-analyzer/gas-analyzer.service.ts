@@ -44,7 +44,10 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
     this.logger.log(`Starting analysis for contract: ${contractName}`);
     
     // Validate inputs
-    ValidationUtils.validateSolidityCode(code);
+    const codeValidation = ValidationUtils.validateSolidityCode(code);
+    if (!codeValidation.isValid) {
+      throw ValidationUtils.createValidationError(codeValidation.errors);
+    }
     const { valid: validNetworks, invalid: invalidNetworks } = NetworkConfigService.validateNetworks(networks);
     
     if (invalidNetworks.length > 0) {
