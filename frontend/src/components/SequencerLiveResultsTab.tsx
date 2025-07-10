@@ -196,24 +196,24 @@ export default function SequencerLiveResultsTab({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-gray-900/50 border-gray-800">
           <CardHeader>
-            <CardTitle className="text-white">Transaction Statistics</CardTitle>
+            <CardTitle className="text-white text-lg">Transaction Statistics</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-400">Total Transactions</span>
+                <span className="text-gray-400 text-sm">Total Transactions</span>
                 <span className="text-white font-semibold">{currentTest.metrics.totalTransactions}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Successful</span>
+                <span className="text-gray-400 text-sm">Successful</span>
                 <span className="text-green-400 font-semibold">{currentTest.metrics.successfulTransactions}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Failed</span>
+                <span className="text-gray-400 text-sm">Failed</span>
                 <span className="text-red-400 font-semibold">{currentTest.metrics.failedTransactions}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Avg Gas Used</span>
+                <span className="text-gray-400 text-sm">Avg Gas Used</span>
                 <span className="text-white font-semibold">{currentTest.metrics.avgGasUsed.toLocaleString()}</span>
               </div>
             </div>
@@ -222,12 +222,12 @@ export default function SequencerLiveResultsTab({
 
         <Card className="bg-gray-900/50 border-gray-800">
           <CardHeader>
-            <CardTitle className="text-white">Performance Metrics</CardTitle>
+            <CardTitle className="text-white text-lg">Performance Metrics</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-400">Parallel Processing Score</span>
+                <span className="text-gray-400 text-sm">Parallel Processing Score</span>
                 <span className="text-white font-semibold">{currentTest.metrics.parallelProcessingScore.toFixed(1)}/10</span>
               </div>
               <div className="space-y-2">

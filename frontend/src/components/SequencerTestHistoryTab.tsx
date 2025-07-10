@@ -39,12 +39,14 @@ interface TestHistoryItem {
 
 interface SequencerTestHistoryTabProps {
   testHistory: TestHistoryItem[];
-  isLoading: boolean;
+  isLoading?: boolean;
+  onRefresh?: () => void;
 }
 
 export default function SequencerTestHistoryTab({
   testHistory,
-  isLoading
+  isLoading = false,
+  onRefresh
 }: SequencerTestHistoryTabProps) {
   if (isLoading) {
     return (

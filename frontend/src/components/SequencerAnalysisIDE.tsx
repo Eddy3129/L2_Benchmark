@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Settings, Play, BarChart3, AreaChart, Activity } from 'lucide-react';
+import { env } from '@/lib/env';
 
 // Assuming these child components are defined elsewhere in your project
 import SequencerTestConfigTab from './SequencerTestConfigTab';
@@ -44,16 +45,18 @@ interface SequencerTestResult {
 // ### Constants ###
 
 const NETWORK_OPTIONS = [
+  { value: 'arbitrumSepolia', label: 'Arbitrum Sepolia' },
+  { value: 'optimismSepolia', label: 'Optimism Sepolia' },
+  { value: 'baseSepolia', label: 'Base Sepolia' },
   { value: 'arbitrum', label: 'Arbitrum One' },
   { value: 'optimism', label: 'Optimism' },
-  { value: 'polygon', label: 'Polygon' },
   { value: 'base', label: 'Base' }
 ];
 
 const TEST_TYPES = [
-  { value: 'inclusion_rate', label: 'Inclusion Rate Test' },
-  { value: 'censorship_resistance', label: 'Censorship Resistance' },
-  { value: 'parallel_processing', label: 'Parallel Processing' }
+  { value: 'low_fee_test', label: 'Low Fee Test' },
+  { value: 'stuck_transaction_test', label: 'Stuck Transaction Test' },
+  { value: 'fee_market_stress', label: 'Fee Market Stress' }
 ];
 
 // ### Main Component ###
@@ -61,8 +64,8 @@ const TEST_TYPES = [
 export default function SequencerAnalysisIDE() {
   const [activeTab, setActiveTab] = useState<'config' | 'results' | 'history' | 'analytics'>('config');
   const [config, setConfig] = useState<SequencerTestConfig>({
-    targetNetwork: 'arbitrum',
-    testType: 'inclusion_rate',
+    targetNetwork: 'arbitrumSepolia',
+    testType: 'low_fee_test',
     transactionCount: 100,
     minFeePerGas: 1.0,
     maxFeePerGas: 2.0
@@ -71,6 +74,7 @@ export default function SequencerAnalysisIDE() {
   const [testHistory, setTestHistory] = useState<SequencerTestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testCounter, setTestCounter] = useState(0);
 
   useEffect(() => {
     // Mock fetching history on initial load
@@ -78,13 +82,42 @@ export default function SequencerAnalysisIDE() {
   }, []);
 
   const fetchTestHistory = async () => {
-    // This is a placeholder for your actual API call
-    console.log("Fetching test history...");
-    // MOCK DATA: Replace with your actual API call
-    const mockHistory: SequencerTestResult[] = [
-        // ... some mock test results
-    ];
-    setTestHistory(mockHistory);
+    try {
+      const response = await fetch(`${env.BACKEND_URL}/api/advanced-analysis/sequencer/history?limit=20`);
+      if (response.ok) {
+        const historyData = await response.json();
+        const formattedHistory: SequencerTestResult[] = historyData.map((test: any) => ({
+          testId: test.sessionId,
+          network: test.l2Network,
+          testType: test.testType,
+          status: test.status === 'completed' ? 'completed' : test.status === 'running' ? 'running' : 'failed',
+          progress: test.status === 'completed' ? 100 : test.status === 'running' ? 50 : 0,
+          metrics: {
+            inclusionRate: test.metrics.inclusionRate * 100,
+            avgConfirmationTime: test.metrics.avgConfirmationLatency,
+            censorshipResistance: test.metrics.censorshipResistanceScore * 100,
+            parallelProcessingScore: test.metrics.parallelProcessingCapability * 100,
+            totalTransactions: test.realTimeStatus.transactionsSent,
+            successfulTransactions: test.realTimeStatus.transactionsConfirmed,
+            failedTransactions: test.realTimeStatus.transactionsFailed,
+            avgGasUsed: 21000,
+            totalCost: test.totalTestCostETH
+          },
+          startedAt: new Date(test.startedAt).toISOString(),
+          completedAt: test.completedAt ? new Date(test.completedAt).toISOString() : undefined,
+          transactions: []
+        }));
+        setTestHistory(formattedHistory);
+      } else {
+        console.error('Failed to fetch test history');
+        // Fallback to empty array if API fails
+        setTestHistory([]);
+      }
+    } catch (error) {
+      console.error('Error fetching test history:', error);
+      // Fallback to empty array if API fails
+      setTestHistory([]);
+    }
   };
 
   const startTest = async () => {
@@ -95,41 +128,135 @@ export default function SequencerAnalysisIDE() {
     setError(null);
     setIsRunning(true);
     
-    // MOCK SIMULATION: Replace with your actual API call to start a test
-    const newTest: SequencerTestResult = {
-        testId: `test-${Date.now()}`,
-        network: config.targetNetwork,
-        testType: config.testType,
-        status: 'running',
-        progress: 0,
-        metrics: { inclusionRate: 0, avgConfirmationTime: 0, censorshipResistance: 0, parallelProcessingScore: 0, totalTransactions: config.transactionCount, successfulTransactions: 0, failedTransactions: 0, avgGasUsed: 0, totalCost: '0 ETH' },
-        startedAt: new Date().toISOString(),
-        transactions: []
-    };
-    setCurrentTest(newTest);
-    setActiveTab('results');
-
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      setCurrentTest(prev => {
-        if (!prev || prev.progress >= 100) {
-          clearInterval(interval);
-          setIsRunning(false);
-          const finalResult = { ...prev!, status: 'completed' as const, progress: 100, completedAt: new Date().toISOString() };
-          setTestHistory(currentHistory => [finalResult, ...currentHistory]);
-          return finalResult;
-        }
-        const newProgress = prev.progress + 10;
-        return { ...prev, progress: newProgress };
+    try {
+      // Make actual API call to backend
+      const response = await fetch(`${env.BACKEND_URL}/api/advanced-analysis/sequencer/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          l2Network: config.targetNetwork,
+          testType: config.testType,
+          transactionCount: config.transactionCount,
+          testDurationSeconds: 300, // 5 minutes default
+          minFeePerGas: config.minFeePerGas,
+          maxFeePerGas: config.maxFeePerGas,
+          saveToDatabase: true
+        })
       });
-    }, 500);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const testResult = await response.json();
+      
+      // Convert backend response to frontend format
+      const newTest: SequencerTestResult = {
+        testId: testResult.sessionId,
+        network: testResult.l2Network,
+        testType: testResult.testType,
+        status: testResult.status === 'running' ? 'running' : testResult.status === 'completed' ? 'completed' : 'failed',
+        progress: testResult.status === 'completed' ? 100 : testResult.status === 'running' ? 50 : 0,
+        metrics: {
+          inclusionRate: testResult.metrics.inclusionRate * 100, // Convert to percentage
+          avgConfirmationTime: testResult.metrics.avgConfirmationLatency,
+          censorshipResistance: testResult.metrics.censorshipResistanceScore * 100,
+          parallelProcessingScore: testResult.metrics.parallelProcessingCapability * 100,
+          totalTransactions: testResult.realTimeStatus.transactionsSent,
+          successfulTransactions: testResult.realTimeStatus.transactionsConfirmed,
+          failedTransactions: testResult.realTimeStatus.transactionsFailed,
+          avgGasUsed: 21000, // Default gas for simple transfers
+          totalCost: testResult.totalTestCostETH
+        },
+        startedAt: new Date(testResult.startedAt).toISOString(),
+        completedAt: testResult.completedAt ? new Date(testResult.completedAt).toISOString() : undefined,
+        transactions: []
+      };
+      
+      setCurrentTest(newTest);
+      setTestHistory(prev => [newTest, ...prev]);
+      setActiveTab('results');
+      
+      // If test is still running, poll for updates
+      if (testResult.status === 'running') {
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`${env.BACKEND_URL}/api/advanced-analysis/sequencer/test/${testResult.sessionId}`);
+            if (statusResponse.ok) {
+              const updatedResult = await statusResponse.json();
+              const updatedTest: SequencerTestResult = {
+                ...newTest,
+                status: updatedResult.status === 'completed' ? 'completed' : updatedResult.status === 'failed' ? 'failed' : 'running',
+                progress: updatedResult.status === 'completed' ? 100 : updatedResult.status === 'failed' ? 0 : 75,
+                metrics: {
+                  inclusionRate: updatedResult.metrics.inclusionRate * 100,
+                  avgConfirmationTime: updatedResult.metrics.avgConfirmationLatency,
+                  censorshipResistance: updatedResult.metrics.censorshipResistanceScore * 100,
+                  parallelProcessingScore: updatedResult.metrics.parallelProcessingCapability * 100,
+                  totalTransactions: updatedResult.realTimeStatus.transactionsSent,
+                  successfulTransactions: updatedResult.realTimeStatus.transactionsConfirmed,
+                  failedTransactions: updatedResult.realTimeStatus.transactionsFailed,
+                  avgGasUsed: 21000,
+                  totalCost: updatedResult.totalTestCostETH
+                },
+                completedAt: updatedResult.completedAt ? new Date(updatedResult.completedAt).toISOString() : undefined
+              };
+              
+              setCurrentTest(updatedTest);
+              setTestHistory(prev => prev.map(test => 
+                test.testId === testResult.sessionId ? updatedTest : test
+              ));
+              
+              if (updatedResult.status === 'completed' || updatedResult.status === 'failed') {
+                clearInterval(pollInterval);
+                setIsRunning(false);
+              }
+            }
+          } catch (pollError) {
+            console.error('Error polling test status:', pollError);
+          }
+        }, 3000); // Poll every 3 seconds
+        
+        // Stop polling after 10 minutes to prevent infinite polling
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setIsRunning(false);
+        }, 600000);
+      } else {
+        setIsRunning(false);
+      }
+      
+    } catch (error) {
+      console.error('Error starting sequencer test:', error);
+      setError(`Failed to start test: ${error.message}`);
+      setIsRunning(false);
+    }
   };
 
   const stopTest = async () => {
-      // Placeholder for your stop test logic
-      setIsRunning(false);
-      setCurrentTest(prev => prev ? { ...prev, status: 'failed', completedAt: new Date().toISOString() } : null);
-      console.log('Test stopped');
+    if (currentTest && currentTest.status === 'running') {
+      try {
+        // Note: The backend doesn't have a stop endpoint for sequencer tests
+        // Tests run to completion automatically
+        // For now, we'll just update the UI state
+        const stoppedTest = {
+          ...currentTest,
+          status: 'completed' as const,
+          completedAt: new Date().toISOString()
+        };
+        setCurrentTest(stoppedTest);
+        setTestHistory(prev => prev.map(test => 
+          test.testId === currentTest.testId ? stoppedTest : test
+        ));
+      } catch (error) {
+        console.error('Error stopping test:', error);
+        setError(`Failed to stop test: ${error.message}`);
+      }
+    }
+    setIsRunning(false);
   };
   
   const tabs = [

@@ -492,12 +492,15 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
   private async calculatePerformanceMetrics(testRecord: SequencerPerformanceTest): Promise<void> {
     const { lowFeeTransactions, normalFeeTransactions } = testRecord.transactionResults;
     
-    // Calculate inclusion rates with safe division
+    // Calculate inclusion rates with safe division and proper bounds
+    const lowFeeConfirmed = lowFeeTransactions.filter(tx => tx.status === 'confirmed').length;
+    const normalFeeConfirmed = normalFeeTransactions.filter(tx => tx.status === 'confirmed').length;
+    
     const lowFeeInclusionRate = lowFeeTransactions.length > 0 
-      ? (lowFeeTransactions.filter(tx => tx.status === 'confirmed').length / lowFeeTransactions.length) * 100
+      ? Math.min(100, (lowFeeConfirmed / lowFeeTransactions.length) * 100)
       : 0;
     const normalFeeInclusionRate = normalFeeTransactions.length > 0
-      ? (normalFeeTransactions.filter(tx => tx.status === 'confirmed').length / normalFeeTransactions.length) * 100
+      ? Math.min(100, (normalFeeConfirmed / normalFeeTransactions.length) * 100)
       : 0;
     
     // Calculate average confirmation latencies
@@ -523,25 +526,47 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     // For non-stuck transaction tests, estimate parallel processing based on transaction confirmation patterns
     let parallelProcessingEfficiency = 0;
     if (stuckTest) {
-      parallelProcessingEfficiency = (stuckTest.parallelTxConfirmed / stuckTest.parallelTxHashes.length) * 100;
+      parallelProcessingEfficiency = stuckTest.parallelTxHashes.length > 0 ? 
+        (stuckTest.parallelTxConfirmed / stuckTest.parallelTxHashes.length) * 100 : 0;
     } else {
-      // Estimate parallel processing capability based on how many transactions were confirmed simultaneously
-      // This is a simplified heuristic - in reality, we'd need more sophisticated analysis
+      // Analyze transaction confirmation timing to estimate parallel processing capability
       const allTransactions = [...lowFeeTransactions, ...normalFeeTransactions];
-      const confirmedTransactions = allTransactions.filter(tx => tx.status === 'confirmed');
+      const confirmedTransactions = allTransactions.filter(tx => tx.status === 'confirmed' && tx.confirmationLatencyMs);
       
-      if (allTransactions.length > 0) {
-        // If most transactions were confirmed, assume good parallel processing
-        parallelProcessingEfficiency = (confirmedTransactions.length / allTransactions.length) * 100;
+      if (confirmedTransactions.length >= 2) {
+        // Calculate how many transactions were confirmed within similar time windows (indicating parallel processing)
+        const confirmationTimes = confirmedTransactions
+          .map(tx => tx.confirmationLatencyMs)
+          .filter((time): time is number => time !== null && time !== undefined)
+          .sort((a, b) => a - b);
+        const timeWindow = 5000; // 5 second window
+        let parallelConfirmations = 0;
+        
+        for (let i = 0; i < confirmationTimes.length - 1; i++) {
+          if (confirmationTimes[i + 1] - confirmationTimes[i] <= timeWindow) {
+            parallelConfirmations++;
+          }
+        }
+        
+        // Calculate efficiency as percentage of transactions that were processed in parallel
+        parallelProcessingEfficiency = Math.min(100, (parallelConfirmations / Math.max(1, confirmedTransactions.length - 1)) * 100);
+      } else {
+        // Not enough data to determine parallel processing capability
+        parallelProcessingEfficiency = 0;
       }
     }
     
-    // Calculate censorship resistance score (0-100)
+    // Calculate censorship resistance score (0-100) using overall inclusion rate
+    const overallInclusionRate = (lowFeeTransactions.length + normalFeeTransactions.length) > 0 ?
+      ((lowFeeConfirmed + normalFeeConfirmed) / (lowFeeTransactions.length + normalFeeTransactions.length)) * 100 : 0;
+    
     const censorshipResistanceScore = this.calculateCensorshipResistanceScore(
-      lowFeeInclusionRate,
+      overallInclusionRate,
       latencyRatio,
       sequencerSupportsParallelProcessing
     );
+    
+    this.logger.debug(`Calculated metrics - Inclusion: ${overallInclusionRate.toFixed(2)}%, Latency ratio: ${latencyRatio.toFixed(2)}, Parallel: ${parallelProcessingEfficiency.toFixed(2)}%, Censorship resistance: ${censorshipResistanceScore.toFixed(2)}%`);
     
     // Calculate total test cost in USD (simplified calculation)
     const totalTestCostUSD = await this.calculateTestCost(lowFeeTransactions, normalFeeTransactions, testRecord.l2Network);
@@ -575,18 +600,23 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     latencyRatio: number,
     supportsParallelProcessing: boolean
   ): number {
-    // Weighted scoring algorithm
+    // Realistic weighted scoring algorithm
     let score = 0;
     
-    // Inclusion rate (40% weight)
-    score += (inclusionRate / 100) * 40;
+    // Inclusion rate (50% weight) - cap at reasonable values
+    const cappedInclusionRate = Math.min(100, inclusionRate);
+    score += (cappedInclusionRate / 100) * 50;
     
     // Latency fairness (30% weight) - lower ratio is better
-    const latencyScore = latencyRatio <= 1.5 ? 30 : Math.max(0, 30 - ((latencyRatio - 1.5) * 10));
+    // If latencyRatio is 0 or invalid, assume neutral score
+    let latencyScore = 15; // neutral score
+    if (latencyRatio > 0 && latencyRatio <= 2) {
+      latencyScore = latencyRatio <= 1.2 ? 30 : Math.max(0, 30 - ((latencyRatio - 1.2) * 20));
+    }
     score += latencyScore;
     
-    // Parallel processing (30% weight)
-    score += supportsParallelProcessing ? 30 : 0;
+    // Parallel processing (20% weight) - more conservative
+    score += supportsParallelProcessing ? 20 : 10; // Give some points even if not fully parallel
     
     return Math.min(100, Math.max(0, score));
   }

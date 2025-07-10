@@ -76,12 +76,15 @@ export class AdvancedAnalysisController {
         }
       },
       metrics: {
-        inclusionRate: test.performanceMetrics?.inclusionRate ? 
-          (test.performanceMetrics.inclusionRate.lowFeeTransactions + test.performanceMetrics.inclusionRate.normalFeeTransactions) / 2 : 0,
+        // Use overall inclusion rate based on all transactions
+        inclusionRate: (lowFeeConfirmed + normalFeeConfirmed) > 0 && (lowFeeSent + normalFeeSent) > 0 ? 
+          ((lowFeeConfirmed + normalFeeConfirmed) / (lowFeeSent + normalFeeSent)) * 100 : 0,
         avgConfirmationLatency: test.performanceMetrics?.confirmationLatency ? 
           ((test.performanceMetrics.confirmationLatency.lowFeeAvgMs + test.performanceMetrics.confirmationLatency.normalFeeAvgMs) / 2) / 1000 : 0, // Convert ms to seconds
-        parallelProcessingCapability: test.performanceMetrics?.parallelProcessingCapability?.parallelProcessingEfficiency || 0,
-        censorshipResistanceScore: test.performanceMetrics?.censorshipResistanceScore || 0
+        // Cap parallel processing at 100% and make it more realistic
+        parallelProcessingCapability: Math.min(100, test.performanceMetrics?.parallelProcessingCapability?.parallelProcessingEfficiency || 0),
+        // Cap censorship resistance at 100%
+        censorshipResistanceScore: Math.min(100, test.performanceMetrics?.censorshipResistanceScore || 0)
       },
       totalTestCostETH: test.totalTestCostUSD ? (test.totalTestCostUSD / 2000).toFixed(6) : '0', // Convert USD to ETH (assuming $2000/ETH)
       totalTestCostUSD: test.totalTestCostUSD || 0,
