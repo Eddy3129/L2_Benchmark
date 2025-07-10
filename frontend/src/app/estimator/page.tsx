@@ -1,6 +1,6 @@
 'use client';
 
-import { GasEstimatorIDE } from '@/components/GasEstimatorIDE';
+import GasEstimatorIDE from '@/components/GasEstimatorIDE';
 
 export default function EstimatorPage() {
   return (

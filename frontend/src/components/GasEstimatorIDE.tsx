@@ -1,19 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import Editor from '@monaco-editor/react';
-import { UnifiedGasResults } from './UnifiedGasResults';
-import { ExportButton } from './ExportButton';
-import { NetworkConfidenceSelector } from './NetworkConfidenceSelector';
 import { apiService } from '../lib/api';
-import { CONTRACT_TEMPLATES, ContractTemplate, loadContractTemplate } from '@/lib/contractTemplate';
-import { 
-  Code, 
-  BarChart3, 
-  Play, 
-  Save, 
-  FileText,
-  Settings,
-  Zap
-} from 'lucide-react';
+import { CONTRACT_TEMPLATES, loadContractTemplate } from '@/lib/contractTemplate';
+import { Code, BarChart3 } from 'lucide-react';
 
 interface AnalysisResult {
   contractName: string;
@@ -31,28 +19,7 @@ interface AnalysisResult {
 import { NetworkResult, GasEstimate, AnalysisProgress } from '@/types/shared';
 import { getAllNetworks } from '@/utils/networkConfig';
 
-// Use centralized network configuration - filter to show only mainnet networks
-const NETWORKS = getAllNetworks()
-  .filter(network => {
-    // Only show mainnet networks (exclude testnets)
-    const testnetIds = ['arbitrumSepolia', 'optimismSepolia', 'baseSepolia', 'polygonAmoy', 'polygonZkEvm', 'zkSyncSepolia'];
-    return !testnetIds.includes(network.id);
-  })
-  .map(network => ({
-    id: network.id,
-    name: network.name,
-    color: network.color
-  }));
 
-
-
-const CONFIDENCE_LEVELS = [
-  { value: 70, label: '70% - Fast', description: 'Quick confirmation, lower confidence' },
-  { value: 80, label: '80% - Standard', description: 'Balanced speed and confidence' },
-  { value: 90, label: '90% - Safe', description: 'Higher confidence, slower confirmation' },
-  { value: 95, label: '95% - Very Safe', description: 'Very high confidence' },
-  { value: 99, label: '99% - Maximum', description: 'Maximum confidence, slowest confirmation' },
-];
 
 const PROGRESS_STAGES = {
   idle: { message: 'Ready to analyze', progress: 0 },
@@ -61,6 +28,9 @@ const PROGRESS_STAGES = {
   analyzing: { message: 'Analyzing gas costs and functions...', progress: 75 },
   complete: { message: 'Analysis complete', progress: 100 }
 };
+
+import ContractEditorTab from './ContractEditorTab';
+import GasEstimatorResultsTab from './GasEstimatorResultsTab';
 
 export function GasEstimatorIDE() {
   const [activeTab, setActiveTab] = useState<'editor' | 'results'>('editor');
@@ -79,6 +49,7 @@ export function GasEstimatorIDE() {
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [compilationError, setCompilationError] = useState<string | null>(null);
 
   const isAnalyzing = analysisProgress.stage !== 'idle' && analysisProgress.stage !== 'complete';
 
@@ -149,6 +120,7 @@ export function GasEstimatorIDE() {
     }
 
     setError(null);
+    setCompilationError(null);
     setAnalysisResult(null);
     updateProgress('compiling');
 
@@ -188,14 +160,49 @@ export function GasEstimatorIDE() {
       updateProgress('complete');
       setActiveTab('results');
       setTimeout(() => updateProgress('idle'), 2000);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
+    } catch (err: any) {
+      console.error('Analysis error:', err);
+      
+      let errorMessage = 'Analysis failed';
+      let compilationDetails = null;
+      
+      // Enhanced error handling for different response formats
+      if (err.response) {
+        const { status, data } = err.response;
+        
+        // Handle different error response structures
+        if (data) {
+          if (typeof data === 'string') {
+            errorMessage = data;
+          } else if (data.message) {
+            errorMessage = data.message;
+          } else if (data.error) {
+            if (typeof data.error === 'string') {
+              errorMessage = data.error;
+            } else {
+              compilationDetails = data.error;
+              errorMessage = 'Compilation failed. Check details below.';
+            }
+          } else {
+            errorMessage = `Server error (${status}): ${JSON.stringify(data)}`;
+          }
+        } else {
+          errorMessage = `Server responded with status ${status}`;
+        }
+      } else if (err.request) {
+        errorMessage = 'Network error: Unable to reach the server';
+      } else {
+        errorMessage = err.message || 'Unknown error occurred';
+      }
+
+      if (compilationDetails) {
+        setCompilationError(typeof compilationDetails === 'string' ? 
+          compilationDetails : JSON.stringify(compilationDetails, null, 2));
+      }
+      
       setError(errorMessage);
       updateProgress('idle');
-      
-      if (errorMessage.includes('Compilation Error') || errorMessage.includes('Syntax Error')) {
-        setActiveTab('editor');
-      }
+      setActiveTab('editor');
     }
   };
 
@@ -244,282 +251,39 @@ export function GasEstimatorIDE() {
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto p-6">
         {activeTab === 'editor' ? (
-          <div className="space-y-6">
-            {/* Network & Confidence Selector */}
-            <NetworkConfidenceSelector
-              selectedNetwork={selectedNetworks[0] || 'ethereum'}
-              onNetworkChange={(networkId) => setSelectedNetworks([networkId])}
-              confidenceLevel={confidenceLevel}
-              onConfidenceChange={setConfidenceLevel}
-              className="mb-6"
-              showAdvanced={true}
-            />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Contract Editor - Takes 2/3 width */}
-              <div className="lg:col-span-2 space-y-6">
-              <div className="card card-elevated">
-                <div className="p-4 border-b border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Code className="w-5 h-5 text-blue-400" />
-                    <h2 className="text-xl font-semibold text-white font-lekton">Solidity Contract</h2>
-                  </div>
-                  <p className="text-sm text-gray-400">Write or paste your contract code for comprehensive gas analysis</p>
-                </div>
-                
-                <div className="p-6 space-y-4">
-                  {/* Contract Template Selector */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
-                      <FileText className="w-4 h-4 inline mr-2" />
-                      Contract Template
-                    </label>
-                    <div className="flex items-center space-x-4">
-                      <select
-                        value={selectedTemplate}
-                        onChange={(e) => handleTemplateChange(e.target.value)}
-                        disabled={isLoadingTemplate}
-                        className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-lekton focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 transition-all"
-                      >
-                        {CONTRACT_TEMPLATES.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.name} ({template.category})
-                          </option>
-                        ))}
-                      </select>
-                      {isLoadingTemplate && (
-                        <div className="text-sm text-gray-500 flex items-center space-x-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                          <span>Loading...</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-2 text-sm text-gray-400">
-                      {CONTRACT_TEMPLATES.find(t => t.id === selectedTemplate)?.description}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
-                      <Settings className="w-4 h-4 inline mr-2" />
-                      Contract Name
-                    </label>
-                    <input
-                      type="text"
-                      value={contractName}
-                      onChange={(e) => setContractName(e.target.value)}
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 font-lekton focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      placeholder="Enter contract name"
-                    />
-                  </div>
-
-
-
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      id="saveToDatabase"
-                      checked={saveToDatabase}
-                      onChange={(e) => setSaveToDatabase(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                    />
-                    <label htmlFor="saveToDatabase" className="text-sm font-medium text-gray-300 font-lekton flex items-center">
-                      <Save className="w-4 h-4 mr-2" />
-                      Save results to database for reporting
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2 font-lekton">
-                      <Code className="w-4 h-4 inline mr-2" />
-                      Solidity Code
-                    </label>
-                    <div className="border border-gray-600 rounded-lg overflow-hidden">
-                      <Editor
-                        height="500px"
-                        defaultLanguage="solidity"
-                        value={code}
-                        onChange={(value) => setCode(value || '')}
-                        theme="vs-dark"
-                        options={{
-                          minimap: { enabled: false },
-                          fontSize: 14,
-                          lineNumbers: 'on',
-                          roundedSelection: false,
-                          scrollBeyondLastLine: false,
-                          automaticLayout: true,
-                          padding: { top: 16, bottom: 16 },
-                          wordWrap: 'on',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Configuration Panel - Takes 1/3 width */}
-            <div className="space-y-6">
-
-              {/* Progress Bar */}
-              {(isAnalyzing || analysisProgress.stage === 'complete') && (
-                <div className="card card-elevated p-4">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />
-                    <h3 className="text-lg font-semibold text-white font-lekton">Analysis Progress</h3>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-300 font-lekton">{analysisProgress.message}</span>
-                    <span className="text-sm text-gray-400">{analysisProgress.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${analysisProgress.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-
-              {/* Analyze Button */}
-              <div className="card card-elevated">
-                <div className="p-4 border-b border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Zap className="w-5 h-5 text-yellow-400" />
-                    <h3 className="text-lg font-semibold text-white font-lekton">Analysis Actions</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">Run gas analysis and export results</p>
-                </div>
-                <div className="p-4 space-y-4">
-                  <button
-                    onClick={handleAnalyze}
-                    disabled={isAnalyzing || selectedNetworks.length === 0 || isLoadingTemplate}
-                    className="btn btn-primary w-full text-lg py-4 font-lekton"
-                  >
-                    {isAnalyzing ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        <span>Analyzing...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <Play className="w-5 h-5" />
-                        <span>Analyze Gas & Costs</span>
-                      </div>
-                    )}
-                  </button>
-
-                  {analysisResult && (
-                    <ExportButton 
-                      sessions={[]}
-                      analysisResult={analysisResult}
-                      className="w-full btn btn-secondary"
-                    />
-                  )}
-                </div>
-              </div>
-
-              {error && (
-                <div className={`border rounded-lg p-4 ${
-                  error.includes('Compilation Error') || error.includes('Syntax Error')
-                    ? 'bg-red-900/50 border-red-700'
-                    : 'bg-yellow-900/50 border-yellow-700'
-                }`}>
-                  <div className="flex">
-                    <div className={error.includes('Compilation Error') || error.includes('Syntax Error') ? 'text-red-400' : 'text-yellow-400'}>
-                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className={`text-sm font-medium ${
-                        error.includes('Compilation Error') || error.includes('Syntax Error')
-                          ? 'text-red-300'
-                          : 'text-yellow-300'
-                      }`}>
-                        {error.includes('Compilation Error') ? 'Compilation Error' :
-                         error.includes('Syntax Error') ? 'Syntax Error' : 'Analysis Error'}
-                      </h3>
-                      <p className={`text-sm mt-1 ${
-                        error.includes('Compilation Error') || error.includes('Syntax Error')
-                          ? 'text-red-400'
-                          : 'text-yellow-400'
-                      }`}>
-                        {error}
-                      </p>
-                      {(error.includes('Compilation Error') || error.includes('Syntax Error')) && (
-                        <p className="text-xs text-gray-400 mt-2">
-                          💡 Check your Solidity syntax, imports, and contract structure.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Stats */}
-              {analysisResult && (
-                <div className="card card-elevated p-4">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <BarChart3 className="w-5 h-5 text-blue-400" />
-                    <h3 className="text-lg font-semibold text-white font-lekton">Quick Stats</h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Networks:</span>
-                      <span className="text-blue-400 font-medium">{analysisResult.results.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Functions:</span>
-                      <span className="text-purple-400 font-medium">
-                        {analysisResult.results.reduce((sum, r) => sum + r.functions.length, 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Avg Deploy Cost:</span>
-                      <span className="text-green-400 font-medium">
-                        ${(analysisResult.results.reduce((sum, r) => sum + r.deployment.costUSD, 0) / analysisResult.results.length).toFixed(3)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <ContractEditorTab
+            code={code}
+            setCode={setCode}
+            contractName={contractName}
+            setContractName={setContractName}
+            selectedTemplate={selectedTemplate}
+            setSelectedTemplate={setSelectedTemplate}
+            selectedNetworks={selectedNetworks}
+            onNetworkToggle={handleNetworkToggle}
+            confidenceLevel={confidenceLevel}
+            setConfidenceLevel={setConfidenceLevel}
+            saveToDatabase={saveToDatabase}
+            setSaveToDatabase={setSaveToDatabase}
+            isLoadingTemplate={isLoadingTemplate}
+            setIsLoadingTemplate={setIsLoadingTemplate}
+            analysisProgress={analysisProgress}
+            analysisResult={analysisResult}
+            error={error}
+            compilationError={compilationError}
+            isAnalyzing={isAnalyzing}
+            handleTemplateChange={handleTemplateChange}
+            handleAnalyze={handleAnalyze}
+          />
         ) : (
-          // Results Tab
-          <div className="space-y-6">
-            {analysisResult ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-bold text-white">Gas Analysis Results</h1>
-                    <p className="text-gray-400 mt-1">
-                      Contract: <span className="text-blue-400 font-medium">{analysisResult.contractName}</span> • 
-                      Analyzed: <span className="text-green-400 font-medium">{new Date(analysisResult.timestamp).toLocaleString()}</span>
-                    </p>
-                  </div>
-                  <ExportButton 
-                     sessions={[]}
-                     analysisResult={analysisResult}
-                   />
-                </div>
-                <UnifiedGasResults result={analysisResult} />
-              </>
-            ) : (
-              <div className="bg-gray-800 rounded-lg border border-gray-700 h-96 flex items-center justify-center">
-                <div className="text-center text-gray-400">
-                  <svg className="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <h3 className="text-lg font-medium mb-2">No Analysis Results</h3>
-                  <p className="text-sm">Run a gas analysis to see detailed results here.</p>
-                </div>
-              </div>
-            )}
-          </div>
+          <GasEstimatorResultsTab analysisResult={analysisResult} />
         )}
       </div>
     </div>
   );
 }
+
+
+
+
+
+export default GasEstimatorIDE;

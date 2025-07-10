@@ -5,29 +5,27 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
-  LineElement,
-  PointElement,
   Title,
   Tooltip,
   Legend,
+  ChartOptions,
 } from 'chart.js';
+import { NetworkResult } from '@/types/shared';
+import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig';
+import { formatCurrency } from '@/utils/gasUtils';
+import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 
+// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
-  LineElement,
-  PointElement,
   Title,
   Tooltip,
   Legend
 );
 
-import { NetworkResult } from '@/types/shared';
-import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig';
-import { formatCurrency, formatGasUsed } from '@/utils/gasUtils';
-import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3 } from 'lucide-react';
-
+// --- Interfaces ---
 interface AnalysisResult {
   contractName: string;
   results: NetworkResult[];
@@ -38,353 +36,332 @@ interface UnifiedGasResultsProps {
   result: AnalysisResult;
 }
 
-const CHART_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
-];
+// --- Constants ---
+const CHART_PALETTE = {
+  primary: 'rgba(99, 102, 241, 0.8)', // indigo-500 with opacity
+  primary_border: 'rgba(99, 102, 241, 1)',
+  secondary: 'rgba(59, 130, 246, 0.8)', // blue-500 with opacity
+  secondary_border: 'rgba(59, 130, 246, 1)',
+};
 
+// --- Component ---
 export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
-  // Calculate baseline (cheapest network) for comparison
+  // --- Memoized Calculations ---
+
   const baselineNetwork = useMemo(() => {
+    if (!result || !result.results || result.results.length === 0) {
+      return null;
+    }
     return result.results.reduce((cheapest, current) => 
       current.deployment.costUSD < cheapest.deployment.costUSD ? current : cheapest
     );
   }, [result]);
 
-  // Deployment cost chart (USD bars only)
+  const summaryStats = useMemo(() => {
+    if (!result || !result.results || result.results.length === 0 || !baselineNetwork) {
+      return null;
+    }
+    
+    const deploymentCosts = result.results.map(r => r.deployment.costUSD);
+    const minCost = Math.min(...deploymentCosts);
+    const maxCost = Math.max(...deploymentCosts);
+    const totalDeploymentCost = result.results.reduce((sum, r) => sum + r.deployment.costUSD, 0);
+    const totalFunctionCost = result.results.reduce((sum, r) => 
+      sum + r.functions.reduce((funcSum, f) => funcSum + (f.estimatedCostUSD || 0), 0), 0
+    );
+
+    return {
+      totalDeploymentCost,
+      totalFunctionCost,
+      networksAnalyzed: result.results.length,
+      totalFunctions: result.results.reduce((sum, r) => sum + r.functions.length, 0),
+      maxSavings: maxCost - minCost,
+      cheapestNetwork: baselineNetwork
+    };
+  }, [result, baselineNetwork]);
+
   const deploymentCostData = useMemo(() => {
+    if (!result) return { labels: [], datasets: [] };
     const networks = result.results.map(r => getNetworkDisplayName(r.network));
     const costs = result.results.map(r => r.deployment.costUSD);
-    const colors = result.results.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]);
 
     return {
       labels: networks,
       datasets: [
         {
-          type: 'bar' as const,
           label: 'Deployment Cost (USD)',
           data: costs,
-          backgroundColor: colors.map(color => color + '80'),
-          borderColor: colors,
+          backgroundColor: CHART_PALETTE.primary,
+          borderColor: CHART_PALETTE.primary_border,
           borderWidth: 1,
-          yAxisID: 'y',
+          borderRadius: 4,
         }
       ]
     };
   }, [result]);
 
-  // Function cost chart (USD bars only)
   const functionCostData = useMemo(() => {
+    if (!result) return { labels: [], datasets: [] };
     const networks = result.results.map(r => getNetworkDisplayName(r.network));
     const functionCosts = result.results.map(r => 
       r.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0)
     );
-    const colors = result.results.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]);
 
     return {
       labels: networks,
       datasets: [
         {
-          type: 'bar' as const,
           label: 'Function Cost (USD)',
           data: functionCosts,
-          backgroundColor: colors.map(color => color + '80'),
-          borderColor: colors,
+          backgroundColor: CHART_PALETTE.secondary,
+          borderColor: CHART_PALETTE.secondary_border,
           borderWidth: 1,
-          yAxisID: 'y',
+          borderRadius: 4,
         }
       ]
     };
   }, [result]);
 
-
-
-  const chartOptions = {
+  // --- Chart Options ---
+  const chartOptions: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: {
-      mode: 'index' as const,
-      intersect: false,
-    },
     plugins: {
-      legend: {
-        position: 'top' as const,
-        labels: {
-          color: '#d1d5db',
-          font: { size: 12, weight: '500' },
-          usePointStyle: true,
-          padding: 20,
-        }
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        backgroundColor: 'rgba(17, 24, 39, 0.9)',
         titleColor: '#f9fafb',
         bodyColor: '#d1d5db',
         borderColor: '#374151',
         borderWidth: 1,
         cornerRadius: 8,
-        displayColors: true,
+        padding: 10,
+        titleFont: { family: 'Lekton' },
+        bodyFont: { family: 'Lekton' },
         callbacks: {
           label: function(context: any) {
             const label = context.dataset.label || '';
             const value = context.parsed.y;
-            return `${label}: $${value.toFixed(2)}`;
+            return `${label}: ${formatCurrency(value)}`;
           }
         }
       }
     },
     scales: {
       x: {
-        ticks: { color: '#9ca3af', font: { size: 11, weight: '500' } },
-        grid: { color: 'rgba(75, 85, 99, 0.2)' }
+        ticks: { color: '#9ca3af', font: { size: 10, family: 'Lekton' } },
+        grid: { color: 'rgba(55, 65, 81, 0.5)' }
       },
       y: {
-        type: 'linear' as const,
-        display: true,
-        position: 'left' as const,
-        title: {
-          display: true,
-          text: 'USD ($)',
-          color: '#9ca3af',
-          font: { size: 12, weight: '500' }
-        },
+        type: 'linear',
         ticks: { 
           color: '#9ca3af', 
-          font: { size: 11, weight: '500' },
-          callback: function(value: any) {
-            return '$' + value.toFixed(2);
-          }
+          font: { size: 10, family: 'Lekton' },
+          callback: (value: any) => formatCurrency(value)
         },
-        grid: { color: 'rgba(75, 85, 99, 0.2)' }
+        grid: { color: 'rgba(55, 65, 81, 0.5)' }
       }
     },
   };
 
-  // Calculate savings compared to baseline
+  // --- Helper Functions ---
   const getSavings = (networkResult: NetworkResult) => {
+    if (!baselineNetwork) return { savings: 0, percentage: 0 };
     const savings = baselineNetwork.deployment.costUSD - networkResult.deployment.costUSD;
-    const percentage = baselineNetwork.deployment.costUSD > 0 ? 
-      (savings / baselineNetwork.deployment.costUSD) * 100 : 0;
+    const percentage = baselineNetwork.deployment.costUSD > 0 
+      ? (savings / baselineNetwork.deployment.costUSD) * 100 
+      : 0;
     return { savings, percentage };
   };
 
-  const getSavingsColor = (savings: number) => {
-    if (savings > 0) return 'text-green-400';
-    if (savings < 0) return 'text-red-400';
-    return 'text-gray-400';
-  };
-
-  const getSavingsIcon = (savings: number) => {
-    return savings > 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />;
-  };
-
-  // Summary statistics
-  const summaryStats = useMemo(() => {
-    const totalDeploymentCost = result.results.reduce((sum, r) => sum + r.deployment.costUSD, 0);
-    const totalFunctionCost = result.results.reduce((sum, r) => 
-      sum + r.functions.reduce((funcSum, f) => funcSum + (f.estimatedCostUSD || 0), 0), 0
-    );
-    const avgGasPrice = result.results.reduce((sum, r) => sum + parseFloat(r.gasPrice), 0) / result.results.length;
-    const totalDeploymentGas = result.results.reduce((sum, r) => sum + parseInt(r.deployment.gasUsed), 0);
-    
-    // Calculate max savings
-    const deploymentCosts = result.results.map(r => r.deployment.costUSD);
-    const minCost = Math.min(...deploymentCosts);
-    const maxCost = Math.max(...deploymentCosts);
-    const maxSavings = maxCost - minCost;
-
-    return {
-      totalDeploymentCost,
-      totalFunctionCost,
-      avgGasPrice,
-      totalDeploymentGas,
-      networksAnalyzed: result.results.length,
-      totalFunctions: result.results.reduce((sum, r) => sum + r.functions.length, 0),
-      maxSavings,
-      cheapestNetwork: baselineNetwork
-    };
-  }, [result, baselineNetwork]);
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h2 className="text-2xl font-bold mb-2">Gas Cost Analysis</h2>
-        <p className="text-gray-600">Contract: {result.contractName}</p>
-        <p className="text-sm text-gray-500">{new Date(result.timestamp).toLocaleString()}</p>
+  if (!summaryStats || !baselineNetwork) {
+    return (
+      <div className="bg-gray-900 text-white p-8 rounded-lg text-center font-lekton">
+        <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500" />
+        <h3 className="mt-4 text-lg font-medium">Incomplete Analysis Data</h3>
+        <p className="mt-2 text-sm text-gray-400">
+          The provided analysis result is missing data. Please try generating the report again.
+        </p>
       </div>
+    );
+  }
+
+  // --- Render JSX ---
+  return (
+    <div className="bg-gray-900 text-gray-200 p-4 lg:p-6 rounded-xl space-y-6 font-lekton">
+      
+      {/* Header */}
+      <header className="pb-4 border-b border-gray-700">
+        <h1 className="text-2xl font-bold text-white">Gas Cost Analysis Report</h1>
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-gray-400">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <span className="font-mono text-xs">{result.contractName}</span>
+          </div>
+          <span className="text-gray-600 hidden sm:inline">|</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs">Report generated on {new Date(result.timestamp).toLocaleString()}</span>
+          </div>
+        </div>
+      </header>
 
       {/* Summary Statistics */}
-      <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
-        <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 rounded-lg border border-blue-700/50 p-4">
-          <div className="text-xs font-medium text-blue-300 uppercase tracking-wider mb-1">Networks</div>
-          <div className="text-2xl font-bold text-blue-400">{summaryStats.networksAnalyzed}</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-lg border border-green-700/50 p-4">
-            <div className="text-xs font-medium text-green-300 uppercase tracking-wider mb-1">Deploy Cost</div>
-            <div className="text-lg font-bold text-green-400">${summaryStats.totalDeploymentCost.toFixed(2)}</div>
-          </div>
-        <div className="bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-lg border border-purple-700/50 p-4">
-          <div className="text-xs font-medium text-purple-300 uppercase tracking-wider mb-1">Functions</div>
-          <div className="text-2xl font-bold text-purple-400">{summaryStats.totalFunctions}</div>
-        </div>
-        <div className="bg-gradient-to-br from-orange-900/50 to-orange-800/30 rounded-lg border border-orange-700/50 p-4">
-          <div className="text-xs font-medium text-orange-300 uppercase tracking-wider mb-1">Avg Gas Price</div>
-          <div className="text-lg font-bold text-orange-400">{summaryStats.avgGasPrice.toFixed(2)} Gwei</div>
-        </div>
-        <div className="bg-gradient-to-br from-cyan-900/50 to-cyan-800/30 rounded-lg border border-cyan-700/50 p-4">
-          <div className="text-xs font-medium text-cyan-300 uppercase tracking-wider mb-1">Function Cost</div>
-          <div className="text-lg font-bold text-cyan-400">${summaryStats.totalFunctionCost.toFixed(2)}</div>
-          <div className="text-xs text-cyan-300">Avg: {summaryStats.avgGasPrice.toFixed(2)} Gwei</div>
-        </div>
-        <div className="bg-gradient-to-br from-yellow-900/50 to-yellow-800/30 rounded-lg border border-yellow-700/50 p-4">
-          <div className="text-xs font-medium text-yellow-300 uppercase tracking-wider mb-1">Deploy Gas</div>
-          <div className="text-lg font-bold text-yellow-400">{(summaryStats.totalDeploymentGas / summaryStats.networksAnalyzed).toLocaleString()}</div>
-          <div className="text-xs text-yellow-300">Avg per network</div>
-        </div>
-        <div className="bg-gradient-to-br from-indigo-900/50 to-indigo-800/30 rounded-lg border border-indigo-700/50 p-4">
-          <div className="text-xs font-medium text-indigo-300 uppercase tracking-wider mb-1">Max Savings</div>
-          <div className="text-lg font-bold text-indigo-400">${summaryStats.maxSavings.toFixed(2)}</div>
-        </div>
-      </div>
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard 
+          icon={CheckCircle} 
+          title="Cheapest Network" 
+          value={getNetworkDisplayName(baselineNetwork.network)}
+          subtitle={`at ${formatCurrency(baselineNetwork.deployment.costUSD)}`}
+          color="green"
+        />
+        <StatCard 
+          icon={DollarSign} 
+          title="Max Potential Savings" 
+          value={formatCurrency(summaryStats.maxSavings)}
+          subtitle="between analyzed networks"
+          color="blue"
+        />
+        <StatCard 
+          icon={Network} 
+          title="Networks Analyzed" 
+          value={summaryStats.networksAnalyzed.toString()}
+          subtitle="total networks"
+          color="purple"
+        />
+        <StatCard 
+          icon={Zap} 
+          title="Functions Analyzed" 
+          value={summaryStats.totalFunctions.toString()}
+          subtitle="total functions"
+          color="amber"
+        />
+      </section>
 
-      {/* Cost Comparison Summary */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <DollarSign className="w-5 h-5" />
-          Cost Comparison Summary
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {result.results.map((networkResult, index) => {
-            const savings = getSavings(networkResult);
-            const config = NETWORK_CONFIGS[networkResult.network];
-            return (
-              <div key={`cost-summary-${networkResult.network}-${index}`} className="text-center p-3 bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: config?.color || '#3b82f6' }}
-                  ></div>
-                  <p className="text-gray-300 text-sm font-medium">{getNetworkDisplayName(networkResult.network)}</p>
-                </div>
-                <p className="text-xl font-bold text-white">{formatCurrency(networkResult.deployment.costUSD)}</p>
-                <div className="flex items-center justify-center gap-1 mt-1">
-                  {getSavingsIcon(savings.savings)}
-                  <span className={`text-sm font-medium ${getSavingsColor(savings.savings)}`}>
-                    {savings.savings > 0 ? 'Save' : 'Pay'} {formatCurrency(Math.abs(savings.savings))}
-                  </span>
-                </div>
-                <div className={`text-xs ${getSavingsColor(savings.savings)}`}>
-                  {savings.percentage > 0 ? '-' : '+'}{Math.abs(savings.percentage).toFixed(1)}%
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Charts Section */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartCard title="Deployment Costs by Network">
+          <Bar data={deploymentCostData} options={chartOptions} />
+        </ChartCard>
+        <ChartCard title="Total Function Costs by Network">
+          <Bar data={functionCostData} options={chartOptions} />
+        </ChartCard>
+      </section>
 
-      {/* Bar Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Deployment Cost Bar Chart */}
-        <div className="bg-gray-800 rounded-lg border border-gray-700">
-          <div className="p-4 border-b border-gray-700">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
-              Deployment Costs
-            </h3>
-            <p className="text-sm text-gray-400 mt-1">Contract deployment costs across networks (USD)</p>
-          </div>
-          <div className="p-6">
-            <div className="h-80">
-              <Bar data={deploymentCostData} options={chartOptions} />
-            </div>
+      {/* Detailed Table */}
+      <section>
+        <h3 className="text-lg font-semibold text-white mb-3">Detailed Breakdown</h3>
+        <div className="overflow-hidden border border-gray-700 rounded-lg">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-700">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th scope="col" className="py-3 pl-4 pr-2 text-left text-xs font-semibold text-white sm:pl-4">Network</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Deploy Cost</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Deploy Gas</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Gas Price</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Function Cost</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Cheapest</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800 bg-gray-900">
+                {result.results.map((networkResult) => {
+                  const config = NETWORK_CONFIGS[networkResult.network];
+                  const totalFunctionCost = networkResult.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0);
+                  const savings = getSavings(networkResult);
+                  const isBaseline = networkResult.network === baselineNetwork.network;
+                  
+                  return (
+                    <tr key={networkResult.network} className="hover:bg-gray-800/50 transition-colors">
+                      <td className="whitespace-nowrap py-3 pl-4 pr-2 text-xs sm:pl-4">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 flex-shrink-0 flex items-center">
+                             <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config?.color || '#3b82f6' }}></div>
+                          </div>
+                          <div className="ml-2">
+                            <div className="font-medium text-white">{getNetworkDisplayName(networkResult.network)}</div>
+                            {isBaseline && <div className="text-green-400 text-xs mt-0.5">Cheapest</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-semibold text-white font-mono">{formatCurrency(networkResult.deployment.costUSD)}</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">{parseInt(networkResult.deployment.gasUsed).toLocaleString()}</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">{parseFloat(networkResult.gasPrice).toFixed(2)} Gwei</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-white font-mono">{formatCurrency(totalFunctionCost)}</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs">
+                        <SavingsIndicator savings={savings.savings} percentage={savings.percentage} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
+      </section>
+    </div>
+  );
+}
 
-        {/* Function Cost Bar Chart */}
-        <div className="bg-gray-800 rounded-lg border border-gray-700">
-          <div className="p-4 border-b border-gray-700">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-green-400" />
-              Function Costs
-            </h3>
-            <p className="text-sm text-gray-400 mt-1">Total function interaction costs (USD)</p>
-          </div>
-          <div className="p-6">
-            <div className="h-80">
-              <Bar data={functionCostData} options={chartOptions} />
-            </div>
-          </div>
-        </div>
-      </div>
+// --- Sub-components for better structure ---
 
-      {/* Detailed Network Analysis Table */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700">
-        <div className="p-4 border-b border-gray-700">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Network className="w-5 h-5" />
-            Network Analysis Details
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-750">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Network</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Gas</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Cost</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Functions</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Function Cost</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Savings vs Cheapest</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {result.results.map((networkResult, index) => {
-                const config = NETWORK_CONFIGS[networkResult.network];
-                const totalFunctionCost = networkResult.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0);
-                const savings = getSavings(networkResult);
-                return (
-                  <tr key={`network-${networkResult.network}-${index}`} className="hover:bg-gray-750 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: config?.color || '#3b82f6' }}
-                        ></div>
-                        <span className="text-sm font-medium text-white">{getNetworkDisplayName(networkResult.network)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-300 font-mono">
-                      {parseInt(networkResult.deployment.gasUsed).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-green-400 font-mono font-semibold">
-                      {formatCurrency(networkResult.deployment.costUSD)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-blue-400 font-mono">
-                      {parseFloat(networkResult.gasPrice).toFixed(2)} Gwei
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-purple-400 font-semibold">
-                      {networkResult.functions.length}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-cyan-400 font-mono font-semibold">
-                      {formatCurrency(totalFunctionCost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <div className="flex items-center justify-end gap-1">
-                        {getSavingsIcon(savings.savings)}
-                        <span className={getSavingsColor(savings.savings)}>
-                          {savings.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+const StatCard = ({ icon: Icon, title, value, subtitle, color = 'gray' }: {
+  icon: React.ElementType,
+  title: string,
+  value: string,
+  subtitle: string,
+  color?: 'green' | 'blue' | 'purple' | 'amber' | 'gray'
+}) => {
+  const colorClasses = {
+    green: 'border-green-500/50 text-green-400',
+    blue: 'border-blue-500/50 text-blue-400',
+    purple: 'border-purple-500/50 text-purple-400',
+    amber: 'border-amber-500/50 text-amber-400',
+    gray: 'border-gray-600 text-gray-300',
+  };
+
+  return (
+    <div className={`bg-gray-800/50 p-4 rounded-lg border-l-4 ${colorClasses[color]}`}>
+      <div className="flex items-center gap-3">
+        <Icon className={`w-6 h-6 ${colorClasses[color]}`} strokeWidth={2} />
+        <div>
+          <p className="text-xs text-gray-400 mb-0.5">{title}</p>
+          <p className="text-xl font-bold text-white">{value}</p>
+          <p className="text-xs text-gray-500">{subtitle}</p>
         </div>
       </div>
     </div>
   );
-}
+};
+
+const ChartCard = ({ title, children }: { title: string, children: React.ReactNode }) => (
+  <div className="bg-gray-800/50 rounded-lg border border-gray-700/50">
+    <div className="p-3 border-b border-gray-700/50">
+      <h3 className="text-base font-semibold text-white flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-indigo-400" />
+        {title}
+      </h3>
+    </div>
+    <div className="p-3">
+      <div className="h-64">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+const SavingsIndicator = ({ savings, percentage }: { savings: number, percentage: number }) => {
+  if (Math.abs(percentage) < 0.01) {
+    return <span className="text-xs text-gray-500">—</span>;
+  }
+  
+  const isSavings = savings > 0;
+  const color = isSavings ? 'text-green-400' : 'text-red-400';
+  const Icon = isSavings ? TrendingDown : TrendingUp;
+
+  return (
+    <div className={`flex items-center justify-end gap-1 ${color}`}>
+      <Icon className="w-3 h-3" />
+      <span className="font-medium font-mono text-xs">{Math.abs(percentage).toFixed(1)}%</span>
+    </div>
+  );
+};

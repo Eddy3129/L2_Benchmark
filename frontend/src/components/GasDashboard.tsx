@@ -21,6 +21,7 @@ import { Tooltip } from '@heroui/tooltip';
 import { gasTerms } from '@/lib/dictionary';
 import { apiService } from '@/lib/api';
 
+// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -34,6 +35,7 @@ ChartJS.register(
   Filler
 );
 
+// Hardcoded CoinGecko API Key from the original code
 const CG_API_KEY = 'CG-njMzeCqg4NmSv1JFwKypf5Zy';
 const CG_OPTIONS = {
   method: 'GET',
@@ -43,7 +45,7 @@ const CG_OPTIONS = {
   }
 };
 
-// Blob cost interfaces
+// --- Interfaces ---
 interface BlobCostResult {
   network: string;
   networkName: string;
@@ -74,6 +76,7 @@ interface BlobAnalysisResult {
   results: BlobCostResult[];
 }
 
+// --- GasDashboard Component ---
 export function GasDashboard() {
   const [selectedChains, setSelectedChains] = useState<string[]>(['mainnet', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
   const [multiChainData, setMultiChainData] = useState<MultiChainGasData[]>([]);
@@ -84,6 +87,7 @@ export function GasDashboard() {
   const [blobData, setBlobData] = useState<BlobAnalysisResult | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
 
+  // --- Data Fetching ---
   const fetchTokenPrices = async () => {
     const idsToFetch = new Set<string>();
     const symbolsToFetch = new Set<string>();
@@ -120,7 +124,6 @@ export function GasDashboard() {
   const fetchBlobData = async () => {
     try {
       setBlobLoading(true);
-      // Only fetch for EIP-4844 supported networks
       const eip4844Networks = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
       const supportedNetworks = selectedChains.filter(chain => eip4844Networks.includes(chain));
       
@@ -176,9 +179,13 @@ export function GasDashboard() {
     setSelectedChains(prev => prev.includes(chainId) ? prev.filter(id => id !== chainId) : [...prev, chainId]);
   };
 
-  const gweiChartOptions: ChartOptions<'bar'> = {
+  // --- Chart Configurations ---
+
+  const baseBarChartOptions: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
+    barPercentage: 0.4,
+    categoryPercentage: 0.7,
     plugins: {
       legend: { 
         position: 'top', 
@@ -196,28 +203,18 @@ export function GasDashboard() {
         bodyColor: '#D1D5DB', 
         borderColor: '#374151', 
         borderWidth: 1, 
-        cornerRadius: 6,
+        cornerRadius: 12,
         titleFont: { family: 'Lekton', size: 11 },
         bodyFont: { family: 'Lekton', size: 10 },
-        callbacks: {
-          label: function(context: any) {
-            let label = context.dataset.label || '';
-            if (label) label += ': ';
-            if (context.parsed.y !== null) label += `${context.parsed.y.toPrecision(3)} Gwei`;
-            return label;
-          }
-        }
       }
     },
     scales: {
       x: { 
-        stacked: true, 
         ticks: { color: '#9CA3AF', font: { family: 'Lekton', size: 9 } }, 
         grid: { color: '#374151', lineWidth: 0.5 } 
       },
       y: { 
         type: 'logarithmic', 
-        stacked: true, 
         ticks: { 
           color: '#9CA3AF', 
           font: { family: 'Lekton', size: 9 },
@@ -235,6 +232,35 @@ export function GasDashboard() {
     }
   };
 
+  const gweiChartOptions: ChartOptions<'bar'> = {
+    ...baseBarChartOptions,
+    scales: {
+      ...baseBarChartOptions.scales,
+      x: {
+        ...baseBarChartOptions.scales?.x,
+        stacked: true,
+      },
+      y: {
+        ...baseBarChartOptions.scales?.y,
+        stacked: true,
+      }
+    },
+    plugins: {
+        ...baseBarChartOptions.plugins,
+        tooltip: {
+            ...baseBarChartOptions.plugins?.tooltip,
+            callbacks: {
+              label: function(context: any) {
+                let label = context.dataset.label || '';
+                if (label) label += ': ';
+                if (context.parsed.y !== null) label += `${context.parsed.y.toPrecision(3)} Gwei`;
+                return label;
+              }
+            }
+        }
+    }
+  };
+
   const usdChartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -246,7 +272,7 @@ export function GasDashboard() {
         bodyColor: '#D1D5DB', 
         borderColor: '#374151', 
         borderWidth: 1, 
-        cornerRadius: 6,
+        cornerRadius: 12,
         titleFont: { family: 'Lekton', size: 11 },
         bodyFont: { family: 'Lekton', size: 10 },
         callbacks: {
@@ -289,6 +315,7 @@ export function GasDashboard() {
     }
   };
 
+  // --- Data Transformation for Charts ---
   const getBaseFee = (chainData: MultiChainGasData): number => chainData?.gasData?.blockPrices?.[0]?.baseFeePerGas || 0;
   const getOptimalPriorityFee = (chainData: MultiChainGasData, urgency: 'slow' | 'standard' | 'fast'): number => multiChainGasService.getOptimalPriorityFee(chainData.distribution, urgency);
   const getOptimalTotalFee = (chainData: MultiChainGasData, urgency: 'slow' | 'standard' | 'fast'): number => multiChainGasService.calculateOptimalGasPrice(chainData.distribution, urgency);
@@ -303,8 +330,27 @@ export function GasDashboard() {
   const gasCompositionData = {
     labels: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.name),
     datasets: [
-      { label: `Base Fee (Gwei)`, data: multiChainData.map(data => getBaseFee(data)), backgroundColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color + '80'), borderWidth: 1 },
-      { label: `Priority Fee (Gwei)`, data: multiChainData.map(data => getOptimalPriorityFee(data, 'standard')), backgroundColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color + '40'), borderWidth: 1 }
+      { 
+        label: `Base Fee (Gwei)`, 
+        data: multiChainData.map(data => getBaseFee(data)), 
+        backgroundColor: multiChainData.map(d => {
+            const config = multiChainGasService.getChainConfig(d.chainId);
+            return config ? config.color + 'CC' : '#374151'; // Use network color with 80% opacity
+        }),
+        borderWidth: 0,
+      },
+      { 
+        label: `Priority Fee (Gwei)`, 
+        data: multiChainData.map(data => getOptimalPriorityFee(data, 'standard')), 
+        backgroundColor: multiChainData.map(d => {
+            const config = multiChainGasService.getChainConfig(d.chainId);
+            return config ? config.color + '80' : '#4b5563'; // Use network color with 50% opacity
+        }),
+        borderWidth: 0,
+        // By applying a simple numeric radius to the top dataset, Chart.js
+        // will correctly round only the top corners of the entire stack.
+        borderRadius: 12,
+      }
     ]
   };
   
@@ -330,7 +376,6 @@ export function GasDashboard() {
     }]
   };
 
-  // Blob cost comparison data
   const blobCostComparisonData = blobData && blobData.results && blobData.results.length > 0 ? {
     labels: blobData.results.flatMap(r => [`${r.networkName} - Blob`, `${r.networkName} - Calldata`]),
     datasets: [
@@ -340,9 +385,13 @@ export function GasDashboard() {
           r.blobTransaction.totalCostUSD,
           r.comparison.vsTraditionalCalldata.costUSD
         ]),
-        backgroundColor: blobData.results.flatMap(() => ['#3b82f6', '#ef4444']),
-        borderColor: blobData.results.flatMap(() => ['#1d4ed8', '#dc2626']),
+        backgroundColor: blobData.results.flatMap(r => {
+            const config = multiChainGasService.getChainConfig(r.network);
+            const mainColor = config ? config.color : '#06b6d4';
+            return [mainColor + 'CC', mainColor + '60'];
+        }),
         borderWidth: 1,
+        borderRadius: 12,
       }
     ]
   } : null;
@@ -355,7 +404,8 @@ export function GasDashboard() {
       maximumFractionDigits: 4
     }).format(value);
   };
-
+  
+  // --- Render Logic ---
   if (error) {
     return (
       <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-lg text-center">
@@ -370,19 +420,21 @@ export function GasDashboard() {
   return (
     <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-lg">
       
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-4">
         <div className="flex-1">
           <h2 className="text-xl font-funnel font-semibold text-white">Multi-Chain Gas Tracker</h2>
           <p className="text-sm text-gray-400 mt-1 font-lekton">Real-time gas prices across {selectedChains.length} supported networks.</p>
         </div>
         <div className="w-full md:w-auto md:min-w-[280px]">
-           <p className="text-xs text-gray-500 text-left md:text-right mb-2 font-lekton">Data from <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">CoinGecko</a> & <a href="https://www.blocknative.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Blocknative</a></p>
+            <p className="text-xs text-gray-500 text-left md:text-right mb-2 font-lekton">Data from <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">CoinGecko</a> & <a href="https://www.blocknative.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">Blocknative</a></p>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(tokenPrices).map(([id, price]) => ( <div key={id} className="bg-gray-800/70 p-2 rounded border border-gray-700"><p className="text-xs text-gray-400 capitalize font-lekton">{id.replace('-network', '')} Price</p><p className="text-sm font-lekton font-medium text-white">${price.toLocaleString()}</p></div> ))}
             </div>
         </div>
       </div>
 
+      {/* Chain Selector */}
       <div className="mb-4 flex items-center justify-between">
           <div className="flex flex-wrap gap-1.5">
             {multiChainGasService.supportedChains.map((chain) => ( <button key={chain.id} onClick={() => toggleChain(chain.id)} className={`border border-gray-700 hover:bg-gray-700 text-white text-xs px-2 py-1.5 rounded font-lekton flex items-center space-x-1.5 transition-colors ${selectedChains.includes(chain.id) ? 'bg-blue-600/20 border-blue-600/30' : 'bg-gray-800/50'}`}><span className="text-sm" style={{color: chain.color}}>{chain.icon}</span><span>{chain.name}</span></button> ))}
@@ -393,6 +445,7 @@ export function GasDashboard() {
           </div>
       </div>
 
+      {/* Main Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <div className="bg-gray-800/30 border border-gray-700 p-3 rounded">
             <h3 className="text-base font-funnel font-medium text-white mb-3">Std. Tx Cost (USD)</h3>
@@ -406,11 +459,11 @@ export function GasDashboard() {
 
       {/* EIP-4844 Blob Cost Analysis */}
       {(blobData && blobData.results && blobData.results.length > 0) || blobLoading ? (
-        <div className="bg-gray-800 p-4 rounded-lg mb-6">
+        <div className="bg-gray-800/30 border border-gray-700 p-4 rounded-lg mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-white">EIP-4844 Blob Cost Analysis</h3>
-              <p className="text-sm text-gray-400">128KB blob vs traditional calldata costs (Real-time Blocknative data)</p>
+              <h3 className="text-lg font-funnel font-semibold text-white">EIP-4844 Blob Cost Analysis</h3>
+              <p className="text-sm text-gray-400 font-lekton">128KB blob vs traditional calldata costs (Real-time Blocknative data)</p>
             </div>
             {blobLoading && (
               <div className="flex items-center space-x-2">
@@ -424,29 +477,22 @@ export function GasDashboard() {
             <>
               <div className="h-72 mb-4">
                 <Bar data={blobCostComparisonData!} options={{
-                  ...gweiChartOptions,
+                  ...baseBarChartOptions,
                   scales: {
-                    ...gweiChartOptions.scales,
+                    ...baseBarChartOptions.scales,
                     y: {
                        type: 'logarithmic',
                        ticks: {
                          color: '#718096',
-                         callback: (val) => {
-                           if (typeof val === 'number') {
-                             if (val < 0.01) return `$${val.toPrecision(1)}`;
-                             if (val >= 1000) return `$${val/1000}k`;
-                             return `$${val.toFixed(2)}`;
-                           }
-                           return val;
-                         }
+                         callback: (val) => `$${Number(val).toFixed(2)}`
                        },
                        grid: { color: 'rgba(74, 85, 104, 0.2)' }
                      }
                   },
                   plugins: {
-                    ...gweiChartOptions.plugins,
+                    ...baseBarChartOptions.plugins,
                     tooltip: {
-                      ...gweiChartOptions.plugins?.tooltip,
+                      ...baseBarChartOptions.plugins?.tooltip,
                       callbacks: {
                         label: function(context: any) {
                           const label = context.dataset.label || '';
@@ -460,63 +506,53 @@ export function GasDashboard() {
               </div>
               
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm font-lekton">
                   <thead>
                     <tr className="border-b border-gray-700">
                       <th className="p-2 text-left font-medium text-gray-400">Network</th>
                       <th className="p-2 text-right font-medium text-gray-400">Blob Gas (Units)</th>
-                       <th className="p-2 text-right font-medium text-gray-400">Blob Cost (USD)</th>
-                       <th className="p-2 text-right font-medium text-gray-400">Calldata Gas (Units)</th>
-                       <th className="p-2 text-right font-medium text-gray-400">Calldata Cost (USD)</th>
+                      <th className="p-2 text-right font-medium text-gray-400">Blob Cost (USD)</th>
+                      <th className="p-2 text-right font-medium text-gray-400">Calldata Cost (USD)</th>
                       <th className="p-2 text-right font-medium text-gray-400">Cost per L2 Tx</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {blobData.results.map((result) => {
-                      // Calculate Gwei values from gas breakdown
-                      const blobGasGwei = result.gasBreakdown?.regularGasPrice || 0;
-                      const blobGasPriceGwei = result.gasBreakdown?.estimatedBlobGasPrice || 0;
-                      const calldataGasGwei = result.gasBreakdown?.regularGasPrice || 0;
-                      
-                      return (
+                    {blobData.results.map((result) => (
                         <tr key={result.network} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700/50">
                           <td className="p-2">
                             <span className="font-medium text-white">{result.networkName}</span>
                           </td>
-                          <td className="p-2 text-right font-mono text-blue-400">
-                             {(result.blobTransaction.regularGasUsed + result.blobTransaction.blobGasUsed).toLocaleString()}
-                           </td>
-                           <td className="p-2 text-right font-mono text-blue-400">
-                             {formatCurrency(result.blobTransaction.totalCostUSD)}
-                           </td>
-                           <td className="p-2 text-right font-mono text-red-400">
-                             {result.comparison.vsTraditionalCalldata.gasUsed.toLocaleString()}
-                           </td>
-                          <td className="p-2 text-right font-mono text-red-400">
+                          <td className="p-2 text-right font-mono text-cyan-300">
+                              {(result.blobTransaction.regularGasUsed + result.blobTransaction.blobGasUsed).toLocaleString()}
+                            </td>
+                          <td className="p-2 text-right font-mono text-cyan-300">
+                              {formatCurrency(result.blobTransaction.totalCostUSD)}
+                            </td>
+                          <td className="p-2 text-right font-mono text-amber-300">
                             {formatCurrency(result.comparison.vsTraditionalCalldata.costUSD)}
                           </td>
                           <td className="p-2 text-right font-mono text-gray-300">
                             {formatCurrency(result.blobTransaction.costPerL2Transaction)}
                           </td>
                         </tr>
-                      );
-                    })}
+                      ))}
                   </tbody>
                 </table>
               </div>
             </>
           ) : blobLoading ? (
             <div className="h-32 flex items-center justify-center">
-              <div className="text-gray-400">Loading blob cost analysis...</div>
+              <div className="text-gray-400 font-lekton">Loading blob cost analysis...</div>
             </div>
           ) : null}
         </div>
       ) : null}
       
-      <div className="bg-gray-800 p-4 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">Network Summary</h3>
+      {/* Network Summary Table */}
+      <div className="bg-gray-800/30 border border-gray-700 p-4 rounded-lg">
+        <h3 className="text-lg font-funnel font-semibold text-white mb-4">Network Summary</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed">
+          <table className="w-full text-sm table-fixed font-lekton">
             <thead>
               <tr className="border-b border-gray-700">
                 <th className="p-2 text-left font-medium text-gray-400 w-[18%]">Network</th>
