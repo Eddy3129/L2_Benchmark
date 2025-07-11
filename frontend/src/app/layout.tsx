@@ -9,12 +9,13 @@ export const metadata: Metadata = {
   description: 'Professional DeFi gas analytics and benchmarking platform',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookies = headers().get('cookie');
+  const headersList = await headers();
+  const cookies = headersList.get('cookie');
 
   return (
     <html lang="en">

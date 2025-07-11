@@ -61,7 +61,7 @@ class MultiChainGasService {
     },
     {
       id: 'polygon',
-      name: 'Polygon',
+      name: 'Polygon PoS',
       symbol: 'POL',
       chainId: 137,
       rpcUrl: 'https://polygon-rpc.com',

@@ -76,14 +76,44 @@ const defaultNetworks: NetworkConfig[] = [
     description: 'Optimism - Fast, stable, and scalable L2 blockchain'
   },
   {
+    id: 'base',
+    name: 'Base',
+    icon: Layers,
+    color: 'bg-blue-600',
+    chainId: 8453,
+    rpcUrl: 'https://mainnet.base.org',
+    explorerUrl: 'https://basescan.org',
+    description: 'Base - Coinbase L2 built on Optimism stack'
+  },
+  {
     id: 'polygon',
-    name: 'Polygon',
+    name: 'Polygon PoS',
     icon: Globe,
     color: 'bg-purple-500',
     chainId: 137,
     rpcUrl: 'https://polygon-rpc.com',
     explorerUrl: 'https://polygonscan.com',
     description: 'Polygon PoS - Multi-chain scaling solution'
+  },
+  {
+    id: 'polygon-zkevm',
+    name: 'Polygon zkEVM',
+    icon: Shield,
+    color: 'bg-purple-600',
+    chainId: 1101,
+    rpcUrl: 'https://zkevm-rpc.com',
+    explorerUrl: 'https://zkevm.polygonscan.com',
+    description: 'Polygon zkEVM - Zero-knowledge Ethereum Virtual Machine'
+  },
+  {
+    id: 'zksync-era',
+    name: 'zkSync Era',
+    icon: Zap,
+    color: 'bg-indigo-500',
+    chainId: 324,
+    rpcUrl: 'https://mainnet.era.zksync.io',
+    explorerUrl: 'https://explorer.zksync.io',
+    description: 'zkSync Era - Zero-knowledge rollup for Ethereum'
   }
 ];
 

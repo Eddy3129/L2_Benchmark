@@ -332,7 +332,7 @@ export class NetworkComparisonService extends BaseService {
         },
         {
           id: 'polygon',
-          name: 'Polygon',
+          name: 'Polygon PoS',
           chainId: 137,
           type: 'sidechain',
           gasToken: 'MATIC',
@@ -346,6 +346,24 @@ export class NetworkComparisonService extends BaseService {
           type: 'l2',
           gasToken: 'ETH',
           averageBlockTime: 2,
+          supported: true,
+        },
+        {
+          id: 'polygon-zkevm',
+          name: 'Polygon zkEVM',
+          chainId: 1101,
+          type: 'l2',
+          gasToken: 'ETH',
+          averageBlockTime: 5,
+          supported: true,
+        },
+        {
+          id: 'zksync-era',
+          name: 'zkSync Era',
+          chainId: 324,
+          type: 'l2',
+          gasToken: 'ETH',
+          averageBlockTime: 1,
           supported: true,
         },
       ];
@@ -386,7 +404,7 @@ export class NetworkComparisonService extends BaseService {
         },
         {
           pair: ['ethereum', 'polygon'],
-          name: 'Ethereum vs Polygon',
+          name: 'Ethereum vs Polygon PoS',
           description: 'Compare mainnet costs with sidechain solution',
           avgSavings: '95%',
           popularity: 85,
@@ -404,6 +422,20 @@ export class NetworkComparisonService extends BaseService {
           description: 'Compare mainnet costs with Coinbase L2',
           avgSavings: '82%',
           popularity: 70,
+        },
+        {
+          pair: ['ethereum', 'polygon-zkevm'],
+          name: 'Ethereum vs Polygon zkEVM',
+          description: 'Compare mainnet costs with zkEVM solution',
+          avgSavings: '88%',
+          popularity: 65,
+        },
+        {
+          pair: ['ethereum', 'zksync-era'],
+          name: 'Ethereum vs zkSync Era',
+          description: 'Compare mainnet costs with zero-knowledge rollup',
+          avgSavings: '90%',
+          popularity: 68,
         },
       ];
 

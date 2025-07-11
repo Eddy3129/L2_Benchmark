@@ -55,7 +55,7 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
   },
   polygon: {
     id: 'polygon',
-    name: 'Polygon',
+    name: 'Polygon PoS',
     color: '#8247E5',
     symbol: 'POL',
     chainId: 137
@@ -108,7 +108,7 @@ export const getNetworkDisplayName = (networkId: string): string => {
     'polygonZkEvm': 'Polygon zkEVM Testnet',
     'zkSyncSepolia': 'zkSync Era Sepolia',
     'mainnet': 'Ethereum',
-    'polygon': 'Polygon',
+    'polygon': 'Polygon PoS',
     'polygon-zkevm': 'Polygon zkEVM',
     'arbitrum': 'Arbitrum',
     'optimism': 'Optimism',

@@ -3,26 +3,29 @@ import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
-  LinearScale,
+  LogarithmicScale, 
   BarElement,
   Title,
   Tooltip,
   Legend,
   ChartOptions,
+  Scale,
 } from 'chart.js';
+// import ChartDataLabels from 'chartjs-plugin-datalabels'; 
 import { NetworkResult } from '@/types/shared';
-import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig';
+import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig'; 
 import { formatCurrency } from '@/utils/gasUtils';
 import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 
 // Register Chart.js components
 ChartJS.register(
   CategoryScale,
-  LinearScale,
+  LogarithmicScale,
   BarElement,
   Title,
   Tooltip,
   Legend
+  // ChartDataLabels 
 );
 
 // --- Interfaces ---
@@ -36,26 +39,26 @@ interface UnifiedGasResultsProps {
   result: AnalysisResult;
 }
 
-// --- Constants ---
-const CHART_PALETTE = {
-  primary: 'rgba(99, 102, 241, 0.8)', // indigo-500 with opacity
-  primary_border: 'rgba(99, 102, 241, 1)',
-  secondary: 'rgba(59, 130, 246, 0.8)', // blue-500 with opacity
-  secondary_border: 'rgba(59, 130, 246, 1)',
-};
-
 // --- Component ---
 export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
+  
   // --- Memoized Calculations ---
+  const sortedResults = useMemo(() => {
+    if (!result || !result.results) return [];
+
+    const ethereum = result.results.find(r => getNetworkDisplayName(r.network) === 'Ethereum');
+    const others = result.results.filter(r => getNetworkDisplayName(r.network) !== 'Ethereum');
+    
+    others.sort((a, b) => a.deployment.costUSD - b.deployment.costUSD);
+
+    return ethereum ? [ethereum, ...others] : others;
+  }, [result]);
 
   const baselineNetwork = useMemo(() => {
-    if (!result || !result.results || result.results.length === 0) {
-      return null;
-    }
-    return result.results.reduce((cheapest, current) => 
-      current.deployment.costUSD < cheapest.deployment.costUSD ? current : cheapest
-    );
-  }, [result]);
+    if (!sortedResults || sortedResults.length === 0) return null;
+    const potentialBaselines = sortedResults.filter(r => getNetworkDisplayName(r.network) !== 'Ethereum');
+    return potentialBaselines.length > 0 ? potentialBaselines[0] : sortedResults[0];
+  }, [sortedResults]);
 
   const summaryStats = useMemo(() => {
     if (!result || !result.results || result.results.length === 0 || !baselineNetwork) {
@@ -65,14 +68,8 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
     const deploymentCosts = result.results.map(r => r.deployment.costUSD);
     const minCost = Math.min(...deploymentCosts);
     const maxCost = Math.max(...deploymentCosts);
-    const totalDeploymentCost = result.results.reduce((sum, r) => sum + r.deployment.costUSD, 0);
-    const totalFunctionCost = result.results.reduce((sum, r) => 
-      sum + r.functions.reduce((funcSum, f) => funcSum + (f.estimatedCostUSD || 0), 0), 0
-    );
 
     return {
-      totalDeploymentCost,
-      totalFunctionCost,
       networksAnalyzed: result.results.length,
       totalFunctions: result.results.reduce((sum, r) => sum + r.functions.length, 0),
       maxSavings: maxCost - minCost,
@@ -81,9 +78,12 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
   }, [result, baselineNetwork]);
 
   const deploymentCostData = useMemo(() => {
-    if (!result) return { labels: [], datasets: [] };
-    const networks = result.results.map(r => getNetworkDisplayName(r.network));
-    const costs = result.results.map(r => r.deployment.costUSD);
+    if (!sortedResults) return { labels: [], datasets: [] };
+    
+    const networks = sortedResults.map(r => getNetworkDisplayName(r.network));
+    const costs = sortedResults.map(r => r.deployment.costUSD);
+    const backgroundColors = sortedResults.map(r => NETWORK_CONFIGS[r.network]?.color || '#6b7280');
+    const borderColors = sortedResults.map(r => NETWORK_CONFIGS[r.network]?.color || '#6b7280');
 
     return {
       labels: networks,
@@ -91,21 +91,24 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         {
           label: 'Deployment Cost (USD)',
           data: costs,
-          backgroundColor: CHART_PALETTE.primary,
-          borderColor: CHART_PALETTE.primary_border,
+          backgroundColor: backgroundColors,
+          borderColor: borderColors,
           borderWidth: 1,
           borderRadius: 4,
         }
       ]
     };
-  }, [result]);
+  }, [sortedResults]);
 
   const functionCostData = useMemo(() => {
-    if (!result) return { labels: [], datasets: [] };
-    const networks = result.results.map(r => getNetworkDisplayName(r.network));
-    const functionCosts = result.results.map(r => 
+    if (!sortedResults) return { labels: [], datasets: [] };
+
+    const networks = sortedResults.map(r => getNetworkDisplayName(r.network));
+    const functionCosts = sortedResults.map(r => 
       r.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0)
     );
+    const backgroundColors = sortedResults.map(r => NETWORK_CONFIGS[r.network]?.color || '#6b7280');
+    const borderColors = sortedResults.map(r => NETWORK_CONFIGS[r.network]?.color || '#6b7280');
 
     return {
       labels: networks,
@@ -113,64 +116,92 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         {
           label: 'Function Cost (USD)',
           data: functionCosts,
-          backgroundColor: CHART_PALETTE.secondary,
-          borderColor: CHART_PALETTE.secondary_border,
+          backgroundColor: backgroundColors,
+          borderColor: borderColors,
           borderWidth: 1,
           borderRadius: 4,
         }
       ]
     };
-  }, [result]);
+  }, [sortedResults]);
 
+  
   // --- Chart Options ---
-  const chartOptions: ChartOptions<'bar'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: 'rgba(17, 24, 39, 0.9)',
-        titleColor: '#f9fafb',
-        bodyColor: '#d1d5db',
-        borderColor: '#374151',
-        borderWidth: 1,
-        cornerRadius: 8,
-        padding: 10,
-        titleFont: { family: 'Lekton' },
-        bodyFont: { family: 'Lekton' },
-        callbacks: {
-          label: function(context: any) {
-            const label = context.dataset.label || '';
-            const value = context.parsed.y;
-            return `${label}: ${formatCurrency(value)}`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        ticks: { color: '#9ca3af', font: { size: 10, family: 'Lekton' } },
-        grid: { color: 'rgba(55, 65, 81, 0.5)' }
+  // UPDATED: Function now accepts a boolean to force power-of-10 ticks
+  const getChartOptions = (options: { forceX10Ticks?: boolean }): ChartOptions<'bar'> => {
+    const yAxisConfig: any = {
+      type: 'logarithmic',
+      min: 0.000001,
+      ticks: {
+        color: '#9ca3af',
+        font: { size: 10, family: 'Lekton' },
+        callback: (value: any) => formatCurrency(Number(value))
       },
-      y: {
-        type: 'linear',
-        ticks: { 
-          color: '#9ca3af', 
-          font: { size: 10, family: 'Lekton' },
-          callback: (value: any) => formatCurrency(value)
+      grid: { color: 'rgba(55, 65, 81, 0.5)' }
+    };
+
+    // **THE DEFINITIVE FIX IS HERE**
+    // If the flag is true, add the afterBuildTicks callback to take full control.
+    if (options.forceX10Ticks) {
+      yAxisConfig.afterBuildTicks = (axis: Scale) => {
+        const newTicks = [];
+        let tickValue = 0.000001; // Start at the minimum
+        
+        while (tickValue <= 100) { // Set a reasonable upper limit
+          newTicks.push({ value: tickValue });
+          tickValue *= 10;
+        }
+        axis.ticks = newTicks;
+      };
+    } else {
+        // For the other chart, we can let it auto-detect the max or set a specific one
+        yAxisConfig.max = 100;
+    }
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(17, 24, 39, 0.9)',
+          titleColor: '#f9fafb',
+          bodyColor: '#d1d5db',
+          borderColor: '#374151',
+          borderWidth: 1,
+          cornerRadius: 8,
+          padding: 10,
+          titleFont: { family: 'Lekton' },
+          bodyFont: { family: 'Lekton' },
+          callbacks: {
+            label: function(context: any) {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y;
+              return `${label}: ${formatCurrency(value)}`;
+            }
+          }
         },
-        grid: { color: 'rgba(55, 65, 81, 0.5)' }
-      }
-    },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#9ca3af', font: { size: 10, family: 'Lekton' } },
+          grid: { color: 'rgba(55, 65, 81, 0.5)' }
+        },
+        y: yAxisConfig,
+      },
+    };
   };
 
+  const deploymentChartOptions = useMemo(() => getChartOptions({ forceX10Ticks: true }), []);
+  const functionChartOptions = useMemo(() => getChartOptions({ forceX10Ticks: true }), []); 
+
+  
   // --- Helper Functions ---
   const getSavings = (networkResult: NetworkResult) => {
     if (!baselineNetwork) return { savings: 0, percentage: 0 };
-    const savings = baselineNetwork.deployment.costUSD - networkResult.deployment.costUSD;
-    const percentage = baselineNetwork.deployment.costUSD > 0 
-      ? (savings / baselineNetwork.deployment.costUSD) * 100 
-      : 0;
+    const maxCost = Math.max(...result.results.map(r => r.deployment.costUSD));
+    const savings = maxCost - networkResult.deployment.costUSD;
+    const percentage = maxCost > 0 ? (savings / maxCost) * 100 : 0;
     return { savings, percentage };
   };
 
@@ -190,7 +221,6 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
   return (
     <div className="bg-gray-900 text-gray-200 p-4 lg:p-6 rounded-xl space-y-6 font-lekton">
       
-      {/* Header */}
       <header className="pb-4 border-b border-gray-700">
         <h1 className="text-2xl font-bold text-white">Gas Cost Analysis Report</h1>
         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-gray-400">
@@ -205,11 +235,10 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         </div>
       </header>
 
-      {/* Summary Statistics */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           icon={CheckCircle} 
-          title="Cheapest Network" 
+          title="Cheapest L2 Network" 
           value={getNetworkDisplayName(baselineNetwork.network)}
           subtitle={`at ${formatCurrency(baselineNetwork.deployment.costUSD)}`}
           color="green"
@@ -237,17 +266,15 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         />
       </section>
 
-      {/* Charts Section */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard title="Deployment Costs by Network">
-          <Bar data={deploymentCostData} options={chartOptions} />
+          <Bar data={deploymentCostData} options={deploymentChartOptions} />
         </ChartCard>
         <ChartCard title="Total Function Costs by Network">
-          <Bar data={functionCostData} options={chartOptions} />
+          <Bar data={functionCostData} options={functionChartOptions} />
         </ChartCard>
       </section>
-
-      {/* Detailed Table */}
+      
       <section>
         <h3 className="text-lg font-semibold text-white mb-3">Detailed Breakdown</h3>
         <div className="overflow-hidden border border-gray-700 rounded-lg">
@@ -260,26 +287,26 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                   <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Deploy Gas</th>
                   <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Gas Price</th>
                   <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Function Cost</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Cheapest</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Ethereum Layer 1</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800 bg-gray-900">
-                {result.results.map((networkResult) => {
+                {sortedResults.map((networkResult) => {
                   const config = NETWORK_CONFIGS[networkResult.network];
                   const totalFunctionCost = networkResult.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0);
                   const savings = getSavings(networkResult);
-                  const isBaseline = networkResult.network === baselineNetwork.network;
+                  const isCheapestL2 = networkResult.network === baselineNetwork.network;
                   
                   return (
                     <tr key={networkResult.network} className="hover:bg-gray-800/50 transition-colors">
                       <td className="whitespace-nowrap py-3 pl-4 pr-2 text-xs sm:pl-4">
                         <div className="flex items-center">
                           <div className="h-8 w-8 flex-shrink-0 flex items-center">
-                             <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config?.color || '#3b82f6' }}></div>
+                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config?.color || '#3b82f6' }}></div>
                           </div>
                           <div className="ml-2">
                             <div className="font-medium text-white">{getNetworkDisplayName(networkResult.network)}</div>
-                            {isBaseline && <div className="text-green-400 text-xs mt-0.5">Cheapest</div>}
+                            {isCheapestL2 && <div className="text-green-400 text-xs mt-0.5">Cheapest L2</div>}
                           </div>
                         </div>
                       </td>
@@ -302,7 +329,7 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
   );
 }
 
-// --- Sub-components for better structure ---
+// --- Sub-components ---
 
 const StatCard = ({ icon: Icon, title, value, subtitle, color = 'gray' }: {
   icon: React.ElementType,
@@ -355,8 +382,8 @@ const SavingsIndicator = ({ savings, percentage }: { savings: number, percentage
   }
   
   const isSavings = savings > 0;
-  const color = isSavings ? 'text-green-400' : 'text-red-400';
-  const Icon = isSavings ? TrendingDown : TrendingUp;
+  const color = 'text-green-400';
+  const Icon = TrendingDown;
 
   return (
     <div className={`flex items-center justify-end gap-1 ${color}`}>
