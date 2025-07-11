@@ -1,6 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { IsString, IsNumber, IsOptional, IsUrl, IsEnum, validateSync } from 'class-validator';
 import { plainToClass, Transform, Type } from 'class-transformer';
+import { Injectable } from '@nestjs/common';
 
 export enum NetworkType {
   MAINNET = 'mainnet',
@@ -324,7 +325,7 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     type: NetworkType.L2,
     category: NetworkCategory.POLYGON,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://cardona-zkevm.polygonscan.com/-zkevm.polygonscan.com',
+    blockExplorerUrl: 'https://cardona-zkevm.polygonscan.com',
     blockTime: 1,
     gasLimit: 30000000,
     parentChain: 'sepolia',
@@ -397,6 +398,7 @@ export default registerAs('networks', (): NetworksConfig => {
   return config;
 });
 
+@Injectable()
 export class NetworkConfigService {
   private static networks: Map<string, NetworkConfig> = new Map();
   private static config: NetworksConfig;
@@ -479,5 +481,44 @@ export class NetworkConfigService {
     // Return the gasPriceChainId if available (for L2s that use mainnet for gas pricing)
     // Otherwise return the network's own chainId
     return network.gasPriceChainId || network.chainId;
+  }
+
+  // Instance methods for backward compatibility
+  getNetwork(networkId: string): NetworkConfig | null {
+    return NetworkConfigService.getNetwork(networkId) || null;
+  }
+
+  getAllNetworks(): Record<string, NetworkConfig> {
+    const networks = NetworkConfigService.getAllNetworks();
+    return Object.fromEntries(networks.map(network => [network.name, network]));
+  }
+
+  getTestnetNetworks(): Record<string, NetworkConfig> {
+    const networks = NetworkConfigService.getTestnetNetworks();
+    return Object.fromEntries(networks.map(network => [network.name, network]));
+  }
+
+  getMainnetNetworks(): Record<string, NetworkConfig> {
+    const networks = NetworkConfigService.getMainnetNetworks();
+    return Object.fromEntries(networks.map(network => [network.name, network]));
+  }
+
+  getNetworksByCategory(category: NetworkCategory): Record<string, NetworkConfig> {
+    const networks = NetworkConfigService.getNetworksByCategory(category);
+    return Object.fromEntries(networks.map(network => [network.name, network]));
+  }
+
+  isValidNetwork(networkId: string): boolean {
+    return NetworkConfigService.getNetwork(networkId) !== undefined;
+  }
+
+  getChainId(networkId: string): number | null {
+    const network = this.getNetwork(networkId);
+    return network ? network.chainId : null;
+  }
+
+  getRpcUrl(networkId: string): string | null {
+    const network = this.getNetwork(networkId);
+    return network ? network.rpcUrl : null;
   }
 }

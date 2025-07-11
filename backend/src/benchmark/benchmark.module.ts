@@ -4,11 +4,12 @@ import { BenchmarkController } from './benchmark.controller';
 import { BenchmarkService } from './benchmark.service';
 import { BenchmarkSession } from './benchmark.entity';
 import { BlockchainExecutorService } from './blockchain-executor.service';
+import { WalletBenchmarkService } from './wallet-benchmark.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([BenchmarkSession])],
   controllers: [BenchmarkController],
-  providers: [BenchmarkService, BlockchainExecutorService],
-  exports: [BenchmarkService, BlockchainExecutorService],
+  providers: [BenchmarkService, BlockchainExecutorService, WalletBenchmarkService],
+  exports: [BenchmarkService, BlockchainExecutorService, WalletBenchmarkService],
 })
 export class BenchmarkModule {}

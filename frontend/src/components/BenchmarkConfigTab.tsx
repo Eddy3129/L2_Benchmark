@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, Wallet, Check } from 'lucide-react';
 import { NetworkConfig } from '@/types/shared';
 import { abiService } from '@/lib/abiService';
+import { WalletConnect } from './WalletConnect';
 
 interface BenchmarkContract {
   networkId: string;
@@ -29,6 +30,10 @@ interface BenchmarkConfigTabProps {
   error: string | null;
   isBenchmarking: boolean;
   testnetNetworks: NetworkConfig[];
+  useWalletSigning: boolean;
+  onToggleWalletSigning: (enabled: boolean) => void;
+  isWalletConnected: boolean;
+  walletAddress?: string;
 }
 
 export function BenchmarkConfigTab({
@@ -39,7 +44,11 @@ export function BenchmarkConfigTab({
   benchmarkProgress,
   error,
   isBenchmarking,
-  testnetNetworks
+  testnetNetworks,
+  useWalletSigning,
+  onToggleWalletSigning,
+  isWalletConnected,
+  walletAddress
 }: BenchmarkConfigTabProps) {
   const [selectedNetwork, setSelectedNetwork] = useState<string>('');
   const [contractAddress, setContractAddress] = useState<string>('');
@@ -174,6 +183,61 @@ export function BenchmarkConfigTab({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Wallet Connection */}
+      <div className="bg-gray-800 rounded-lg p-4">
+        <h2 className="text-lg font-bold text-white mb-4">Wallet Connection</h2>
+        
+        <div className="space-y-4">
+          {/* Wallet Connection Status */}
+          <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-md">
+            <div className="flex items-center space-x-3">
+              <Wallet className="w-5 h-5 text-blue-400" />
+              <div>
+                <div className="text-sm font-medium text-white">
+                  {isWalletConnected ? 'Wallet Connected' : 'Wallet Not Connected'}
+                </div>
+                {isWalletConnected && walletAddress && (
+                  <div className="text-xs text-gray-400 font-mono">
+                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isWalletConnected && <Check className="w-4 h-4 text-green-400" />}
+              <WalletConnect />
+            </div>
+          </div>
+
+          {/* Wallet Signing Option */}
+          <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-md">
+            <div>
+              <div className="text-sm font-medium text-white">Use Wallet Signing</div>
+              <div className="text-xs text-gray-400">
+                Sign transactions with your connected wallet instead of using backend keys
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useWalletSigning}
+                onChange={(e) => onToggleWalletSigning(e.target.checked)}
+                disabled={!isWalletConnected}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {useWalletSigning && !isWalletConnected && (
+            <div className="flex items-center space-x-2 p-2 bg-yellow-900/50 border border-yellow-700 rounded-md text-yellow-300">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs">Please connect your wallet to use wallet signing</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Benchmark Execution */}

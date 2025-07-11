@@ -1,12 +1,16 @@
 import { Controller, Get, Post, Body, Query, Param, Delete, HttpException } from '@nestjs/common';
 import { BenchmarkService } from './benchmark.service';
+import { WalletBenchmarkService } from './wallet-benchmark.service';
 import { BenchmarkSession } from './benchmark.entity';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BenchmarkSessionData } from '../shared/types';
 
 @Controller('benchmark')
 export class BenchmarkController {
-  constructor(private readonly benchmarkService: BenchmarkService) {}
+  constructor(
+    private readonly benchmarkService: BenchmarkService,
+    private readonly walletBenchmarkService: WalletBenchmarkService
+  ) {}
 
   @Post('sessions')
   async createSession(@Body() sessionData: any) {
@@ -17,6 +21,27 @@ export class BenchmarkController {
         throw error;
       }
       throw ValidationUtils.createInternalServerError('Failed to create benchmark session');
+    }
+  }
+
+  @Post('wallet-sessions')
+  async createWalletSession(@Body() walletBenchmarkData: any) {
+    try {
+      // Validate required fields for wallet benchmarking
+      if (!walletBenchmarkData.walletAddress) {
+        throw ValidationUtils.createValidationError(['Wallet address is required for wallet benchmarking']);
+      }
+      
+      if (!walletBenchmarkData.contracts || walletBenchmarkData.contracts.length === 0) {
+        throw ValidationUtils.createValidationError(['At least one contract is required']);
+      }
+      
+      return await this.walletBenchmarkService.executeWalletBenchmark(walletBenchmarkData);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw ValidationUtils.createInternalServerError('Failed to create wallet benchmark session');
     }
   }
 

@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../lib/apiService';
-import { Activity, BarChart3 } from 'lucide-react';
+import { Activity, BarChart3, Wallet } from 'lucide-react';
 import { NETWORK_CONFIGS } from '@/utils/networkConfig';
+import { useWalletBenchmark } from '@/hooks/useWalletBenchmark';
+import { WalletConnect } from './WalletConnect';
 import BenchmarkConfigTab from './BenchmarkConfigTab';
 import BenchmarkResultsTab from './BenchmarkResultsTab';
 
@@ -59,6 +61,17 @@ export function BenchmarkIDE() {
   const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
+  const [useWalletSigning, setUseWalletSigning] = useState(false);
+  
+  const {
+    isConnected,
+    address,
+    chainId,
+    isConnecting,
+    connectWallet,
+    switchNetwork,
+    executeBenchmark
+  } = useWalletBenchmark();
 
   const updateProgress = (stage: BenchmarkProgress['stage'], currentNetwork?: string, currentFunction?: string) => {
     const stageInfo = PROGRESS_STAGES[stage];
@@ -90,6 +103,11 @@ export function BenchmarkIDE() {
       return;
     }
 
+    if (useWalletSigning && !isConnected) {
+      setError('Please connect your wallet first to use wallet signing.');
+      return;
+    }
+
     setError(null);
     setBenchmarkResult(null);
     setIsBenchmarking(true);
@@ -107,13 +125,26 @@ export function BenchmarkIDE() {
           abi: contract.abi
         })),
         functions: ['transfer', 'approve', 'balanceOf'], // Default functions to test
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        useWalletSigning,
+        walletAddress: useWalletSigning ? address : undefined
       };
 
       updateProgress('executing');
       
-      // Create benchmark session with real blockchain execution
-      const savedSession = await apiService.createBenchmarkSession(benchmarkData);
+      let savedSession;
+      if (useWalletSigning && isConnected) {
+        // Use wallet-integrated benchmark execution
+        const walletBenchmarkData = {
+          ...benchmarkData,
+          walletAddress: address!,
+          useWalletSigning: true
+        };
+        savedSession = await apiService.createWalletBenchmarkSession(walletBenchmarkData);
+      } else {
+        // Use traditional backend execution
+        savedSession = await apiService.createBenchmarkSession(benchmarkData);
+      }
       
       updateProgress('analyzing');
       
@@ -209,6 +240,10 @@ export function BenchmarkIDE() {
             error={error}
             isBenchmarking={isBenchmarking}
             testnetNetworks={getTestnetNetworks()}
+            useWalletSigning={useWalletSigning}
+            onToggleWalletSigning={setUseWalletSigning}
+            isWalletConnected={isConnected}
+            walletAddress={address}
           />
         ) : (
           <BenchmarkResultsTab benchmarkResult={benchmarkResult} />

@@ -13,6 +13,11 @@ interface BenchmarkSessionData {
   timestamp: string;
 }
 
+interface WalletBenchmarkData extends BenchmarkSessionData {
+  walletAddress: string;
+  useWalletSigning: boolean;
+}
+
 interface BenchmarkSession {
   id: string;
   contractName: string;
@@ -59,6 +64,13 @@ class ApiService {
   // Benchmark Session Methods
   async createBenchmarkSession(data: BenchmarkSessionData): Promise<BenchmarkSession> {
     return this.request<BenchmarkSession>('/api/benchmark/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createWalletBenchmarkSession(data: WalletBenchmarkData): Promise<BenchmarkSession> {
+    return this.request<BenchmarkSession>('/api/benchmark/wallet-sessions', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -151,4 +163,4 @@ export const apiService = new ApiService();
 export default apiService;
 
 // Export types for use in components
-export type { BenchmarkSessionData, BenchmarkSession, BenchmarkStats };
+export type { BenchmarkSessionData, WalletBenchmarkData, BenchmarkSession, BenchmarkStats };

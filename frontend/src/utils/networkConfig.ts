@@ -1,106 +1,18 @@
-import { NetworkConfig } from '@/types/shared';
+// This file is deprecated. Use shared/config/networks.ts instead.
+// Keeping for backward compatibility during migration.
 
-// Centralized network configuration
-export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
-  arbitrumSepolia: {
-    id: 'arbitrumSepolia',
-    name: 'Arbitrum Sepolia',
-    color: '#2563eb',
-    symbol: 'ETH',
-    chainId: 421614,
-    explorerUrl: 'https://sepolia.arbiscan.io'
-  },
-  optimismSepolia: {
-    id: 'optimismSepolia',
-    name: 'Optimism Sepolia',
-    color: '#dc2626',
-    symbol: 'ETH',
-    chainId: 11155420,
-    explorerUrl: 'https://sepolia-optimism.etherscan.io'
-  },
-  baseSepolia: {
-    id: 'baseSepolia',
-    name: 'Base Sepolia',
-    color: '#1d4ed8',
-    symbol: 'ETH',
-    chainId: 84532,
-    explorerUrl: 'https://sepolia.basescan.org'
-  },
-  polygonAmoy: {
-    id: 'polygonAmoy',
-    name: 'Polygon Amoy',
-    color: '#7c3aed',
-    symbol: 'POL',
-    chainId: 80002,
-    explorerUrl: 'https://amoy.polygonscan.com'
-  },
-  polygonZkEvm: {
-    id: 'polygonZkEvm',
-    name: 'Polygon zkEVM Testnet',
-    color: '#8b5cf6',
-    symbol: 'ETH',
-    chainId: 2442
-  },
-  zkSyncSepolia: {
-    id: 'zkSyncSepolia',
-    name: 'zkSync Era Sepolia',
-    color: '#06b6d4',
-    symbol: 'ETH',
-    chainId: 300
-  },
-  
-  // Mainnet networks
-  mainnet: {
-    id: 'mainnet',
-    name: 'Ethereum',
-    color: '#627EEA',
-    symbol: 'ETH',
-    chainId: 1
-  },
-  polygon: {
-    id: 'polygon',
-    name: 'Polygon PoS',
-    color: '#8247E5',
-    symbol: 'POL',
-    chainId: 137
-  },
-  'polygon-zkevm': {
-    id: 'polygon-zkevm',
-    name: 'Polygon zkEVM',
-    color: '#7B3FE4',
-    symbol: 'ETH',
-    chainId: 1101
-  },
-  arbitrum: {
-    id: 'arbitrum',
-    name: 'Arbitrum',
-    color: '#28A0F0',
-    symbol: 'ETH',
-    chainId: 42161
-  },
-  optimism: {
-    id: 'optimism',
-    name: 'Optimism',
-    color: '#FF0420',
-    symbol: 'ETH',
-    chainId: 10
-  },
-  base: {
-    id: 'base',
-    name: 'Base',
-    color: '#0052FF',
-    symbol: 'ETH',
-    chainId: 8453
-  },
+import { 
+  NetworkConfig, 
+  getNetworkConfig as getSharedNetworkConfig,
+  getNetworkByChainId as getSharedNetworkByChainId,
+  getAllNetworks as getSharedAllNetworks,
+  getTestnetNetworks as getSharedTestnetNetworks,
+  getMainnetNetworks as getSharedMainnetNetworks,
+  ALL_NETWORKS
+} from '@/config/networks';
 
-  'zksync-era': {
-    id: 'zksync-era',
-    name: 'zkSync Era',
-    color: '#4E529A',
-    symbol: 'ETH',
-    chainId: 324
-  }
-};
+// Create a legacy format mapping for backward compatibility
+export const NETWORK_CONFIGS: Record<string, NetworkConfig> = ALL_NETWORKS;
 
 // Network display utilities
 export const getNetworkDisplayName = (networkId: string): string => {

@@ -19,7 +19,7 @@ import {
   AnalysisResult,
   GasAnalysisData
 } from '../shared/types';
-import { NetworkConfigService, NetworkConfig, NetworkType } from '../config/network.config';
+import { NetworkConfigService, NetworkConfig, NetworkType } from '@/config/network.config';
 import { GasUtils } from '../shared/gas-utils';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BaseService } from '../shared/base.service';

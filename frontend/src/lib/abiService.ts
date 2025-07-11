@@ -2,6 +2,7 @@
 // No more CORS issues or exposed API keys!
 
 import { env } from './env';
+import { getContractAbi, getTestContract, STANDARD_ABIS } from '@/config/contracts';
 
 interface AbiResponse {
   success: boolean;
@@ -32,6 +33,12 @@ export interface BenchmarkFunction {
   inputs: any[];
   stateMutability: string;
   type: string;
+}
+
+interface ContractAbiResponse {
+  abi: any[];
+  contractName?: string;
+  isVerified: boolean;
 }
 
 class AbiService {
@@ -65,7 +72,7 @@ class AbiService {
   }
 
   /**
-   * Fetch contract ABI via backend API
+   * Fetch contract ABI via backend API or centralized configs
    */
   async fetchContractAbi(address: string, chainId: number): Promise<any> {
     if (!address || !chainId) {
@@ -77,6 +84,19 @@ class AbiService {
       throw new Error('Invalid contract address format');
     }
 
+    // First, try to get from centralized contract configs
+    const testContract = getTestContract(address, chainId);
+    if (testContract) {
+      const abi = getContractAbi(testContract.type);
+      if (abi) {
+        if (env.DEBUG_LOGS) {
+          console.log('✅ ABI found in centralized config:', testContract.name);
+        }
+        return abi;
+      }
+    }
+
+    // Fallback to backend API for unknown contracts
     const url = `${this.baseUrl}/api/abi?address=${address}&chainId=${chainId}`;
     
     if (env.DEBUG_LOGS) {
@@ -206,6 +226,13 @@ class AbiService {
     
     // Check if it's a valid Ethereum address format (0x followed by 40 hex characters)
     return /^0x[a-fA-F0-9]{40}$/i.test(address);
+  }
+
+  /**
+   * Get standard ABI by contract type
+   */
+  getStandardAbi(contractType: keyof typeof STANDARD_ABIS): any[] | null {
+    return STANDARD_ABIS[contractType] || null;
   }
 
   /**

@@ -1,34 +1,63 @@
-import { cookieStorage, createStorage, http } from '@wagmi/core';
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { sepolia, arbitrumSepolia, optimismSepolia, baseSepolia, polygonAmoy } from '@reown/appkit/networks';
+import { createAppKit } from '@reown/appkit/react'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { QueryClient } from '@tanstack/react-query'
+import { WagmiProvider } from 'wagmi'
+import { getTestnetNetworks } from '@/config/networks'
 
-// Get project ID from environment
-export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+// 1. Get projectId from https://cloud.reown.com
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'your-project-id'
 
 if (!projectId) {
-  throw new Error('Project ID is not defined');
+  throw new Error('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set')
 }
 
-// Get Alchemy API key from environment
-const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || 'pyPqVuQbXwVj3OYAWst9IY60uR3oSi1q';
+// 2. Create a metadata object - optional
+const metadata = {
+  name: 'L2 Benchmarking App',
+  description: 'Professional L2 blockchain benchmarking application',
+  url: 'https://l2benchmark.app', // origin must match your domain & subdomain
+  icons: ['https://avatars.githubusercontent.com/u/179229932']
+}
 
-export const networks = [arbitrumSepolia, optimismSepolia, baseSepolia, polygonAmoy, sepolia];
+// 3. Convert centralized network configs to wagmi format
+const testnetNetworks = getTestnetNetworks()
+const networks = testnetNetworks.map(network => ({
+  id: network.chainId,
+  name: network.displayName,
+  nativeCurrency: {
+    name: network.nativeCurrency.name,
+    symbol: network.nativeCurrency.symbol,
+    decimals: network.nativeCurrency.decimals
+  },
+  rpcUrls: {
+    default: { http: [network.rpcUrl] },
+    public: { http: [network.rpcUrl] }
+  },
+  blockExplorers: {
+    default: {
+      name: `${network.displayName} Explorer`,
+      url: network.blockExplorerUrl
+    }
+  },
+  testnet: network.type === 'testnet'
+}))
 
-// Set up the Wagmi Adapter (Config)
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage
-  }),
-  ssr: true,
-  projectId,
+// 4. Create Wagmi Adapter
+const wagmiAdapter = new WagmiAdapter({
   networks,
-  transports: {
-    [sepolia.id]: http(`https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`),
-    [arbitrumSepolia.id]: http(`https://arb-sepolia.g.alchemy.com/v2/${alchemyApiKey}`),
-    [optimismSepolia.id]: http(`https://opt-sepolia.g.alchemy.com/v2/${alchemyApiKey}`),
-    [baseSepolia.id]: http(`https://base-sepolia.g.alchemy.com/v2/${alchemyApiKey}`),
-    [polygonAmoy.id]: http(`https://polygon-amoy.g.alchemy.com/v2/${alchemyApiKey}`),
-  }
-});
+  projectId,
+  ssr: true
+})
 
-export const config = wagmiAdapter.wagmiConfig;
+// 5. Create modal
+const modal = createAppKit({
+  adapters: [wagmiAdapter],
+  networks,
+  projectId,
+  metadata,
+  features: {
+    analytics: true // Optional - defaults to your Cloud configuration
+  }
+})
+
+export { wagmiAdapter, modal, projectId, networks }

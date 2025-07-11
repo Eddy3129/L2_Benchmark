@@ -1,16 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ethers } from 'ethers';
-
-interface NetworkConfig {
-  name: string;
-  rpcUrl: string;
-  chainId: number;
-  nativeCurrency: {
-    name: string;
-    symbol: string;
-    decimals: number;
-  };
-}
+import { NetworkConfig, getNetworkConfig, TESTNET_NETWORKS } from '../../../shared/config/networks';
+import { getDefaultBenchmarkFunctions } from '../../../shared/config/contracts';
 
 interface ContractExecutionResult {
   networkId: string;
@@ -47,32 +38,7 @@ interface TransactionResult {
 export class BlockchainExecutorService {
   private readonly logger = new Logger(BlockchainExecutorService.name);
   
-  private readonly networkConfigs: Record<string, NetworkConfig> = {
-    arbitrumSepolia: {
-      name: 'Arbitrum Sepolia',
-      rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
-      chainId: 421614,
-      nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 }
-    },
-    optimismSepolia: {
-      name: 'Optimism Sepolia',
-      rpcUrl: process.env.OPTIMISM_SEPOLIA_RPC_URL || 'https://sepolia.optimism.io',
-      chainId: 11155420,
-      nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 }
-    },
-    baseSepolia: {
-      name: 'Base Sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      chainId: 84532,
-      nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 }
-    },
-    polygonAmoy: {
-      name: 'Polygon Amoy',
-      rpcUrl: process.env.POLYGON_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
-      chainId: 80002,
-      nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 }
-    }
-  };
+  private readonly networkConfigs = TESTNET_NETWORKS;
 
   async executeBenchmark(
     contracts: Array<{
@@ -130,7 +96,7 @@ export class BlockchainExecutorService {
     functions: string[],
     progressCallback?: (progress: { stage: string; currentNetwork?: string; currentFunction?: string }) => void
   ): Promise<ContractExecutionResult> {
-    const networkConfig = this.networkConfigs[contract.networkId];
+    const networkConfig = getNetworkConfig(contract.networkId);
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${contract.networkId}`);
     }
@@ -149,7 +115,7 @@ export class BlockchainExecutorService {
       throw new Error(`Insufficient balance: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}, required: ${ethers.formatEther(requiredAmount)} ${networkConfig.nativeCurrency.symbol}`);
     }
 
-    this.logger.log(`Executing benchmark for contract ${contract.address} on ${networkConfig.name}`);
+    this.logger.log(`Executing benchmark for contract ${contract.address} on ${networkConfig.displayName}`);
     this.logger.log(`Wallet balance: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}`);
 
     const contractInstance = new ethers.Contract(contract.address, contract.abi, wallet);
