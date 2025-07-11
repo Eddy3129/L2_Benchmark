@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
-@Entity('comparison_reports')
+@Entity('gas_analyzer_comparison_reports')
 export class ComparisonReport {
   @PrimaryGeneratedColumn('uuid')
   id: string;

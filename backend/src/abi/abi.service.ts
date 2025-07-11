@@ -82,6 +82,32 @@ export class AbiService {
         apiUrl: 'https://api-zkevm.polygonscan.com/api',
       },
     },
+    2442: {
+      id: 2442,
+      name: 'Polygon zkEVM Testnet',
+      explorer: {
+        name: 'Etherscan V2 (Polygon zkEVM Testnet)',
+        apiUrl: 'https://cardona-zkevm.polygonscan.com/api',
+        v2ApiUrl: 'https://api.etherscan.io/v2/api',
+      },
+    },
+    80002: {
+      id: 80002,
+      name: 'Polygon Amoy',
+      explorer: {
+        name: 'PolygonScan Amoy',
+        apiUrl: 'https://api-amoy.polygonscan.com/api',
+      },
+    },
+    11155420: {
+      id: 11155420,
+      name: 'Optimism Sepolia',
+      explorer: {
+        name: 'Etherscan V2 (Optimism Sepolia)',
+        apiUrl: 'https://api-sepolia-optimistic.etherscan.io/api',
+        v2ApiUrl: 'https://api.etherscan.io/v2/api',
+      },
+    },
     10: {
       id: 10,
       name: 'Optimism',
@@ -90,12 +116,29 @@ export class AbiService {
         apiUrl: 'https://api-optimistic.etherscan.io/api',
       },
     },
+    84532: {
+      id: 84532,
+      name: 'Base Sepolia',
+      explorer: {
+        name: 'Etherscan V2 (Base Sepolia)',
+        apiUrl: 'https://api-sepolia.basescan.org/api',
+        v2ApiUrl: 'https://api.etherscan.io/v2/api',
+      },
+    },
     8453: {
       id: 8453,
       name: 'Base',
       explorer: {
         name: 'BaseScan',
         apiUrl: 'https://api.basescan.org/api',
+      },
+    },
+    300: {
+      id: 300,
+      name: 'zkSync Era Sepolia',
+      explorer: {
+        name: 'zkSync Era Sepolia Explorer',
+        apiUrl: 'https://explorer.sepolia.era.zksync.dev/contract_verification',
       },
     },
     324: {

@@ -54,10 +54,55 @@ const config: HardhatUserConfig = {
       url: `https://polygon-amoy.g.alchemy.com/v2/${vars.get("ALCHEMY_API_KEY", "")}`,
       chainId: 80002,
       accounts: [`0x${vars.get("PRIVATE_KEY")}`],
+    },
+    polygonZkEVMTestnet: {
+      url: `https://polygonzkevm-cardona.g.alchemy.com/v2/${vars.get("ALCHEMY_API_KEY", "")}`,
+      chainId: 2442,
+      accounts: [`0x${vars.get("PRIVATE_KEY")}`],
+    },
+    zksync_sepolia: {
+      url: `https://zksync-sepolia.g.alchemy.com/v2/${vars.get("ALCHEMY_API_KEY", "")}`,
+      chainId: 300,
+      accounts: [`0x${vars.get("PRIVATE_KEY")}`],
     }
   },
   etherscan: {
-    apiKey: vars.get("ETHERSCAN_API_KEY", "")
+    apiKey: vars.get("ETHERSCAN_API_KEY", ""),
+    customChains:[
+      {
+        network: "zksync_sepolia",
+        chainId: 300,
+        urls: {
+          apiURL: "https://explorer.sepolia.era.zksync.dev/contract_verification",
+          browserURL: "https://sepolia.explorer.zksync.io/"
+        }
+      },
+      {
+        network: "base_sepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=84532",
+          browserURL: "https://sepolia.basescan.org/"
+        }
+      },
+      {
+        network: "optimism_sepolia",
+        chainId: 11155420,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=11155420",
+          browserURL: "https://sepolia-optimism.etherscan.io/"
+        }
+      },
+      {
+        network: "polygonZkEVMTestnet",
+        chainId: 2442,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=2442",
+          browserURL: "https://cardona-zkevm.polygonscan.com/"
+        }
+      }
+
+    ]
   },
   sourcify: {
     enabled: true

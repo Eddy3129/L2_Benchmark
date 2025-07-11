@@ -7,35 +7,39 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     name: 'Arbitrum Sepolia',
     color: '#2563eb',
     symbol: 'ETH',
-    chainId: 421614
+    chainId: 421614,
+    explorerUrl: 'https://sepolia.arbiscan.io'
   },
   optimismSepolia: {
     id: 'optimismSepolia',
     name: 'Optimism Sepolia',
     color: '#dc2626',
     symbol: 'ETH',
-    chainId: 11155420
+    chainId: 11155420,
+    explorerUrl: 'https://sepolia-optimism.etherscan.io'
   },
   baseSepolia: {
     id: 'baseSepolia',
     name: 'Base Sepolia',
     color: '#1d4ed8',
     symbol: 'ETH',
-    chainId: 84532
+    chainId: 84532,
+    explorerUrl: 'https://sepolia.basescan.org'
   },
   polygonAmoy: {
     id: 'polygonAmoy',
     name: 'Polygon Amoy',
     color: '#7c3aed',
     symbol: 'POL',
-    chainId: 80002
+    chainId: 80002,
+    explorerUrl: 'https://amoy.polygonscan.com'
   },
   polygonZkEvm: {
     id: 'polygonZkEvm',
     name: 'Polygon zkEVM Testnet',
     color: '#8b5cf6',
     symbol: 'ETH',
-    chainId: 1442
+    chainId: 2442
   },
   zkSyncSepolia: {
     id: 'zkSyncSepolia',

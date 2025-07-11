@@ -39,6 +39,7 @@ export interface NetworkConfig {
   color: string;
   symbol?: string;
   chainId?: number;
+  explorerUrl?: string;
 }
 
 export interface GasPriceBreakdown {

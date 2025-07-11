@@ -1,21 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BenchmarkSession } from './benchmark.entity';
 import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BenchmarkSessionData } from '../shared/types';
+import { BlockchainExecutorService } from './blockchain-executor.service';
 
 @Injectable()
 export class BenchmarkService extends BaseService<BenchmarkSession> {
+  protected readonly logger = new Logger(BenchmarkService.name);
+  
   constructor(
     @InjectRepository(BenchmarkSession)
     private benchmarkRepository: Repository<BenchmarkSession>,
+    private blockchainExecutor: BlockchainExecutorService,
   ) {
     super(benchmarkRepository, 'BenchmarkSession');
   }
 
-  async createSession(sessionData: Partial<BenchmarkSession>): Promise<BenchmarkSession> {
+  async createSession(sessionData: any): Promise<BenchmarkSession> {
     // Validate UUID if provided
     if (sessionData.id) {
       try {
@@ -24,8 +28,80 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
         throw ValidationUtils.createValidationError(['Invalid session ID format']);
       }
     }
+
+    this.logger.log(`Starting benchmark execution for ${sessionData.contracts?.length || 0} contracts`);
     
-    return await this.create(sessionData);
+    try {
+      // Execute real blockchain transactions
+      const executionResults = await this.blockchainExecutor.executeBenchmark(
+        sessionData.contracts || [],
+        sessionData.functions || ['transfer', 'approve', 'balanceOf']
+      );
+      
+      // Calculate aggregated metrics
+      const totalTransactions = executionResults.reduce((sum, result) => 
+        sum + result.transactions.totalTransactions, 0);
+      const successfulTransactions = executionResults.reduce((sum, result) => 
+        sum + result.transactions.successfulTransactions, 0);
+      const totalGasUsed = executionResults.reduce((sum, result) => 
+        sum + parseInt(result.transactions.totalGasUsed || '0'), 0);
+      const totalExecutionTime = executionResults.reduce((sum, result) => 
+        sum + result.functions.reduce((funcSum, func) => funcSum + func.executionTime, 0), 0);
+      
+      const avgGasUsed = totalTransactions > 0 ? totalGasUsed / totalTransactions : 0;
+      const avgExecutionTime = totalTransactions > 0 ? totalExecutionTime / totalTransactions : 0;
+      
+      // Transform frontend data to match entity structure
+      const transformedData: Partial<BenchmarkSession> = {
+        id: sessionData.id,
+        results: {
+          contractName: sessionData.contractName || 'Unknown Contract',
+          networks: sessionData.networks || [],
+          contracts: executionResults,
+          functions: sessionData.functions || [],
+          timestamp: sessionData.timestamp || new Date().toISOString(),
+          executionSummary: {
+            totalTransactions,
+            successfulTransactions,
+            failedTransactions: totalTransactions - successfulTransactions,
+            successRate: totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0
+          }
+        },
+        totalOperations: totalTransactions,
+        avgGasUsed: avgGasUsed,
+        avgExecutionTime: avgExecutionTime
+      };
+      
+      this.logger.log(`Benchmark completed: ${successfulTransactions}/${totalTransactions} transactions successful`);
+      return await this.create(transformedData);
+      
+    } catch (error) {
+      this.logger.error(`Benchmark execution failed: ${error.message}`);
+      
+      // Create a session with error information
+      const transformedData: Partial<BenchmarkSession> = {
+        id: sessionData.id,
+        results: {
+          contractName: sessionData.contractName || 'Unknown Contract',
+          networks: sessionData.networks || [],
+          contracts: sessionData.contracts || [],
+          functions: sessionData.functions || [],
+          timestamp: sessionData.timestamp || new Date().toISOString(),
+          error: error.message,
+          executionSummary: {
+            totalTransactions: 0,
+            successfulTransactions: 0,
+            failedTransactions: 0,
+            successRate: 0
+          }
+        },
+        totalOperations: 0,
+        avgGasUsed: 0,
+        avgExecutionTime: 0
+      };
+      
+      return await this.create(transformedData);
+    }
   }
 
   async getAllSessions(limit?: number): Promise<BenchmarkSession[]> {

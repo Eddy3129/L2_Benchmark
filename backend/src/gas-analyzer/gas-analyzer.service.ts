@@ -790,7 +790,7 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
           8453: { id: 'ethereum', name: 'ETH' },        // Base
           84532: { id: 'ethereum', name: 'ETH' },       // Base Sepolia
           1101: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Mainnet
-          1442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
+          2442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
           324: { id: 'ethereum', name: 'ETH' },         // zkSync Era Mainnet
           300: { id: 'ethereum', name: 'ETH' }          // zkSync Era Sepolia
       };

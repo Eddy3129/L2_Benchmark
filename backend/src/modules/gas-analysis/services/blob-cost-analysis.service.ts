@@ -216,7 +216,7 @@ export class BlobCostAnalysisService extends BaseService {
       {
         networkId: 'polygonZkEvm',
         networkName: 'Polygon zkEVM Testnet',
-        chainId: 1442,
+        chainId: 2442,
         supportsBlobTx: false,
         alternativeCost: {
           calldataCostPerByte: 16,

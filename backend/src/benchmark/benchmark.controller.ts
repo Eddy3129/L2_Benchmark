@@ -9,7 +9,7 @@ export class BenchmarkController {
   constructor(private readonly benchmarkService: BenchmarkService) {}
 
   @Post('sessions')
-  async createSession(@Body() sessionData: Partial<BenchmarkSession>) {
+  async createSession(@Body() sessionData: any) {
     try {
       return await this.benchmarkService.createSession(sessionData);
     } catch (error) {
