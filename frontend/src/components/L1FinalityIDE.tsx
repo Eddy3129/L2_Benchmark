@@ -118,6 +118,7 @@ export default function L1FinalityIDE() {
   const [aggregatedStats, setAggregatedStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [eventSource, setEventSource] = useState<EventSource | null>(null);
 
   const tabs = [
     { id: 'monitor' as const, label: 'Start Monitoring', icon: Settings },
@@ -137,6 +138,15 @@ export default function L1FinalityIDE() {
 
     return () => clearInterval(interval);
   }, [activeSessions]);
+
+  // Cleanup EventSource on component unmount
+  useEffect(() => {
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [eventSource]);
 
   useEffect(() => {
     if (trackingConfig.l2Network) {
@@ -250,9 +260,10 @@ export default function L1FinalityIDE() {
             progress: 0
         }]);
 
-        const eventSource = new EventSource(`http://localhost:3001/api/advanced-analysis/l1-finality/stream/${result.sessionId}`);
+        const newEventSource = new EventSource(`http://localhost:3001/api/advanced-analysis/l1-finality/stream/${result.sessionId}`);
+        setEventSource(newEventSource);
         
-        eventSource.onmessage = (event) => {
+        newEventSource.onmessage = (event) => {
             try {
                 const batchData = JSON.parse(event.data);
                 if (batchData.type === 'batchDetected') {
@@ -263,12 +274,11 @@ export default function L1FinalityIDE() {
             }
         };
         
-        eventSource.onerror = (error) => {
+        newEventSource.onerror = (error) => {
             console.error('EventSource error:', error);
-            eventSource.close();
+            newEventSource.close();
+            setEventSource(null);
         };
-        
-        return () => eventSource.close();
     } catch (err) {
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         setIsMonitoring(false);
@@ -293,6 +303,10 @@ export default function L1FinalityIDE() {
         if (sessionId === selectedSessionId) {
             setIsMonitoring(false);
             setCurrentResults(null);
+            if (eventSource) {
+                eventSource.close();
+                setEventSource(null);
+            }
         }
         fetchStatistics();
     } catch (err) {

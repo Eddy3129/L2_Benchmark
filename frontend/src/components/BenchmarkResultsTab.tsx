@@ -140,19 +140,19 @@ export function BenchmarkResultsTab({ benchmarkResult }: BenchmarkResultsTabProp
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-gray-700 rounded-lg p-4">
-              <div className="text-2xl font-bold text-white">{executionSummary.totalTransactions}</div>
+              <div className="text-2xl font-bold text-white">{executionSummary.totalTransactions || 0}</div>
               <div className="text-sm text-gray-400">Total Transactions</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-400">{executionSummary.successfulTransactions}</div>
+              <div className="text-2xl font-bold text-green-400">{executionSummary.successfulTransactions || 0}</div>
               <div className="text-sm text-gray-400">Successful</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4">
-              <div className="text-2xl font-bold text-blue-400">{executionSummary.totalGasUsed.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-blue-400">{(executionSummary.totalGasUsed || 0).toLocaleString()}</div>
               <div className="text-sm text-gray-400">Total Gas Used</div>
             </div>
             <div className="bg-gray-700 rounded-lg p-4">
-              <div className="text-2xl font-bold text-purple-400">{executionSummary.avgExecutionTime.toFixed(2)}s</div>
+              <div className="text-2xl font-bold text-purple-400">{(executionSummary.avgExecutionTime || 0).toFixed(2)}s</div>
               <div className="text-sm text-gray-400">Avg Execution Time</div>
             </div>
           </div>
