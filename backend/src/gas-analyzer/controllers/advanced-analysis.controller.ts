@@ -5,7 +5,6 @@ import { SequencerPerformanceService } from '../sequencer-performance.service';
 import { L1FinalityService } from '../l1-finality.service';
 
 import { ValidationUtils } from '../../shared/validation-utils';
-import { SequencerPerformanceTest } from '../sequencer-performance.entity';
 
 import {
   RunSequencerTestDto,
@@ -18,6 +17,39 @@ import {
   GetL1FinalityHistoryDto,
 
 } from '../dto/advanced-analysis.dto';
+
+// Local interface definition since entity was removed
+interface SequencerPerformanceTest {
+  sessionId: string;
+  l2Network: string;
+  testType: string;
+  status: string;
+  createdAt: Date;
+  completedAt?: Date;
+  notes?: string;
+  totalTestCostUSD?: number;
+  testConfiguration?: {
+    lowFeeTransactionCount?: number;
+    normalFeeTransactionCount?: number;
+    testDurationSeconds?: number;
+    minPriorityFeePerGas?: string;
+    normalPriorityFeePerGas?: string;
+  };
+  transactionResults?: {
+    lowFeeTransactions?: Array<{ status: string }>;
+    normalFeeTransactions?: Array<{ status: string }>;
+  };
+  performanceMetrics?: {
+    confirmationLatency?: {
+      lowFeeAvgMs: number;
+      normalFeeAvgMs: number;
+    };
+    parallelProcessingCapability?: {
+      parallelProcessingEfficiency: number;
+    };
+    censorshipResistanceScore?: number;
+  };
+}
 
 @ApiTags('Advanced Analysis')
 @Controller('advanced-analysis')
@@ -52,10 +84,10 @@ export class AdvancedAnalysisController {
       l2Network: test.l2Network,
       testType: test.testType as any,
       testConfig: {
-        transactionCount: test.testConfiguration.lowFeeTransactionCount + test.testConfiguration.normalFeeTransactionCount,
-        testDurationSeconds: test.testConfiguration.testDurationSeconds,
-        minFeePerGas: parseFloat(test.testConfiguration.minPriorityFeePerGas),
-        maxFeePerGas: parseFloat(test.testConfiguration.normalPriorityFeePerGas)
+        transactionCount: (test.testConfiguration?.lowFeeTransactionCount || 0) + (test.testConfiguration?.normalFeeTransactionCount || 0),
+        testDurationSeconds: test.testConfiguration?.testDurationSeconds || 0,
+        minFeePerGas: parseFloat(test.testConfiguration?.minPriorityFeePerGas || '0'),
+        maxFeePerGas: parseFloat(test.testConfiguration?.normalPriorityFeePerGas || '0')
       },
       realTimeStatus: {
         transactionsSent: lowFeeSent + normalFeeSent,

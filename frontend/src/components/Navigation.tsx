@@ -72,7 +72,7 @@ export function Navigation() {
               </div> */}
               <div>
                 <span className="text-xl font-lekton font-semibold text-white group-hover:text-blue-400 transition-colors">
-                  LayerTool
+                  LayerTool.
                 </span>
               </div>
             </Link>
@@ -86,7 +86,7 @@ export function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-lekton transition-all duration-200 ${
+                    className={`relative flex items-center space-x-1.5 px-5 py-1.5 rounded-lg text-sm font-lekton transition-all duration-200 ${
                       isActive
                         ? 'text-white bg-blue-600/20 border border-blue-600/30 shadow-lg'
                         : 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:border hover:border-gray-700'

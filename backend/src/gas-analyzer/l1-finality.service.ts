@@ -1,18 +1,53 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { L1FinalityTracking } from './l1-finality.entity';
 import { ethers } from 'ethers';
 import { randomUUID } from 'crypto';
 import { NetworkConfigService } from '../config/network.config';
-import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BlockchainMonitorService } from './blockchain-monitor.service';
 import { FinalityCalculatorService } from './finality-calculator.service';
 import { PriceOracleService } from './price-oracle.service';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
 import { EventEmitter } from 'events';
 import { Observable, Subject, map } from 'rxjs';
+
+// L1FinalityTracking interface for in-memory storage
+interface L1FinalityTracking {
+  id: string;
+  sessionId: string;
+  l2Network: string;
+  l2BlockNumber?: string;
+  l2TransactionHash?: string;
+  l1BatchTransactionHash?: string;
+  l2ConfirmationTime: Date;
+  l1SettlementInfo?: {
+    batchTransactionHash?: string;
+    blockNumber?: string;
+    settlementTime?: Date;
+    batchDetails?: {
+      batchPosterAddress: string;
+      l1GasUsed: string;
+      l1GasPrice: string;
+      l1TransactionFee: string;
+      l1TransactionFeeUSD: number;
+      batchSize: number;
+      batchDataSize: number;
+      compressionRatio: number;
+    };
+  };
+  trackingInfo?: any;
+  finalityMetrics?: {
+    timeToL1SettlementMs: number;
+    l1SettlementCostPerBatch: number;
+    amortizedL1CostPerTransaction: number;
+    finalityConfidenceLevel: number;
+    securityModel: 'optimistic' | 'zk_proof' | 'hybrid';
+    challengePeriodHours: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface MessageEvent {
   data: string;
@@ -58,19 +93,19 @@ const BATCH_POSTER_CONFIGS: BatchPosterConfig = {
 };
 
 @Injectable()
-export class L1FinalityService extends BaseService<L1FinalityTracking> {
+export class L1FinalityService {
+  private readonly logger = new Logger(L1FinalityService.name);
   private activeMonitoringSessions: Map<string, string> = new Map(); // sessionId -> l2Network
   private monitoringIntervals: Map<string, NodeJS.Timeout> = new Map(); // sessionId -> interval
   private sessionEmitters: Map<string, EventEmitter> = new Map();
 
   constructor(
-    @InjectRepository(L1FinalityTracking)
-    private l1FinalityRepository: Repository<L1FinalityTracking>,
+    private dataStorage: DataStorageService,
+    private csvExport: CsvExportService,
     private blockchainMonitor: BlockchainMonitorService,
     private finalityCalculator: FinalityCalculatorService,
     private priceOracle: PriceOracleService,
   ) {
-    super(l1FinalityRepository, 'L1FinalityTracking');
     this.setupBlockchainMonitorListeners();
     this.logger.log('L1FinalityService initialized with REAL blockchain monitoring');
   }
@@ -176,12 +211,9 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
     const l1Provider = new ethers.JsonRpcProvider(this.getL1RpcUrl(batchPosterConfig.l1Network));
     
     // Get pending tracking records for this session
-    const pendingRecords = await this.l1FinalityRepository.find({
-      where: {
-        sessionId,
-        l1BatchTransactionHash: undefined, // Not yet settled
-      },
-    });
+    const pendingRecords = this.dataStorage.findAll('l1FinalityTracking', (record) => 
+      record.sessionId === sessionId && !record.l1BatchTransactionHash
+    );
     
     if (pendingRecords.length === 0) {
       return; // All transactions already settled
@@ -254,10 +286,15 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
         const amortizedCostUSD = l1CostUSD / estimatedBatchSize;
         
         // Update the record
-        record.l1BatchTransactionHash = l1Tx.hash;
-        record.l1BlockNumber = receipt.blockNumber.toString();
-        record.l1SettlementTime = l1SettlementTime;
-        record.l1BatchDetails = {
+        record.l1SettlementInfo = {
+          batchTransactionHash: l1Tx.hash,
+          blockNumber: receipt.blockNumber.toString(),
+          settlementTime: l1SettlementTime
+        };
+        if (!record.l1SettlementInfo) {
+          record.l1SettlementInfo = {};
+        }
+        record.l1SettlementInfo.batchDetails = {
           batchPosterAddress: l1Tx.from || '',
           l1GasUsed: gasUsed.toString(),
           l1GasPrice: gasPrice.toString(),
@@ -277,7 +314,7 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
           challengePeriodHours: this.getChallengePeriodHours(record.l2Network)
         };
         
-        await this.l1FinalityRepository.save(record);
+        this.dataStorage.update('l1FinalityTracking', record.id, record);
         
         this.logger.log(`Updated L1 finality for transaction ${record.l2TransactionHash}: TTLS=${timeToSettlement}ms, Cost=${amortizedCostUSD.toFixed(6)} USD`);
       }
@@ -379,9 +416,9 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
 
   private async finalizeSession(sessionId: string): Promise<void> {
     // Mark session as completed in database
-    const sessionRecords = await this.l1FinalityRepository.find({
-      where: { sessionId }
-    });
+    const sessionRecords = this.dataStorage.findAll('l1FinalityTracking', (record) => 
+      record.sessionId === sessionId
+    );
     
     this.logger.log(`Finalized REAL monitoring session ${sessionId} with ${sessionRecords.length} batch records`);
   }
@@ -416,36 +453,34 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
   }
 
   async getL1FinalityResults(sessionId: string): Promise<L1FinalityTracking[]> {
-    return this.l1FinalityRepository.find({
-      where: { sessionId },
-      order: { createdAt: 'ASC' },
-    });
+    return this.dataStorage.findAll('l1FinalityTracking', (record) => 
+      record.sessionId === sessionId
+    ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
   async getL1FinalityHistory(limit: number = 50): Promise<L1FinalityTracking[]> {
-    return this.l1FinalityRepository.find({
-      order: { createdAt: 'DESC' },
-      take: limit,
-    });
+    const allRecords = this.dataStorage.findAll('l1FinalityTracking')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return allRecords.slice(0, limit);
   }
 
   async getL1FinalityByNetwork(network: string): Promise<L1FinalityTracking[]> {
-    return this.l1FinalityRepository.find({
-      where: { l2Network: network },
-      order: { createdAt: 'DESC' },
-    });
+    return this.dataStorage.findAll('l1FinalityTracking', (record) => 
+      record.l2Network === network
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   async getL1FinalityStatistics(network?: string): Promise<any> {
-    const whereClause = network ? { l2Network: network } : {};
+    const records = network 
+      ? this.dataStorage.findAll('l1FinalityTracking', (record) => record.l2Network === network)
+      : this.dataStorage.findAll('l1FinalityTracking');
     
-    const records = await this.l1FinalityRepository.find({
-      where: whereClause,
-      order: { createdAt: 'DESC' },
-      take: 1000, // Limit to recent records for performance
-    });
+    // Sort by creation date and limit to recent records for performance
+    const sortedRecords = records
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 1000);
     
-    if (records.length === 0) {
+    if (sortedRecords.length === 0) {
       return {
         totalBatches: 0,
         averageSettlementTime: 0,
@@ -456,19 +491,19 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
     }
     
     // Calculate statistics from REAL blockchain data
-    const totalBatches = records.length;
-    const totalSettlementTime = records.reduce((sum, record) => {
+    const totalBatches = sortedRecords.length;
+    const totalSettlementTime = sortedRecords.reduce((sum, record) => {
       return sum + (record.finalityMetrics?.timeToL1SettlementMs || 0);
     }, 0);
-    const totalCostPerTx = records.reduce((sum, record) => {
+    const totalCostPerTx = sortedRecords.reduce((sum, record) => {
       return sum + (record.finalityMetrics?.amortizedL1CostPerTransaction || 0);
     }, 0);
-    const totalL1GasCost = records.reduce((sum, record) => {
+    const totalL1GasCost = sortedRecords.reduce((sum, record) => {
       return sum + (record.finalityMetrics?.l1SettlementCostPerBatch || 0);
     }, 0);
     
     // Get unique networks
-    const networks = [...new Set(records.map(record => record.l2Network))];
+    const networks = [...new Set(sortedRecords.map(record => record.l2Network))];
     
     return {
       totalBatches,
@@ -530,6 +565,36 @@ export class L1FinalityService extends BaseService<L1FinalityTracking> {
         data: JSON.stringify(data)
       } as MessageEvent))
     );
+  }
+
+  // Save L1 finality tracking record
+  async saveL1FinalityRecord(record: Omit<L1FinalityTracking, 'id' | 'createdAt' | 'updatedAt'>): Promise<L1FinalityTracking> {
+    const finalityRecord: L1FinalityTracking = {
+      ...record,
+      id: randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    return this.dataStorage.create('l1FinalityTracking', finalityRecord);
+  }
+
+  // Export L1 finality tracking data to CSV
+  async exportL1FinalityToCsv(): Promise<string> {
+    const records = this.dataStorage.findAll('l1FinalityTracking');
+    return this.csvExport.exportL1FinalityTracking(records);
+  }
+
+  // Export L1 finality data by network to CSV
+  async exportL1FinalityByNetworkToCsv(network: string): Promise<string> {
+    const records = await this.getL1FinalityByNetwork(network);
+    return this.csvExport.exportL1FinalityTracking(records);
+  }
+
+  // Export L1 finality data by session to CSV
+  async exportL1FinalityBySessionToCsv(sessionId: string): Promise<string> {
+    const records = await this.getL1FinalityResults(sessionId);
+    return this.csvExport.exportL1FinalityTracking(records);
   }
 
   // Cleanup method to stop all active monitoring sessions

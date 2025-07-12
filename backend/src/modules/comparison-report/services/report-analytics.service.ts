@@ -1,12 +1,50 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { BaseService } from '../../../common/base.service';
-import { ComparisonReport } from '../entities/comparison-report.entity';
-import { ReportSection } from '../entities/report-section.entity';
+import { BaseDataService } from '../../../common/base.service';
+import { DataStorageService } from '../../../shared/data-storage.service';
 import { SuccessResponseDto } from '../../../common/dto/base.dto';
 import { ComparisonType } from '../../../common/dto/comparison-report.dto';
 import { ValidationUtils } from '../../../common/utils';
+
+// Define ComparisonReport interface since TypeORM entities are removed
+interface ComparisonReport {
+  id: string;
+  title: string;
+  description?: string;
+  reportType: ComparisonType;
+  status: string;
+  contractName: string;
+  sourceCodeHash: string;
+  networksCompared: string[];
+  comparisonConfig: any;
+  savingsBreakdown: {
+    breakdown: Array<{
+      networkId: string;
+      networkName?: string;
+      cost: number;
+      gasUsed: number;
+      savings: number;
+      rank?: number;
+    }>;
+  };
+  executiveSummary: any;
+  chartData: any;
+  metadata: any;
+  totalGasDifference: number;
+  savingsPercentage: number;
+  maxSavings: number;
+  avgSavings?: number;
+  mostExpensiveNetwork?: string;
+  cheapestNetwork?: string;
+  totalNetworks?: number;
+  sections?: Array<{
+    sectionType: string;
+    title: string;
+    content: string;
+  }>;
+  generationDuration?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface AnalyticsTimeRange {
   startDate: Date;
@@ -72,15 +110,12 @@ interface UsageStatistics {
 }
 
 @Injectable()
-export class ReportAnalyticsService extends BaseService {
+export class ReportAnalyticsService extends BaseDataService<any> {
 
   constructor(
-    @InjectRepository(ComparisonReport)
-    private readonly reportRepository: Repository<ComparisonReport>,
-    @InjectRepository(ReportSection)
-    private readonly sectionRepository: Repository<ReportSection>,
+    private readonly dataStorageService: DataStorageService,
   ) {
-    super();
+    super(dataStorageService, 'comparisonReports');
   }
 
   /**
@@ -92,17 +127,16 @@ export class ReportAnalyticsService extends BaseService {
     try {
       this.logger.log('Generating report analytics');
 
-      const dateFilter = timeRange
-        ? Between(timeRange.startDate, timeRange.endDate)
-        : undefined;
-
-      const whereClause = dateFilter ? { createdAt: dateFilter } : {};
-
       // Get all reports for the time range
-      const reports = await this.reportRepository.find({
-        where: whereClause,
-        relations: ['sections'],
-      });
+      let reports = await this.findAll();
+      
+      // Apply time range filter if provided
+      if (timeRange) {
+        reports = reports.filter(report => {
+          const createdAt = new Date(report.createdAt);
+          return createdAt >= timeRange.startDate && createdAt <= timeRange.endDate;
+        });
+      }
 
       const analytics: ReportAnalytics = {
         totalReports: reports.length,
@@ -143,15 +177,15 @@ export class ReportAnalyticsService extends BaseService {
     try {
       this.logger.log('Generating usage statistics');
 
-      const dateFilter = timeRange
-        ? Between(timeRange.startDate, timeRange.endDate)
-        : undefined;
-
-      const whereClause = dateFilter ? { createdAt: dateFilter } : {};
-
-      const reports = await this.reportRepository.find({
-        where: whereClause,
-      });
+      let reports = await this.findAll();
+      
+      // Apply time range filter if provided
+      if (timeRange) {
+        reports = reports.filter(report => {
+          const createdAt = new Date(report.createdAt);
+          return createdAt >= timeRange.startDate && createdAt <= timeRange.endDate;
+        });
+      }
 
       const statistics: UsageStatistics = {
         totalUsers: await this.calculateTotalUsers(reports),
@@ -191,15 +225,15 @@ export class ReportAnalyticsService extends BaseService {
     try {
       this.logger.log(`Generating network analytics for: ${networkId || 'all networks'}`);
 
-      const dateFilter = timeRange
-        ? Between(timeRange.startDate, timeRange.endDate)
-        : undefined;
-
-      const whereClause = dateFilter ? { createdAt: dateFilter } : {};
-
-      const reports = await this.reportRepository.find({
-        where: whereClause,
-      });
+      let reports = await this.findAll();
+      
+      // Apply time range filter if provided
+      if (timeRange) {
+        reports = reports.filter(report => {
+          const createdAt = new Date(report.createdAt);
+          return createdAt >= timeRange.startDate && createdAt <= timeRange.endDate;
+        });
+      }
 
       const networkAnalytics = {
         networkPerformance: this.calculateNetworkPerformance(reports, networkId),
@@ -237,15 +271,15 @@ export class ReportAnalyticsService extends BaseService {
     try {
       this.logger.log('Generating cost optimization insights');
 
-      const dateFilter = timeRange
-        ? Between(timeRange.startDate, timeRange.endDate)
-        : undefined;
-
-      const whereClause = dateFilter ? { createdAt: dateFilter } : {};
-
-      const reports = await this.reportRepository.find({
-        where: whereClause,
-      });
+      let reports = await this.findAll();
+      
+      // Apply time range filter if provided
+      if (timeRange) {
+        reports = reports.filter(report => {
+          const createdAt = new Date(report.createdAt);
+          return createdAt >= timeRange.startDate && createdAt <= timeRange.endDate;
+        });
+      }
 
       const insights = {
         totalSavingsIdentified: this.calculateTotalSavings(reports),
@@ -383,7 +417,7 @@ export class ReportAnalyticsService extends BaseService {
         count,
         percentage: (count / totalNetworkUsage) * 100,
       }))
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
       .slice(0, 10);
   }
 
@@ -820,7 +854,7 @@ export class ReportAnalyticsService extends BaseService {
     const opportunities: any[] = [];
     
     reports.forEach(report => {
-      const maxSavings = report.maxSavings;
+      const maxSavings = report.maxSavings || 0;
       if (maxSavings > 50) {
         opportunities.push({
           contractName: report.contractName,
@@ -851,7 +885,7 @@ export class ReportAnalyticsService extends BaseService {
         };
       }
       
-      contractRankings[report.contractName].totalSavings += report.maxSavings;
+      contractRankings[report.contractName].totalSavings += (report.maxSavings || 0);
       contractRankings[report.contractName].reportCount++;
     });
     
@@ -931,7 +965,7 @@ export class ReportAnalyticsService extends BaseService {
 
   private calculateOptimizationImpact(reports: ComparisonReport[]): any {
     const totalPotentialSavings = this.calculateTotalSavings(reports);
-    const averageSavingsPercentage = reports.reduce((sum, report) => sum + report.maxSavings, 0) / reports.length;
+    const averageSavingsPercentage = reports.reduce((sum, report) => sum + (report.maxSavings || 0), 0) / reports.length;
     
     return {
       totalPotentialSavings,
@@ -953,13 +987,31 @@ export class ReportAnalyticsService extends BaseService {
     }
     
     if (filters.dateRange) {
-      whereClause.createdAt = Between(new Date(filters.dateRange.start), new Date(filters.dateRange.end));
+      // Between function removed since TypeORM is no longer used
+      // Date range filtering is handled manually below
     }
     
-    return this.reportRepository.find({
-      where: whereClause,
-      relations: ['sections'],
-    });
+    let reports = await this.findAll();
+    
+    // Apply filters manually since we're using DataStorageService
+    if (filters.contractName) {
+      reports = reports.filter(report => report.contractName === filters.contractName);
+    }
+    
+    if (filters.status) {
+      reports = reports.filter(report => report.status === filters.status);
+    }
+    
+    if (filters.dateRange) {
+      const startDate = new Date(filters.dateRange.start);
+      const endDate = new Date(filters.dateRange.end);
+      reports = reports.filter(report => {
+        const createdAt = new Date(report.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
+    }
+    
+    return reports;
   }
 
   private calculateCostDistribution(reports: ComparisonReport[]): any {

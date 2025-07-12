@@ -1,10 +1,87 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BaseService } from '../../../common/base.service';
-import { GasAnalysis } from '../entities/gas-analysis.entity';
-import { NetworkResult } from '../entities/network-result.entity';
-import { CompilationResult } from '../entities/compilation-result.entity';
+import { BaseDataService } from '../../../common/base.service';
+import { DataStorageService } from '../../../shared/data-storage.service';
+
+// Local interface definitions since entities were removed
+interface GasAnalysis {
+  id?: string;
+  contractName?: string;
+  analysisType?: string;
+  contractInfo?: {
+    contractName?: string;
+    sourceCodeHash?: string;
+    sourceCode?: string;
+    contractPath?: string;
+    language?: string;
+    version?: string;
+  };
+  analysisConfig?: {
+    analysisType?: string;
+    gasEstimationType?: string;
+    optimizationLevel?: string;
+    targetNetworks?: string[];
+    includeL2Networks?: boolean;
+    maxRetries?: number;
+    timeout?: number;
+  };
+  analysisResults?: {
+    duration?: number;
+    totalNetworks?: number;
+    successfulNetworks?: number;
+    failedNetworks?: string[];
+    averageGasCost?: number;
+    lowestGasCost?: { network: string; gasUsed: number };
+    highestGasCost?: { network: string; gasUsed: number };
+    gasSavings?: { amount: number; percentage: number };
+  };
+  metadata?: {
+    networks?: string[];
+    solidityVersion?: string;
+    optimizationSettings?: any;
+    functionCalls?: any[];
+    totalNetworks?: number;
+    successfulNetworks?: number;
+    failedNetworks?: string[];
+    optimizationLevel?: string;
+    gasEstimationType?: string;
+  };
+  compilation?: any;
+  networkResults?: NetworkResult[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface NetworkResult {
+  id?: string;
+  network?: string;
+  networkDisplayName?: string;
+  chainId?: number;
+  gasEstimates?: any;
+  deploymentGas?: any;
+  functionGasEstimates?: any;
+  deploymentCost?: number;
+  executionCosts?: any;
+  timestamp?: string;
+  contractAddress?: string;
+  transactionHash?: string;
+  blockNumber?: number;
+  networkStatus?: {
+    isConnected?: boolean;
+    latency?: number;
+    blockNumber?: number;
+  };
+  createdAt?: Date;
+}
+
+interface CompilationResult {
+  id?: string;
+  success?: boolean;
+  errors?: string[];
+  bytecode?: string;
+  abi?: any[];
+  metadata?: any;
+  bytecodeAnalysis?: any;
+}
 import {
   CompareNetworksRequestDto,
   NetworkComparisonDto,
@@ -26,19 +103,14 @@ import { ValidationUtils, NumberUtils } from '../../../common/utils';
 import { CONSTANTS } from '../../../common/constants';
 
 @Injectable()
-export class NetworkComparisonService extends BaseService {
+export class NetworkComparisonService extends BaseDataService<any> {
   constructor(
-    @InjectRepository(GasAnalysis)
-    private readonly gasAnalysisRepository: Repository<GasAnalysis>,
-    @InjectRepository(NetworkResult)
-    private readonly networkResultRepository: Repository<NetworkResult>,
-    @InjectRepository(CompilationResult)
-    private readonly compilationResultRepository: Repository<CompilationResult>,
+    private readonly dataStorageService: DataStorageService,
     private readonly compilationService: ContractCompilationService,
     private readonly networkAnalysisService: NetworkAnalysisService,
     private readonly gasEstimationService: GasEstimationService,
   ) {
-    super();
+    super(dataStorageService, 'gasAnalyses');
   }
 
   /**
@@ -125,47 +197,52 @@ export class NetworkComparisonService extends BaseService {
     try {
       const { page, limit, sortBy, sortOrder, ...filters } = query;
 
-      const queryBuilder = this.gasAnalysisRepository
-        .createQueryBuilder('analysis')
-        .leftJoinAndSelect('analysis.compilationResult', 'compilation')
-        .leftJoinAndSelect('analysis.networkResults', 'networks')
-        .where('analysis.analysisType = :type', { type: 'network_comparison' });
+      // Get all analyses and apply manual filtering
+      const allAnalyses = await this.findAll();
+      
+      // Filter by analysis type
+      let filteredAnalyses = allAnalyses.filter(analysis => 
+        analysis.analysisConfig?.analysisType === 'network_comparison'
+      );
 
       // Apply filters
       if (filters.contractName) {
-        queryBuilder.andWhere('analysis.contractName ILIKE :contractName', {
-          contractName: `%${filters.contractName}%`,
-        });
+        filteredAnalyses = filteredAnalyses.filter(analysis =>
+          analysis.contractInfo?.contractName?.toLowerCase().includes(filters.contractName?.toLowerCase() || '')
+        );
       }
 
       if (filters.network) {
-        queryBuilder.andWhere('networks.network = :network', {
-          network: filters.network,
-        });
+        filteredAnalyses = filteredAnalyses.filter(analysis =>
+          analysis.networkResults?.some(result => result.network === filters.network)
+        );
       }
 
       if (filters.dateRange?.startDate) {
-        queryBuilder.andWhere('analysis.createdAt >= :startDate', {
-          startDate: filters.dateRange.startDate,
-        });
+        filteredAnalyses = filteredAnalyses.filter(analysis =>
+          new Date(analysis.createdAt) >= new Date(filters.dateRange?.startDate || new Date())
+        );
       }
 
       if (filters.dateRange?.endDate) {
-        queryBuilder.andWhere('analysis.createdAt <= :endDate', {
-          endDate: filters.dateRange.endDate,
-        });
+        filteredAnalyses = filteredAnalyses.filter(analysis =>
+          new Date(analysis.createdAt) <= new Date(filters.dateRange?.endDate || new Date())
+        );
       }
 
       // Apply sorting
-      const sortField = sortBy || 'createdAt';
       const order = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-      queryBuilder.orderBy(`analysis.${sortField}`, order);
+      filteredAnalyses.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return order === 'ASC' ? dateA - dateB : dateB - dateA;
+      });
 
+      const total = filteredAnalyses.length;
+      
       // Apply pagination
       const offset = ((page || 1) - 1) * (limit || CONSTANTS.PAGINATION.DEFAULT_LIMIT);
-      queryBuilder.skip(offset).take(limit || CONSTANTS.PAGINATION.DEFAULT_LIMIT);
-
-      const [analyses, total] = await queryBuilder.getManyAndCount();
+      const analyses = filteredAnalyses.slice(offset, offset + (limit || CONSTANTS.PAGINATION.DEFAULT_LIMIT));
 
       const results = analyses.map((analysis) =>
         this.mapToGasAnalysisResult(analysis),
@@ -200,10 +277,7 @@ export class NetworkComparisonService extends BaseService {
     try {
       ValidationUtils.validateUUID(id);
 
-      const analysis = await this.gasAnalysisRepository.findOne({
-        where: { id, analysisType: AnalysisType.BASIC },
-        relations: ['compilationResult', 'networkResults'],
-      });
+      const analysis = await this.findById(id);
 
       if (!analysis) {
         throw new Error('Network comparison not found');
@@ -508,7 +582,7 @@ export class NetworkComparisonService extends BaseService {
     const startTime = Date.now();
 
     // Save compilation result
-    const compilation = this.compilationResultRepository.create({
+    const compilation = {
       success: compilationResult.success,
       bytecode: compilationResult.bytecode,
       abi: compilationResult.abi,
@@ -523,18 +597,24 @@ export class NetworkComparisonService extends BaseService {
       compilationTime: compilationResult.compilationTime,
       gasEstimates: compilationResult.gasEstimates,
       bytecodeAnalysis: compilationResult.bytecodeAnalysis,
-    });
+    };
 
-    const savedCompilation: CompilationResult = await this.compilationResultRepository.save(
-      compilation,
-    ) as unknown as CompilationResult;
+    const savedCompilation: CompilationResult = await this.dataStorageService.create('compilationResults', compilation) as unknown as CompilationResult;
 
     // Create and save network results first
     const networkResultEntities = networkResults.map((result) => {
-      return this.networkResultRepository.create({
-        network: result.networkId || result.network,
-        networkDisplayName: result.networkName || result.networkDisplayName,
-        chainId: result.chainId,
+      return {
+        networkInfo: {
+          network: result.networkId || result.network,
+          networkDisplayName: result.networkName || result.networkDisplayName,
+          chainId: result.chainId
+        },
+        transactionInfo: {
+          timestamp: result.timestamp,
+          contractAddress: result.contractAddress,
+          transactionHash: result.transactionHash,
+          blockNumber: result.blockNumber
+        },
         deploymentGas: result.deploymentGas,
         functionGasEstimates: result.functionGasEstimates,
         networkStatus: result.networkStatus ? {
@@ -546,24 +626,45 @@ export class NetworkComparisonService extends BaseService {
           gasPrice: result.networkStatus.gasPrice,
           baseFee: result.networkStatus.baseFee,
         } : undefined,
-        blockNumber: result.blockNumber,
-        timestamp: result.timestamp,
-        metadata: result.metadata,
-      });
+        analysisMetadata: {
+          analysisTime: Date.now(),
+          ...result.metadata
+        },
+      };
     });
 
     const savedNetworkResults: NetworkResult[] = [];
     for (const entity of networkResultEntities) {
-      const saved = await this.networkResultRepository.save(entity) as unknown as NetworkResult;
+      const saved = await this.dataStorageService.create('networkResults', entity) as unknown as NetworkResult;
       savedNetworkResults.push(saved);
     }
 
     // Create gas analysis
-    const gasAnalysis = new GasAnalysis();
-    gasAnalysis.contractName = request.contractName;
-    gasAnalysis.sourceCodeHash = this.generateSourceCodeHash(request.sourceCode);
-    gasAnalysis.analysisType = 'network_comparison' as any;
-    gasAnalysis.duration = Date.now() - startTime;
+    const gasAnalysis: GasAnalysis = {} as GasAnalysis;
+    gasAnalysis.contractInfo = {
+      contractName: request.contractName,
+      contractPath: '',
+      language: 'solidity',
+      version: request.solidityVersion || '0.8.19'
+    };
+    gasAnalysis.analysisConfig = {
+      analysisType: 'network_comparison',
+      optimizationLevel: 'medium',
+      targetNetworks: [request.baselineNetwork, ...request.comparisonNetworks],
+      includeL2Networks: true,
+      maxRetries: 3,
+      timeout: 30000
+    };
+    gasAnalysis.analysisResults = {
+      duration: Date.now() - startTime,
+      totalNetworks: [request.baselineNetwork, ...request.comparisonNetworks].length,
+      successfulNetworks: savedNetworkResults.length,
+      failedNetworks: [],
+      averageGasCost: 0,
+      lowestGasCost: { network: '', gasUsed: 0 },
+      highestGasCost: { network: '', gasUsed: 0 },
+      gasSavings: { amount: 0, percentage: 0 }
+    };
     gasAnalysis.metadata = {
       networks: [request.baselineNetwork, ...request.comparisonNetworks],
       solidityVersion: request.solidityVersion,
@@ -573,7 +674,7 @@ export class NetworkComparisonService extends BaseService {
     gasAnalysis.compilation = savedCompilation;
     gasAnalysis.networkResults = savedNetworkResults;
 
-    return await this.gasAnalysisRepository.save(gasAnalysis as GasAnalysis);
+    return await this.create(gasAnalysis as GasAnalysis);
   }
 
   /**
@@ -643,9 +744,9 @@ export class NetworkComparisonService extends BaseService {
         },
       })),
       metadata: {
-        comparisonId: gasAnalysis.id,
-        timestamp: gasAnalysis.createdAt.toISOString(),
-        contractName: gasAnalysis.contractName,
+        comparisonId: gasAnalysis.id || '',
+        timestamp: gasAnalysis.createdAt?.toISOString() || new Date().toISOString(),
+        contractName: gasAnalysis.contractInfo?.contractName || 'Unknown',
         baselineNetwork: baseline.network,
         comparisonNetworks: comparisons.map(c => c.network),
       },
@@ -657,11 +758,11 @@ export class NetworkComparisonService extends BaseService {
    */
   private mapToGasAnalysisResult(analysis: GasAnalysis): GasAnalysisResultDto {
     return {
-      id: analysis.id,
-      contractName: analysis.contractName,
-      analysisType: analysis.analysisType,
-      duration: analysis.duration || 0,
-      createdAt: analysis.createdAt.toISOString(),
+      id: analysis.id || '',
+      contractName: analysis.contractInfo?.contractName || 'Unknown',
+      analysisType: (analysis.analysisConfig?.analysisType || 'basic') as AnalysisType,
+      duration: analysis.analysisResults?.duration || 0,
+      createdAt: analysis.createdAt?.toISOString() || new Date().toISOString(),
       compilation: analysis.compilation
         ? {
             success: analysis.compilation.success,
@@ -678,14 +779,14 @@ export class NetworkComparisonService extends BaseService {
             bytecodeSize: analysis.compilation.bytecodeSize,
             gasEstimates: analysis.compilation.gasEstimates,
             bytecodeAnalysis: analysis.compilation.bytecodeAnalysis ? {
-              size: analysis.compilation.bytecodeAnalysis.size?.bytes || 0,
-              complexityScore: analysis.compilation.bytecodeAnalysis.complexity?.score || 0,
-              opcodeCount: analysis.compilation.bytecodeAnalysis.opcodeDistribution?.length || 0,
-              topOpcodes: analysis.compilation.bytecodeAnalysis.opcodeDistribution?.map(op => ({
-                opcode: op.name,
-                count: op.count,
-                percentage: op.percentage,
-              })) || [],
+              size: analysis.compilation.bytecodeSize || 0,
+              complexityScore: analysis.compilation.bytecodeAnalysis.complexity || 0,
+              opcodeCount: analysis.compilation.bytecodeAnalysis.opcodeDistribution ? Object.keys(analysis.compilation.bytecodeAnalysis.opcodeDistribution).length : 0,
+              topOpcodes: analysis.compilation.bytecodeAnalysis.opcodeDistribution ? Object.entries(analysis.compilation.bytecodeAnalysis.opcodeDistribution).map(([opcode, count]) => ({
+                opcode,
+                count: typeof count === 'number' ? count : 0,
+                percentage: 0, // Would need total count to calculate percentage
+              })) : [],
               deploymentCostMultiplier: 1,
             } : undefined,
           }
@@ -697,8 +798,8 @@ export class NetworkComparisonService extends BaseService {
             optimizationSettings: { enabled: false, runs: 200 },
           },
       networkResults: analysis.networkResults?.map((result) => ({
-        network: result.network,
-        networkDisplayName: result.networkDisplayName || result.network,
+        network: result.network || 'unknown',
+        networkDisplayName: result.networkDisplayName || result.network || 'unknown',
         chainId: result.chainId || 0,
         deploymentGas: {
            gasLimit: result.deploymentGas?.gasUsed || 0,
@@ -715,7 +816,7 @@ export class NetworkComparisonService extends BaseService {
         blockNumber: result.blockNumber,
         transactionHash: result.transactionHash,
         networkStatus: result.networkStatus ? {
-          isOnline: result.networkStatus.isConnected,
+          isOnline: result.networkStatus.isConnected ?? false,
           latency: result.networkStatus.latency || 0,
           blockHeight: result.networkStatus.blockNumber || 0,
         } : undefined,

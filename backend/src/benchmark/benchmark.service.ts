@@ -1,23 +1,33 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BenchmarkSession } from './benchmark.entity';
-import { BaseService } from '../shared/base.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BenchmarkSessionData } from '../shared/types';
 import { BlockchainExecutorService } from './blockchain-executor.service';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
+
+interface BenchmarkSession {
+  id: string;
+  sessionName: string;
+  status: string;
+  results: any;
+  totalOperations: number;
+  avgGasUsed: number;
+  avgExecutionTime: number;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  metadata?: any;
+}
 
 @Injectable()
-export class BenchmarkService extends BaseService<BenchmarkSession> {
+export class BenchmarkService {
   protected readonly logger = new Logger(BenchmarkService.name);
   
   constructor(
-    @InjectRepository(BenchmarkSession)
-    private benchmarkRepository: Repository<BenchmarkSession>,
+    private dataStorage: DataStorageService,
+    private csvExport: CsvExportService,
     private blockchainExecutor: BlockchainExecutorService,
-  ) {
-    super(benchmarkRepository, 'BenchmarkSession');
-  }
+  ) {}
 
   async createSession(sessionData: any): Promise<BenchmarkSession> {
     // Validate UUID if provided
@@ -54,6 +64,8 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
       // Transform frontend data to match entity structure
       const transformedData: Partial<BenchmarkSession> = {
         id: sessionData.id,
+        sessionName: sessionData.contractName || sessionData.sessionName || 'Benchmark Session',
+        status: 'completed',
         results: {
           contractName: sessionData.contractName || 'Unknown Contract',
           networks: sessionData.networks || [],
@@ -69,11 +81,12 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
         },
         totalOperations: totalTransactions,
         avgGasUsed: avgGasUsed,
-        avgExecutionTime: avgExecutionTime
+        avgExecutionTime: avgExecutionTime,
+        completedAt: new Date()
       };
       
       this.logger.log(`Benchmark completed: ${successfulTransactions}/${totalTransactions} transactions successful`);
-      return await this.create(transformedData);
+      return this.dataStorage.create('benchmarkSession', transformedData);
       
     } catch (error) {
       this.logger.error(`Benchmark execution failed: ${error.message}`);
@@ -81,6 +94,8 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
       // Create a session with error information
       const transformedData: Partial<BenchmarkSession> = {
         id: sessionData.id,
+        sessionName: sessionData.contractName || sessionData.sessionName || 'Benchmark Session',
+        status: 'failed',
         results: {
           contractName: sessionData.contractName || 'Unknown Contract',
           networks: sessionData.networks || [],
@@ -100,36 +115,40 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
         avgExecutionTime: 0
       };
       
-      return await this.create(transformedData);
+      return this.dataStorage.create('benchmarkSession', transformedData);
     }
   }
 
   async getAllSessions(limit?: number): Promise<BenchmarkSession[]> {
-    const options = {
-      order: { createdAt: 'DESC' as const },
-      ...(limit && { take: limit })
-    };
+    const sessions = this.dataStorage.findAll('benchmarkSession');
+    // Sort by createdAt DESC
+    sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
-    return await this.findAll(options);
+    return limit ? sessions.slice(0, limit) : sessions;
   }
 
   async getSessionById(id: string): Promise<BenchmarkSession> {
-    // findById already validates UUID and throws not found error
-    return await this.findById(id);
+    ValidationUtils.validateUUID(id);
+    const session = this.dataStorage.findById('benchmarkSession', id);
+    if (!session) {
+      throw ValidationUtils.createNotFoundError('BenchmarkSession', id);
+    }
+    return session;
   }
 
   async deleteSession(id: string): Promise<void> {
-    // deleteById already validates UUID and checks existence
-    await this.deleteById(id);
+    ValidationUtils.validateUUID(id);
+    const deleted = this.dataStorage.delete('benchmarkSession', id);
+    if (!deleted) {
+      throw ValidationUtils.createNotFoundError('BenchmarkSession', id);
+    }
   }
 
   async getSessionsByDateRange(startDate: Date, endDate: Date): Promise<BenchmarkSession[]> {
-    return await this.getRepository()
-      .createQueryBuilder('session')
-      .where('session.createdAt >= :startDate', { startDate })
-      .andWhere('session.createdAt <= :endDate', { endDate })
-      .orderBy('session.createdAt', 'DESC')
-      .getMany();
+    return this.dataStorage.findAll('benchmarkSession', (session) => {
+      const sessionDate = new Date(session.createdAt);
+      return sessionDate >= startDate && sessionDate <= endDate;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   async getSessionStats(): Promise<{
@@ -138,7 +157,7 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
     avgGasUsed: number;
     avgExecutionTime: number;
   }> {
-    const sessions = await this.findAll();
+    const sessions = this.dataStorage.findAll('benchmarkSession');
     
     if (sessions.length === 0) {
       return {
@@ -162,5 +181,29 @@ export class BenchmarkService extends BaseService<BenchmarkSession> {
       avgGasUsed: totals.gasUsed / sessions.length,
       avgExecutionTime: totals.executionTime / sessions.length
     };
+  }
+
+  /**
+   * Export all benchmark sessions to CSV
+   */
+  async exportSessionsToCsv(): Promise<string> {
+    const sessions = this.dataStorage.findAll('benchmarkSession');
+    return this.csvExport.exportBenchmarkData(sessions);
+  }
+
+  /**
+   * Export sessions by date range to CSV
+   */
+  async exportSessionsByDateRangeToCsv(startDate: Date, endDate: Date): Promise<string> {
+    const sessions = await this.getSessionsByDateRange(startDate, endDate);
+    return this.csvExport.exportBenchmarkData(sessions);
+  }
+
+  /**
+   * Export session by ID to CSV
+   */
+  async exportSessionToCsv(id: string): Promise<string> {
+    const session = await this.getSessionById(id);
+    return this.csvExport.exportBenchmarkData([session]);
   }
 }

@@ -1,9 +1,20 @@
 import { Controller, Get, Post, Body, Query, Param, Delete, HttpException } from '@nestjs/common';
 import { BenchmarkService } from './benchmark.service';
 import { WalletBenchmarkService } from './wallet-benchmark.service';
-import { BenchmarkSession } from './benchmark.entity';
 import { ValidationUtils } from '../shared/validation-utils';
 import { BenchmarkSessionData } from '../shared/types';
+
+// Local interface definition since entity was removed
+interface BenchmarkSession {
+  id: string;
+  sessionName: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  results?: any;
+  metadata?: any;
+}
 
 @Controller('benchmark')
 export class BenchmarkController {
@@ -13,7 +24,7 @@ export class BenchmarkController {
   ) {}
 
   @Post('sessions')
-  async createSession(@Body() sessionData: any) {
+  async createSession(@Body() sessionData: any): Promise<BenchmarkSession> {
     try {
       return await this.benchmarkService.createSession(sessionData);
     } catch (error) {
@@ -25,7 +36,7 @@ export class BenchmarkController {
   }
 
   @Post('wallet-sessions')
-  async createWalletSession(@Body() walletBenchmarkData: any) {
+  async createWalletSession(@Body() walletBenchmarkData: any): Promise<BenchmarkSession> {
     try {
       // Validate required fields for wallet benchmarking
       if (!walletBenchmarkData.walletAddress) {
@@ -46,7 +57,7 @@ export class BenchmarkController {
   }
 
   @Get('sessions')
-  async getAllSessions(@Query('limit') limit?: string) {
+  async getAllSessions(@Query('limit') limit?: string): Promise<BenchmarkSession[]> {
     try {
       const limitNum = limit ? ValidationUtils.validatePaginationParams(limit).limit : undefined;
       return await this.benchmarkService.getAllSessions(limitNum);
@@ -59,7 +70,7 @@ export class BenchmarkController {
   }
 
   @Get('sessions/:id')
-  async getSessionById(@Param('id') id: string) {
+  async getSessionById(@Param('id') id: string): Promise<BenchmarkSession | null> {
     try {
       return await this.benchmarkService.getSessionById(id);
     } catch (error) {
@@ -96,7 +107,7 @@ export class BenchmarkController {
   async getSessionsByDateRange(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string
-  ) {
+  ): Promise<BenchmarkSession[]> {
     try {
       if (!startDate || !endDate) {
         throw ValidationUtils.createValidationError(['Both startDate and endDate are required']);

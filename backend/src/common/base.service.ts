@@ -1,5 +1,6 @@
-import { Repository, FindManyOptions, FindOneOptions } from 'typeorm';
 import { Logger } from '@nestjs/common';
+import { DataStorageService } from '../shared/data-storage.service';
+import { ValidationUtils } from '../shared/validation-utils';
 
 /**
  * Base service class providing common functionality for all services
@@ -179,19 +180,22 @@ export abstract class BaseService<T = any> {
 }
 
 /**
- * Base repository service providing common CRUD operations
+ * Base data service providing common CRUD operations using DataStorageService
  */
-export abstract class BaseRepositoryService<T extends Record<string, any>> extends BaseService<T> {
-  constructor(protected readonly repository: Repository<T>) {
+export abstract class BaseDataService<T extends Record<string, any>> extends BaseService<T> {
+  constructor(
+    protected readonly dataStorage: DataStorageService,
+    protected readonly collectionName: string
+  ) {
     super();
   }
 
   /**
-   * Find all entities with options
+   * Find all entities
    */
-  async findAll(options?: FindManyOptions<T>): Promise<T[]> {
+  async findAll(): Promise<T[]> {
     return await this.executeWithErrorHandling<T[]>(
-      async () => await this.repository.find(options),
+      async () => await this.dataStorage.findAll(this.collectionName),
       'findAll',
       'Failed to retrieve entities'
     );
@@ -200,9 +204,9 @@ export abstract class BaseRepositoryService<T extends Record<string, any>> exten
   /**
    * Find entity by ID
    */
-  async findById(id: string, options?: FindOneOptions<T>): Promise<T | null> {
+  async findById(id: string): Promise<T | null> {
     return this.executeWithErrorHandling<T | null>(
-      () => this.repository.findOne({ where: { id } as any, ...options }),
+      () => this.dataStorage.findById(this.collectionName, id),
       `findById(${id})`,
       `Failed to find entity with ID ${id}`
     );
@@ -214,9 +218,13 @@ export abstract class BaseRepositoryService<T extends Record<string, any>> exten
   async create(entityData: Partial<T>): Promise<T> {
     return this.executeWithErrorHandling<T>(
       async () => {
-        const entity = this.repository.create(entityData as any);
-        const saved = await this.repository.save(entity);
-        return saved as unknown as T;
+        const entity = {
+          id: ValidationUtils.generateUUID(),
+          ...entityData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        } as unknown as T;
+        return await this.dataStorage.create(this.collectionName, entity);
       },
       'create',
       'Failed to create entity'
@@ -226,17 +234,19 @@ export abstract class BaseRepositoryService<T extends Record<string, any>> exten
   /**
    * Update entity by ID
    */
-  async update(id: string, updateData: Partial<T>): Promise<T> {
+  async updateById(id: string, updateData: Partial<T>): Promise<T> {
     return this.executeWithErrorHandling<T>(
       async () => {
-        await this.repository.update(id, updateData as any);
-        const updated = await this.findById(id);
+        const updated = await this.dataStorage.update(this.collectionName, id, {
+          ...updateData,
+          updatedAt: new Date()
+        } as Partial<T>);
         if (!updated) {
-          throw new Error(`Entity with ID ${id} not found after update`);
+          throw new Error(`Entity with ID ${id} not found`);
         }
         return updated;
       },
-      `update(${id})`,
+      `updateById(${id})`,
       `Failed to update entity with ID ${id}`
     );
   }
@@ -244,27 +254,130 @@ export abstract class BaseRepositoryService<T extends Record<string, any>> exten
   /**
    * Delete entity by ID
    */
-  async delete(id: string): Promise<void> {
+  async deleteById(id: string): Promise<void> {
     return this.executeWithErrorHandling<void>(
       async () => {
-        const result = await this.repository.delete(id);
-        if (result.affected === 0) {
+        const deleted = await this.dataStorage.delete(this.collectionName, id);
+        if (!deleted) {
           throw new Error(`Entity with ID ${id} not found`);
         }
       },
-      `delete(${id})`,
+      `deleteById(${id})`,
       `Failed to delete entity with ID ${id}`
     );
   }
 
   /**
-   * Count entities with options
+   * Count entities
    */
-  async count(options?: FindManyOptions<T>): Promise<number> {
+  async count(): Promise<number> {
     return this.executeWithErrorHandling<number>(
-      () => this.repository.count(options),
+      async () => {
+        const entities = await this.dataStorage.findAll(this.collectionName);
+        return entities.length;
+      },
       'count',
       'Failed to count entities'
     );
   }
+
+  /**
+   * Find entities with pagination
+   */
+  async findWithPagination(page: number = 1, limit: number = 10): Promise<{ data: T[]; total: number; page: number; limit: number }> {
+    return this.executeWithErrorHandling(
+      async () => {
+        const allEntities = await this.dataStorage.findAll(this.collectionName);
+        const total = allEntities.length;
+        const startIndex = (page - 1) * limit;
+        const data = allEntities.slice(startIndex, startIndex + limit);
+        
+        return {
+          data,
+          total,
+          page,
+          limit
+        };
+      },
+      `findWithPagination(page=${page}, limit=${limit})`,
+      'Failed to retrieve paginated entities'
+    );
+  }
+
+  /**
+   * Find one entity by criteria
+   */
+  async findOne(criteria: Partial<T>): Promise<T | null> {
+    return this.executeWithErrorHandling<T | null>(
+      async () => {
+        const entities = await this.dataStorage.findAll(this.collectionName);
+        return entities.find(entity => 
+          Object.entries(criteria).every(([key, value]) => entity[key] === value)
+        ) || null;
+      },
+      'findOne',
+      'Failed to find entity'
+    );
+  }
+
+  /**
+   * Check if entity exists by ID
+   */
+  async existsById(id: string): Promise<boolean> {
+    return this.executeWithErrorHandling<boolean>(
+      async () => {
+        const entity = await this.dataStorage.findById(this.collectionName, id);
+        return entity !== null;
+      },
+      `existsById(${id})`,
+      `Failed to check existence of entity with ID ${id}`
+    );
+  }
+
+  /**
+   * Soft delete entity by ID
+   */
+  async softDeleteById(id: string): Promise<T> {
+    return this.executeWithErrorHandling<T>(
+      async () => {
+        const updated = await this.dataStorage.update(this.collectionName, id, {
+          deletedAt: new Date(),
+          updatedAt: new Date()
+        } as unknown as Partial<T>);
+        if (!updated) {
+          throw new Error(`Entity with ID ${id} not found`);
+        }
+        return updated;
+      },
+      `softDeleteById(${id})`,
+      `Failed to soft delete entity with ID ${id}`
+    );
+  }
+
+  /**
+   * Bulk create entities
+   */
+  async bulkCreate(entitiesData: Partial<T>[]): Promise<T[]> {
+    return this.executeWithErrorHandling<T[]>(
+      async () => {
+        const results: T[] = [];
+        for (const entityData of entitiesData) {
+          const created = await this.create(entityData);
+          results.push(created);
+        }
+        return results;
+      },
+      'bulkCreate',
+      'Failed to bulk create entities'
+    );
+  }
+
+  /**
+   * Get data storage instance
+   */
+  getDataStorage(): DataStorageService {
+    return this.dataStorage;
+  }
+
+
 }

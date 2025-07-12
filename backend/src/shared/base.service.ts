@@ -1,17 +1,17 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Repository, FindManyOptions, FindOneOptions, ObjectLiteral } from 'typeorm';
 import { ValidationUtils } from './validation-utils';
+import { DataStorageService } from './data-storage.service';
 
 /**
  * Base service class providing common CRUD operations
  * Reduces code duplication across different services
  */
 @Injectable()
-export abstract class BaseService<T extends ObjectLiteral> {
+export abstract class BaseService<T> {
   protected readonly logger: Logger;
   
   constructor(
-    protected readonly repository: Repository<T>,
+    protected readonly dataStorage: DataStorageService,
     protected readonly entityName: string
   ) {
     this.logger = new Logger(this.constructor.name);
@@ -22,10 +22,11 @@ export abstract class BaseService<T extends ObjectLiteral> {
    */
   async create(entityData: Partial<T>): Promise<T> {
     try {
-      const entity = this.repository.create(entityData as any);
-      const savedEntity = await this.repository.save(entity);
-      this.logger.log(`Created new ${this.entityName} with ID: ${(savedEntity as any).id}`);
-      return Array.isArray(savedEntity) ? savedEntity[0] : savedEntity;
+      const id = ValidationUtils.generateUUID();
+      const entity = { ...entityData, id, createdAt: new Date(), updatedAt: new Date() } as T;
+      await this.dataStorage.create(this.entityName, entity);
+      this.logger.log(`Created new ${this.entityName} with ID: ${id}`);
+      return entity;
     } catch (error) {
       this.logger.error(`Failed to create ${this.entityName}:`, error);
       throw ValidationUtils.createInternalServerError(`Failed to create ${this.entityName}`);
@@ -35,9 +36,9 @@ export abstract class BaseService<T extends ObjectLiteral> {
   /**
    * Find all entities with optional filtering and pagination
    */
-  async findAll(options?: FindManyOptions<T>): Promise<T[]> {
+  async findAll(options?: any): Promise<T[]> {
     try {
-      return await this.repository.find(options);
+      return await this.dataStorage.findAll(this.entityName);
     } catch (error) {
       this.logger.error(`Failed to fetch ${this.entityName} list:`, error);
       throw ValidationUtils.createInternalServerError(`Failed to fetch ${this.entityName} list`);
@@ -50,14 +51,12 @@ export abstract class BaseService<T extends ObjectLiteral> {
   async findWithPagination(
     limit: number = 50, 
     offset: number = 0, 
-    additionalOptions?: Omit<FindManyOptions<T>, 'take' | 'skip'>
+    additionalOptions?: any
   ): Promise<{ data: T[]; total: number; limit: number; offset: number }> {
     try {
-      const [data, total] = await this.repository.findAndCount({
-        ...additionalOptions,
-        take: limit,
-        skip: offset,
-      });
+      const allData = await this.dataStorage.findAll(this.entityName);
+      const total = allData.length;
+      const data = allData.slice(offset, offset + limit);
 
       return {
         data,
@@ -74,14 +73,11 @@ export abstract class BaseService<T extends ObjectLiteral> {
   /**
    * Find a single entity by ID
    */
-  async findById(id: string, options?: FindOneOptions<T>): Promise<T> {
+  async findById(id: string, options?: any): Promise<T> {
     try {
       ValidationUtils.validateUUID(id);
       
-      const entity = await this.repository.findOne({
-        where: { id } as any,
-        ...options
-      });
+      const entity = await this.dataStorage.findById(this.entityName, id);
       
       if (!entity) {
         throw ValidationUtils.createNotFoundError(this.entityName, id);
@@ -100,9 +96,15 @@ export abstract class BaseService<T extends ObjectLiteral> {
   /**
    * Find a single entity by criteria
    */
-  async findOne(options: FindOneOptions<T>): Promise<T | null> {
+  async findOne(options: any): Promise<T | null> {
     try {
-      return await this.repository.findOne(options);
+      const allData = await this.dataStorage.findAll(this.entityName);
+      return allData.find(item => {
+        // Simple property matching - can be enhanced for complex queries
+        return Object.keys(options.where || {}).every(key => 
+          (item as any)[key] === options.where[key]
+        );
+      }) || null;
     } catch (error) {
       this.logger.error(`Failed to fetch ${this.entityName}:`, error);
       throw ValidationUtils.createInternalServerError(`Failed to fetch ${this.entityName}`);
@@ -117,11 +119,11 @@ export abstract class BaseService<T extends ObjectLiteral> {
       ValidationUtils.validateUUID(id);
       
       const entity = await this.findById(id);
-      const updatedEntity = this.repository.merge(entity, updateData as any);
-      const savedEntity = await this.repository.save(updatedEntity);
+      const updatedEntity = { ...entity, ...updateData, updatedAt: new Date() } as T;
+      await this.dataStorage.update(this.entityName, id, updatedEntity);
       
       this.logger.log(`Updated ${this.entityName} with ID: ${id}`);
-      return savedEntity;
+      return updatedEntity;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -138,8 +140,8 @@ export abstract class BaseService<T extends ObjectLiteral> {
     try {
       ValidationUtils.validateUUID(id);
       
-      const entity = await this.findById(id);
-      await this.repository.remove(entity);
+      await this.findById(id); // Ensure entity exists
+      await this.dataStorage.delete(this.entityName, id);
       
       this.logger.log(`Deleted ${this.entityName} with ID: ${id}`);
     } catch (error) {
@@ -158,11 +160,9 @@ export abstract class BaseService<T extends ObjectLiteral> {
     try {
       ValidationUtils.validateUUID(id);
       
-      const result = await this.repository.softDelete(id);
-      
-      if (result.affected === 0) {
-        throw ValidationUtils.createNotFoundError(this.entityName, id);
-      }
+      const entity = await this.findById(id);
+      const updatedEntity = { ...entity, deletedAt: new Date() } as T;
+      await this.dataStorage.update(this.entityName, id, updatedEntity);
       
       this.logger.log(`Soft deleted ${this.entityName} with ID: ${id}`);
     } catch (error) {
@@ -177,9 +177,10 @@ export abstract class BaseService<T extends ObjectLiteral> {
   /**
    * Count entities with optional filtering
    */
-  async count(options?: FindManyOptions<T>): Promise<number> {
+  async count(options?: any): Promise<number> {
     try {
-      return await this.repository.count(options);
+      const allData = await this.dataStorage.findAll(this.entityName);
+      return allData.length;
     } catch (error) {
       this.logger.error(`Failed to count ${this.entityName}:`, error);
       throw ValidationUtils.createInternalServerError(`Failed to count ${this.entityName}`);
@@ -193,11 +194,8 @@ export abstract class BaseService<T extends ObjectLiteral> {
     try {
       ValidationUtils.validateUUID(id);
       
-      const count = await this.repository.count({
-        where: { id } as any
-      });
-      
-      return count > 0;
+      const entity = await this.dataStorage.findById(this.entityName, id);
+      return entity !== null;
     } catch (error) {
       this.logger.error(`Failed to check existence of ${this.entityName} with ID ${id}:`, error);
       return false;
@@ -209,11 +207,14 @@ export abstract class BaseService<T extends ObjectLiteral> {
    */
   async bulkCreate(entitiesData: Partial<T>[]): Promise<T[]> {
     try {
-      const entities = this.repository.create(entitiesData as any);
-      const savedEntities = await this.repository.save(entities);
+      const savedEntities: T[] = [];
+      for (const entityData of entitiesData) {
+        const entity = await this.create(entityData);
+        savedEntities.push(entity);
+      }
       
       this.logger.log(`Bulk created ${savedEntities.length} ${this.entityName} entities`);
-      return savedEntities as T[];
+      return savedEntities;
     } catch (error) {
       this.logger.error(`Failed to bulk create ${this.entityName} entities:`, error);
       throw ValidationUtils.createInternalServerError(`Failed to bulk create ${this.entityName} entities`);
@@ -221,9 +222,9 @@ export abstract class BaseService<T extends ObjectLiteral> {
   }
 
   /**
-   * Get repository for advanced operations
+   * Get data storage service for advanced operations
    */
-  getRepository(): Repository<T> {
-    return this.repository;
+  getDataStorage(): DataStorageService {
+    return this.dataStorage;
   }
 }

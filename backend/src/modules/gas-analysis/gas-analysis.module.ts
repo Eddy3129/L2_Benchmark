@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 
 // Controllers
@@ -14,26 +13,20 @@ import { NetworkAnalysisService } from './services/network-analysis.service';
 import { BytecodeAnalysisService } from './services/bytecode-analysis.service';
 import { NetworkComparisonService } from './services/network-comparison.service';
 import { BlobCostAnalysisService } from './services/blob-cost-analysis.service';
-
-// Entities
-import { GasAnalysis } from './entities/gas-analysis.entity';
-import { NetworkResult } from './entities/network-result.entity';
-import { CompilationResult } from './entities/compilation-result.entity';
+import { DataStorageService } from '../../shared/data-storage.service';
+import { CsvExportService } from '../../shared/csv-export.service';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([
-      GasAnalysis,
-      NetworkResult,
-      CompilationResult,
-    ]),
   ],
   controllers: [
     GasAnalysisController,
     NetworkComparisonController,
   ],
   providers: [
+    DataStorageService,
+    CsvExportService,
     GasAnalysisService,
     ContractCompilationService,
     GasEstimationService,
@@ -43,6 +36,8 @@ import { CompilationResult } from './entities/compilation-result.entity';
     BlobCostAnalysisService,
   ],
   exports: [
+    DataStorageService,
+    CsvExportService,
     GasAnalysisService,
     ContractCompilationService,
     GasEstimationService,

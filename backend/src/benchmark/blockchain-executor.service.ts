@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ethers } from 'ethers';
-import { NetworkConfig, getNetworkConfig, TESTNET_NETWORKS } from '../../../shared/config/networks';
-import { getDefaultBenchmarkFunctions } from '../../../shared/config/contracts';
+import { getNetworkConfig, TESTNET_NETWORKS } from '@/config/networks';
 
 interface ContractExecutionResult {
   networkId: string;

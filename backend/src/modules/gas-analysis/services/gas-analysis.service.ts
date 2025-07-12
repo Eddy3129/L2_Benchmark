@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 
 // Base service
-import { BaseService } from '../../../common/base.service';
+import { BaseDataService } from '../../../common/base.service';
+import { DataStorageService } from '../../../shared/data-storage.service';
 
 // DTOs
 import {
@@ -18,10 +17,86 @@ import {
 } from '../../../common/dto/gas-analysis.dto';
 import { PaginationMetaDto } from '../../../common/dto/base.dto';
 
-// Entities
-import { GasAnalysis } from '../entities/gas-analysis.entity';
-import { NetworkResult } from '../entities/network-result.entity';
-import { CompilationResult } from '../entities/compilation-result.entity';
+// Local interface definitions since entities were removed
+interface GasAnalysis {
+  id?: string;
+  contractName?: string;
+  analysisType?: string;
+  contractInfo?: {
+    contractName?: string;
+    sourceCodeHash?: string;
+    sourceCode?: string;
+    contractPath?: string;
+    language?: string;
+    version?: string;
+  };
+  analysisConfig?: {
+    analysisType?: string;
+    gasEstimationType?: string;
+    optimizationLevel?: string;
+    targetNetworks?: string[];
+    includeL2Networks?: boolean;
+    maxRetries?: number;
+    timeout?: number;
+  };
+  analysisResults?: {
+    duration?: number;
+    totalNetworks?: number;
+    successfulNetworks?: number;
+    failedNetworks?: string[];
+    averageGasCost?: number;
+    lowestGasCost?: { network: string; gasUsed: number };
+    highestGasCost?: { network: string; gasUsed: number };
+    gasSavings?: { amount: number; percentage: number };
+  };
+  metadata?: {
+    networks?: string[];
+    solidityVersion?: string;
+    optimizationSettings?: any;
+    functionCalls?: any[];
+    totalNetworks?: number;
+    successfulNetworks?: number;
+    failedNetworks?: string[];
+    optimizationLevel?: string;
+    gasEstimationType?: string;
+  };
+  compilation?: any;
+  networkResults?: NetworkResult[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface NetworkResult {
+  id?: string;
+  network?: string;
+  networkDisplayName?: string;
+  chainId?: number;
+  gasEstimates?: any;
+  deploymentGas?: any;
+  functionGasEstimates?: any;
+  deploymentCost?: number;
+  executionCosts?: any;
+  timestamp?: string;
+  contractAddress?: string;
+  transactionHash?: string;
+  blockNumber?: number;
+  networkStatus?: {
+    isConnected?: boolean;
+    latency?: number;
+    blockNumber?: number;
+  };
+  createdAt?: Date;
+}
+
+interface CompilationResult {
+  id?: string;
+  success?: boolean;
+  errors?: string[];
+  bytecode?: string;
+  abi?: any[];
+  metadata?: any;
+  bytecodeAnalysis?: any;
+}
 
 // Services
 import { ContractCompilationService } from './contract-compilation.service';
@@ -80,22 +155,17 @@ const PAGINATION_CONSTANTS = {
 
 
 @Injectable()
-export class GasAnalysisService extends BaseService {
+export class GasAnalysisService extends BaseDataService<GasAnalysis> {
   protected readonly logger = new Logger(GasAnalysisService.name);
 
   constructor(
-    @InjectRepository(GasAnalysis)
-    private readonly gasAnalysisRepository: Repository<GasAnalysis>,
-    @InjectRepository(NetworkResult)
-    private readonly networkResultRepository: Repository<NetworkResult>,
-    @InjectRepository(CompilationResult)
-    private readonly compilationResultRepository: Repository<CompilationResult>,
+    private readonly dataStorageService: DataStorageService,
     private readonly configService: ConfigService,
     private readonly contractCompilationService: ContractCompilationService,
     private readonly networkAnalysisService: NetworkAnalysisService,
     private readonly bytecodeAnalysisService: BytecodeAnalysisService,
   ) {
-    super();
+    super(dataStorageService, 'gasAnalyses');
   }
 
   /**
@@ -161,36 +231,59 @@ export class GasAnalysisService extends BaseService {
       }
       
       // Create analysis entity
-      const analysis = new GasAnalysis();
-      analysis.contractName = request.contractName;
-      analysis.sourceCodeHash = StringUtils.generateRandomString(32); // In real implementation, use proper hash
-      analysis.analysisType = request.analysisType || AnalysisType.BASIC;
-      analysis.duration = Date.now() - startTime;
+      const analysis: GasAnalysis = {
+        contractInfo: {
+          contractName: request.contractName,
+          sourceCodeHash: StringUtils.generateRandomString(32), // In real implementation, use proper hash
+          sourceCode: request.sourceCode,
+          contractPath: '',
+          language: 'solidity',
+          version: request.solidityVersion || '0.8.19'
+        },
+        analysisConfig: {
+          analysisType: request.analysisType || AnalysisType.BASIC,
+          gasEstimationType: request.gasEstimationType || 'both',
+          optimizationLevel: request.optimizationLevel || 'medium',
+          targetNetworks: request.networks,
+          includeL2Networks: true,
+          maxRetries: 3,
+          timeout: 30000
+        },
+        analysisResults: {
+          duration: Date.now() - startTime,
+          totalNetworks: request.networks.length,
+          successfulNetworks: successfulResults.length,
+          failedNetworks,
+          averageGasCost: 0,
+          lowestGasCost: { network: '', gasUsed: 0 },
+          highestGasCost: { network: '', gasUsed: 0 },
+          gasSavings: { amount: 0, percentage: 0 }
+        }
+      };
       
       // Save compilation result
-      const compilationEntity = new CompilationResult();
-      Object.assign(compilationEntity, compilation);
-      if (bytecodeAnalysis) {
-        compilationEntity.bytecodeAnalysis = bytecodeAnalysis as any;
-      }
+      const compilationEntity: CompilationResult = {
+        ...compilation,
+        bytecodeAnalysis: bytecodeAnalysis as any
+      };
       
-      const savedCompilation = await this.compilationResultRepository.save(compilationEntity);
+      const savedCompilation = await this.dataStorageService.create('compilationResults', compilationEntity);
       analysis.compilation = savedCompilation;
       
       // Save network results
-      const networkEntities = successfulResults.map(result => {
-        const entity = new NetworkResult();
-        Object.assign(entity, result);
-        return entity;
-      });
+      const networkEntities = successfulResults.map(result => ({
+        ...result
+      } as NetworkResult));
       
-      const savedNetworkResults = await this.networkResultRepository.save(networkEntities);
+      const savedNetworkResults = await Promise.all(
+        networkEntities.map(entity => this.dataStorageService.create('networkResults', entity))
+      );
       analysis.networkResults = savedNetworkResults;
       
       // Save analysis if requested
       let savedAnalysis;
       if (request.saveResults !== false) {
-        savedAnalysis = await this.gasAnalysisRepository.save(analysis);
+        savedAnalysis = await this.create(analysis);
       }
       
       // Transform to DTO
@@ -203,15 +296,15 @@ export class GasAnalysisService extends BaseService {
           abi: compilation.abi,
           compilerVersion: compilation.compilerVersion,
           optimizationSettings: {
-            enabled: compilation.optimizationSettings.enabled,
-            runs: compilation.optimizationSettings.runs,
-          },
+          enabled: compilation.optimizationSettings?.enabled || false,
+          runs: compilation.optimizationSettings?.runs || 200,
+        },
           bytecodeAnalysis: bytecodeAnalysis as any,
         },
         networkResults: successfulResults,
         analysisType: request.analysisType || AnalysisType.BASIC,
         createdAt: new Date().toISOString(),
-        duration: analysis.duration,
+        duration: analysis.analysisResults?.duration || 0,
         metadata: {
           solidityVersion: request.solidityVersion || '0.8.19',
           optimizationLevel: request.optimizationLevel || 'medium' as any,
@@ -240,52 +333,41 @@ export class GasAnalysisService extends BaseService {
       const page = query.page ? parseInt(String(query.page)) : 1;
       const skip = (page - 1) * limit;
       
-      // Build query
-      const queryBuilder = this.gasAnalysisRepository
-        .createQueryBuilder('analysis')
-        .leftJoinAndSelect('analysis.compilation', 'compilation')
-        .leftJoinAndSelect('analysis.networkResults', 'networkResults')
-        .orderBy('analysis.createdAt', query.sortOrder || 'DESC');
+      // Get all analyses and apply manual filtering
+      const allAnalyses = await this.findAll();
       
       // Apply filters
-      if (query.contractName) {
-        queryBuilder.andWhere('analysis.contractName ILIKE :contractName', {
-          contractName: `%${query.contractName}%`,
-        });
-      }
+      let filteredAnalyses = allAnalyses.filter(analysis => {
+        if (query.contractName && !analysis.contractInfo?.contractName?.toLowerCase().includes(query.contractName.toLowerCase())) {
+          return false;
+        }
+        
+        if (query.analysisType && analysis.analysisConfig?.analysisType !== query.analysisType) {
+          return false;
+        }
+        
+        if (query.dateRange?.startDate && analysis.createdAt && new Date(analysis.createdAt) < new Date(query.dateRange.startDate)) {
+          return false;
+        }
+        
+        if (query.dateRange?.endDate && analysis.createdAt && new Date(analysis.createdAt) > new Date(query.dateRange.endDate)) {
+          return false;
+        }
+        
+        return true;
+      });
       
-      if (query.network) {
-        queryBuilder.andWhere('networkResults.network = :network', {
-          network: query.network,
-        });
-      }
+      // Sort
+      filteredAnalyses.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return query.sortOrder === 'ASC' ? dateA - dateB : dateB - dateA;
+      });
       
-      if (query.analysisType) {
-        queryBuilder.andWhere('analysis.analysisType = :analysisType', {
-          analysisType: query.analysisType,
-        });
-      }
+      const totalItems = filteredAnalyses.length;
       
-      if (query.dateRange?.startDate) {
-        queryBuilder.andWhere('analysis.createdAt >= :startDate', {
-          startDate: query.dateRange.startDate,
-        });
-      }
-      
-      if (query.dateRange?.endDate) {
-        queryBuilder.andWhere('analysis.createdAt <= :endDate', {
-          endDate: query.dateRange.endDate,
-        });
-      }
-      
-      // Get total count
-      const totalItems = await queryBuilder.getCount();
-      
-      // Get paginated results
-      const analyses = await queryBuilder
-        .skip(skip)
-        .take(limit)
-        .getMany();
+      // Apply pagination
+      const analyses = filteredAnalyses.slice(skip, skip + limit);
       
       // Transform to DTOs
       const data = analyses.map(analysis => this.transformAnalysisToDto(analysis));
@@ -303,10 +385,7 @@ export class GasAnalysisService extends BaseService {
    */
   async getAnalysisById(id: string): Promise<GasAnalysisResultDto> {
     try {
-      const analysis = await this.gasAnalysisRepository.findOne({
-        where: { id },
-        relations: ['compilation', 'networkResults'],
-      });
+      const analysis = await this.findById(id);
       
       if (!analysis) {
         throw new NotFoundException(`Gas analysis with ID '${id}' not found`);
@@ -357,41 +436,57 @@ export class GasAnalysisService extends BaseService {
    */
   async getAnalysisStatistics(): Promise<any> {
     try {
-      const totalAnalyses = await this.gasAnalysisRepository.count();
+      const allAnalyses = await this.findAll();
+      const totalAnalyses = allAnalyses.length;
       
-      const recentAnalyses = await this.gasAnalysisRepository
-        .createQueryBuilder('analysis')
-        .select('COUNT(*)', 'count')
-        .addSelect('DATE_TRUNC(\'day\', analysis.createdAt)', 'date')
-        .where('analysis.createdAt >= :date', {
-          date: DateUtils.getLastNDays(30).startDate,
-        })
-        .groupBy('DATE_TRUNC(\'day\', analysis.createdAt)')
-        .orderBy('date', 'DESC')
-        .getRawMany();
+      // Calculate recent analyses (last 30 days)
+      const thirtyDaysAgo = DateUtils.getLastNDays(30).startDate;
+      const recentAnalyses = allAnalyses.filter(analysis => 
+        analysis.createdAt && new Date(analysis.createdAt) >= thirtyDaysAgo
+      );
       
-      const topContracts = await this.gasAnalysisRepository
-        .createQueryBuilder('analysis')
-        .select('analysis.contractName', 'contractName')
-        .addSelect('COUNT(*)', 'count')
-        .groupBy('analysis.contractName')
-        .orderBy('count', 'DESC')
-        .limit(10)
-        .getRawMany();
+      // Group by day for daily breakdown
+      const dailyBreakdown = recentAnalyses.reduce((acc, analysis) => {
+        if (analysis.createdAt) {
+          const date = new Date(analysis.createdAt).toISOString().split('T')[0];
+          acc[date] = (acc[date] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
       
-      const averageDuration = await this.gasAnalysisRepository
-        .createQueryBuilder('analysis')
-        .select('AVG(analysis.duration)', 'avgDuration')
-        .getRawOne();
+      const dailyBreakdownArray = Object.entries(dailyBreakdown)
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      // Calculate top contracts
+      const contractCounts = allAnalyses.reduce((acc, analysis) => {
+        const contractName = analysis.contractInfo?.contractName || 'Unknown';
+        acc[contractName] = (acc[contractName] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const topContracts = Object.entries(contractCounts)
+        .map(([contractName, count]) => ({ contractName, count }))
+        .sort((a, b) => (b.count || 0) - (a.count || 0))
+        .slice(0, 10);
+      
+      // Calculate average duration
+      const durationsWithValues = allAnalyses
+        .map(analysis => analysis.analysisResults?.duration)
+        .filter(duration => duration !== undefined && duration !== null) as number[];
+      
+      const averageDuration = durationsWithValues.length > 0 
+        ? Math.round(durationsWithValues.reduce((sum, duration) => sum + duration, 0) / durationsWithValues.length)
+        : 0;
       
       return {
         totalAnalyses,
         recentActivity: {
-          last30Days: recentAnalyses.reduce((sum, item) => sum + parseInt(item.count), 0),
-          dailyBreakdown: recentAnalyses,
+          last30Days: recentAnalyses.length,
+          dailyBreakdown: dailyBreakdownArray,
         },
         topContracts,
-        averageDuration: Math.round(averageDuration?.avgDuration || 0),
+        averageDuration,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -457,14 +552,14 @@ export class GasAnalysisService extends BaseService {
     const networkResults = analysis.networkResults || [];
     
     return {
-      id: analysis.id,
-      contractName: analysis.contractName,
+      id: analysis.id || StringUtils.generateRandomString(16),
+      contractName: analysis.contractName || analysis.contractInfo?.contractName || 'Unknown Contract',
       compilation: {
         success: compilation.success,
         bytecode: compilation.bytecode || '',
         abi: compilation.abi || [],
         compilerVersion: compilation.compilerVersion || '0.8.19',
-        optimizationSettings: compilation.optimizationSettings || { enabled: false, runs: 200 },
+        optimizationSettings: { enabled: compilation.optimizationEnabled, runs: compilation.optimizationRuns || 200 },
         bytecodeAnalysis: compilation.bytecodeAnalysis as any,
         errors: compilation.errors,
         warnings: compilation.warnings,
@@ -490,16 +585,16 @@ export class GasAnalysisService extends BaseService {
           blockHeight: result.networkStatus.blockNumber || 0,
         } : undefined,
       } as NetworkAnalysisResultDto)),
-      analysisType: analysis.analysisType,
-      createdAt: analysis.createdAt.toISOString(),
-      duration: analysis.duration || 0,
+      analysisType: (analysis.analysisType || analysis.analysisConfig?.analysisType || AnalysisType.BASIC) as AnalysisType,
+      createdAt: analysis.createdAt?.toISOString() || new Date().toISOString(),
+      duration: analysis.analysisResults?.duration || 0,
       metadata: {
         solidityVersion: compilation.compilerVersion || '0.8.19',
-        optimizationLevel: compilation.optimizationSettings?.enabled ? 'medium' as any : 'none' as any,
+        optimizationLevel: compilation.optimizationEnabled ? 'medium' as any : 'none' as any,
         gasEstimationType: 'both' as any,
         totalNetworks: networkResults.length,
         successfulNetworks: networkResults.filter(r => r.deploymentGas).length,
-        failedNetworks: networkResults.filter(r => !r.deploymentGas).map(r => r.network),
+        failedNetworks: networkResults.filter(r => !r.deploymentGas).map(r => r.network || 'unknown'),
       },
     };
   }

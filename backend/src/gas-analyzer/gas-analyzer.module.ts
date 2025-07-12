@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { HttpModule } from '@nestjs/axios';
 import { GasAnalyzerController } from './gas-analyzer.controller';
@@ -12,41 +11,34 @@ import { AdvancedAnalysisController } from './controllers/advanced-analysis.cont
 import { BlockchainMonitorService } from './blockchain-monitor.service';
 import { FinalityCalculatorService } from './finality-calculator.service';
 import { PriceOracleService } from './price-oracle.service';
-import { GasAnalysis } from '../modules/gas-analysis/entities/gas-analysis.entity';
-import { ComparisonReport } from './comparison-report.entity';
-import { SequencerPerformanceTest } from './sequencer-performance.entity';
-import { L1FinalityTracking } from './l1-finality.entity';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
 
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      GasAnalysis,
-      ComparisonReport,
-      SequencerPerformanceTest,
-      L1FinalityTracking,
-
-    ]),
     ScheduleModule.forRoot(),
     HttpModule,
   ],
   controllers: [GasAnalyzerController, AdvancedAnalysisController],
   providers: [
+    DataStorageService,
+    CsvExportService,
     GasAnalyzerService,
     ComparisonReportService,
     SequencerPerformanceService,
     L1FinalityService,
-
     BlockchainMonitorService,
     FinalityCalculatorService,
     PriceOracleService,
   ],
   exports: [
+    DataStorageService,
+    CsvExportService,
     GasAnalyzerService,
     ComparisonReportService,
     SequencerPerformanceService,
     L1FinalityService,
-
   ],
 })
 export class GasAnalyzerModule {}

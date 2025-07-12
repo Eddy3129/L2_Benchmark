@@ -159,12 +159,12 @@ export class BytecodeAnalysisService {
     // Convert to arrays for easier consumption
     const distributionArray = Array.from(distribution.entries())
       .map(([name, count]) => ({ name, count, percentage: NumberUtils.roundToDecimals((count / opcodes.length) * 100, 1) }))
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
       .slice(0, 20); // Top 20 opcodes
 
     const categoriesArray = Array.from(categories.entries())
       .map(([category, count]) => ({ category, count, percentage: NumberUtils.roundToDecimals((count / opcodes.length) * 100, 1) }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => (b.count || 0) - (a.count || 0));
 
     return {
       distribution: distributionArray,

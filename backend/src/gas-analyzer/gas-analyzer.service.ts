@@ -1,13 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { GasAnalysis } from '../modules/gas-analysis/entities/gas-analysis.entity';
 import { AnalysisType } from '../common/dto/gas-analysis.dto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import { ethers, ContractFactory, Interface, FunctionFragment, Signer } from 'ethers';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
 
 // Import shared utilities
 import { 
@@ -22,21 +21,32 @@ import {
 import { NetworkConfigService, NetworkConfig, NetworkType } from '@/config/network.config';
 import { GasUtils } from '../shared/gas-utils';
 import { ValidationUtils } from '../shared/validation-utils';
-import { BaseService } from '../shared/base.service';
+
+// Define local interface for gas analysis
+interface GasAnalysis {
+  id: string;
+  contractName: string;
+  sourceCode: string;
+  analysisType: AnalysisType;
+  networks: string[];
+  results: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // Promisify exec for async/await usage
 const execAsync = promisify(exec);
 
 @Injectable()
-export class GasAnalyzerService extends BaseService<GasAnalysis> {
+export class GasAnalyzerService {
+  private readonly logger = new Logger(GasAnalyzerService.name);
   private readonly hardhatProjectRoot = path.join(process.cwd(), '..');
   private readonly tempContractsDir = path.join(this.hardhatProjectRoot, 'contracts', 'temp');
 
   constructor(
-    @InjectRepository(GasAnalysis)
-    private gasAnalysisRepository: Repository<GasAnalysis>,
+    private dataStorage: DataStorageService,
+    private csvExport: CsvExportService,
   ) {
-    super(gasAnalysisRepository, 'GasAnalysis');
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
   }
 
@@ -189,23 +199,44 @@ export class GasAnalyzerService extends BaseService<GasAnalysis> {
 
   // Add method to get gas analysis history
   async getGasAnalysisHistory(limit: number = 50): Promise<GasAnalysis[]> {
-    return await this.gasAnalysisRepository.find({
-      order: { createdAt: 'DESC' },
-      take: limit
-    });
+    const allAnalyses = this.dataStorage.findAll('gasAnalysis');
+    return allAnalyses
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
   }
 
   // Add method to get gas analysis by contract name
   async getGasAnalysisByContract(contractName: string): Promise<GasAnalysis[]> {
-    return await this.gasAnalysisRepository.find({
-      where: { contractName },
-      order: { createdAt: 'DESC' }
-    });
+    return this.dataStorage.findAll('gasAnalysis', (analysis) => 
+      analysis.contractName === contractName
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // Add method to get detailed gas analysis by ID
   async getGasAnalysisById(id: string): Promise<GasAnalysis | null> {
-    return await this.gasAnalysisRepository.findOne({ where: { id } });
+    return this.dataStorage.findById('gasAnalysis', id);
+  }
+
+  // Add method to save gas analysis
+  async saveGasAnalysis(analysisData: Omit<GasAnalysis, 'id' | 'createdAt' | 'updatedAt'>): Promise<GasAnalysis> {
+    const gasAnalysis = {
+      ...analysisData,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    return this.dataStorage.create('gasAnalysis', gasAnalysis);
+  }
+
+  // Export gas analyses to CSV
+  async exportGasAnalysesToCsv(): Promise<string> {
+    const analyses = this.dataStorage.findAll('gasAnalysis');
+    return this.csvExport.exportGasAnalysis(analyses);
+  }
+
+  // Export gas analyses by contract name to CSV
+  async exportGasAnalysesByContractToCsv(contractName: string): Promise<string> {
+    const analyses = await this.getGasAnalysisByContract(contractName);
+    return this.csvExport.exportGasAnalysis(analyses);
   }
 
   // EIP-4844 Blob Cost Analysis Methods

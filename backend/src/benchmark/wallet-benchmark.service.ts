@@ -1,11 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ethers } from 'ethers';
-import { NetworkConfig, getNetworkConfig } from '../../../shared/config/networks';
-import { getDefaultBenchmarkFunctions, extractWritableFunctions } from '../../../shared/config/contracts';
-import { BaseService } from '../shared/base.service';
-import { BenchmarkSession } from './benchmark.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { NetworkConfig, getNetworkConfig } from '../config/networks';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
+import { extractWritableFunctions } from '@/config/contracts';
+
+interface BenchmarkSession {
+  id: string;
+  sessionName: string;
+  status: string;
+  benchmarkConfig: any;
+  benchmarkResults: any;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  metadata?: any;
+}
 
 interface WalletBenchmarkRequest {
   contractName: string;
@@ -58,15 +68,13 @@ interface WalletContractExecutionResult {
 }
 
 @Injectable()
-export class WalletBenchmarkService extends BaseService<BenchmarkSession> {
+export class WalletBenchmarkService {
   protected readonly logger = new Logger(WalletBenchmarkService.name);
 
   constructor(
-    @InjectRepository(BenchmarkSession)
-    repository: Repository<BenchmarkSession>
-  ) {
-    super(repository, 'BenchmarkSession');
-  }
+    private dataStorage: DataStorageService,
+    private csvExport: CsvExportService
+  ) {}
 
   async executeWalletBenchmark(
     request: WalletBenchmarkRequest,
@@ -134,32 +142,41 @@ export class WalletBenchmarkService extends BaseService<BenchmarkSession> {
     const avgExecutionTime = totalTransactions > 0 ? Math.round(totalExecutionTime / totalTransactions) : 0;
     
     // Create benchmark session
-    const session = new BenchmarkSession();
-    session.contractName = request.contractName;
-    session.networks = request.networks;
-    session.totalOperations = totalTransactions;
-    session.avgGasUsed = avgGasUsed;
-    session.avgExecutionTime = avgExecutionTime;
-    session.signedTransactions = totalSignedTransactions;
-    session.walletAddress = request.walletAddress;
-    session.results = {
-      contractName: request.contractName,
-      networks: request.networks,
-      contracts: results,
-      executionSummary: {
-        totalTransactions,
-        successfulTransactions,
-        failedTransactions: totalTransactions - successfulTransactions,
-        walletSignedTransactions: totalSignedTransactions,
-        successRate: totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0,
-        totalGasUsed: totalGasUsed.toString(),
+    const sessionData = {
+      sessionName: `Wallet Benchmark - ${request.contractName}`,
+      status: successfulTransactions > 0 ? 'completed' : 'failed',
+      benchmarkConfig: {
+        contractName: request.contractName,
+        networks: request.networks,
+        totalOperations: totalTransactions,
+        walletAddress: request.walletAddress,
+        useWalletSigning: true,
+        signedTransactions: totalSignedTransactions
+      },
+      benchmarkResults: {
+        results: {
+          contractName: request.contractName,
+          networks: request.networks,
+          contracts: results,
+          executionSummary: {
+            totalTransactions,
+            successfulTransactions,
+            failedTransactions: totalTransactions - successfulTransactions,
+            walletSignedTransactions: totalSignedTransactions,
+            successRate: totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0,
+            totalGasUsed: totalGasUsed.toString(),
+            avgGasUsed,
+            avgExecutionTime
+          },
+          timestamp: request.timestamp
+        },
         avgGasUsed,
         avgExecutionTime
       },
-      timestamp: request.timestamp
+      completedAt: new Date()
     };
     
-    return await this.create(session);
+    return this.dataStorage.create('benchmarkSession', sessionData);
   }
 
   private async executeWalletContractBenchmark(
@@ -353,5 +370,35 @@ export class WalletBenchmarkService extends BaseService<BenchmarkSession> {
           return '0x';
       }
     });
+  }
+
+  /**
+   * Export wallet benchmark sessions to CSV
+   */
+  async exportWalletBenchmarksToCsv(): Promise<string> {
+    const sessions = this.dataStorage.findAll('benchmarkSession', (session) => {
+      return session.benchmarkConfig?.useWalletSigning === true;
+    });
+    return this.csvExport.exportBenchmarkData(sessions);
+  }
+
+  /**
+   * Get all wallet benchmark sessions
+   */
+  async getWalletBenchmarkSessions(): Promise<BenchmarkSession[]> {
+    return this.dataStorage.findAll('benchmarkSession', (session) => {
+      return session.benchmarkConfig?.useWalletSigning === true;
+    });
+  }
+
+  /**
+   * Get wallet benchmark session by ID
+   */
+  async getWalletBenchmarkSession(id: string): Promise<BenchmarkSession | null> {
+    const session = this.dataStorage.findById('benchmarkSession', id);
+    if (session && session.benchmarkConfig?.useWalletSigning === true) {
+      return session;
+    }
+    return null;
   }
 }

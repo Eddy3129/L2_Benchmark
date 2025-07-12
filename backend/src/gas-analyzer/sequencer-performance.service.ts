@@ -1,11 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { SequencerPerformanceTest } from './sequencer-performance.entity';
 import { ethers } from 'ethers';
 import { NetworkConfigService } from '../config/network.config';
-import { BaseService } from '../shared/base.service';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
 import { ValidationUtils } from '../shared/validation-utils';
+
+// Define local interface for sequencer performance test
+interface SequencerPerformanceTest {
+  id: string;
+  sessionId: string;
+  l2Network: string;
+  testType: string;
+  status: string;
+  testConfiguration: any;
+  transactionResults: any;
+  performanceMetrics: any;
+  totalTestCostUSD: number;
+  testInfo?: any;
+  testMetadata?: any;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  notes?: string;
+}
 
 interface SequencerTestConfig {
   l2Network: string;
@@ -31,15 +48,13 @@ interface TransactionResult {
 }
 
 @Injectable()
-export class SequencerPerformanceService extends BaseService<SequencerPerformanceTest> {
+export class SequencerPerformanceService {
   protected readonly logger = new Logger(SequencerPerformanceService.name);
 
   constructor(
-    @InjectRepository(SequencerPerformanceTest)
-    private sequencerTestRepository: Repository<SequencerPerformanceTest>,
-  ) {
-    super(sequencerTestRepository, 'SequencerPerformanceTest');
-  }
+    private dataStorage: DataStorageService,
+    private csvExport: CsvExportService,
+  ) {}
 
   async runSequencerPerformanceTest(config: SequencerTestConfig): Promise<SequencerPerformanceTest> {
     this.logger.log(`Starting sequencer performance test for ${config.l2Network}`);
@@ -53,7 +68,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     const sessionId = `seq-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // Create initial test record
-    const testRecord = this.sequencerTestRepository.create({
+    const testRecord = {
       sessionId,
       l2Network: config.l2Network,
       testType: config.testType,
@@ -77,16 +92,27 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
         censorshipResistanceScore: 0,
       },
       totalTestCostUSD: 0,
-    });
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    const savedTest = await this.sequencerTestRepository.save(testRecord);
+    const savedTest = this.dataStorage.create('sequencerPerformanceTest', testRecord);
 
     // Start test execution asynchronously for real-time updates
     this.executeTestAsync(savedTest, networkConfig, config).catch(error => {
       this.logger.error(`Async test execution failed: ${error.message}`);
-      savedTest.status = 'failed';
-      savedTest.notes = `Test failed: ${error.message}`;
-      this.sequencerTestRepository.save(savedTest);
+      savedTest.testInfo = {
+        sessionId: savedTest.testInfo?.sessionId || '',
+        l2Network: savedTest.testInfo?.l2Network || '',
+        testType: savedTest.testInfo?.testType || '',
+        status: 'failed'
+      };
+      savedTest.testMetadata = {
+        totalTestCostUSD: savedTest.testMetadata?.totalTestCostUSD || 0,
+        notes: `Test failed: ${error.message}`,
+        completedAt: savedTest.testMetadata?.completedAt
+      };
+      this.dataStorage.update('sequencerPerformanceTest', savedTest.id, savedTest);
     });
 
     return savedTest;
@@ -115,15 +141,33 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
       await this.calculatePerformanceMetrics(testRecord);
       
       // Mark as completed
-      testRecord.status = 'completed';
-      testRecord.completedAt = new Date();
-      await this.sequencerTestRepository.save(testRecord);
+      testRecord.testInfo = {
+        sessionId: testRecord.testInfo?.sessionId || '',
+        l2Network: testRecord.testInfo?.l2Network || '',
+        testType: testRecord.testInfo?.testType || '',
+        status: 'completed'
+      };
+      testRecord.testMetadata = {
+        totalTestCostUSD: testRecord.testMetadata?.totalTestCostUSD || 0,
+        notes: testRecord.testMetadata?.notes,
+        completedAt: new Date()
+      };
+      this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
 
     } catch (error) {
       this.logger.error(`Sequencer test failed: ${error.message}`);
-      testRecord.status = 'failed';
-      testRecord.notes = `Test failed: ${error.message}`;
-      await this.sequencerTestRepository.save(testRecord);
+      testRecord.testInfo = {
+        sessionId: testRecord.testInfo?.sessionId || '',
+        l2Network: testRecord.testInfo?.l2Network || '',
+        testType: testRecord.testInfo?.testType || '',
+        status: 'failed'
+      };
+      testRecord.testMetadata = {
+        totalTestCostUSD: testRecord.testMetadata?.totalTestCostUSD || 0,
+        notes: `Test failed: ${error.message}`,
+        completedAt: testRecord.testMetadata?.completedAt
+      };
+      this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
       throw error;
     }
   }
@@ -181,10 +225,10 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     };
     
     this.logger.log(`[DEBUG] Saving ${lowFeeTransactions.length} low-fee and ${normalFeeTransactions.length} normal-fee transactions`);
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
     
     // Verify the save worked by re-fetching
-    const verifyRecord = await this.sequencerTestRepository.findOne({ where: { sessionId: testRecord.sessionId } });
+    const verifyRecord = this.dataStorage.findOne('sequencerPerformanceTest', (record) => record.sessionId === testRecord.sessionId);
     this.logger.log(`[DEBUG] Verification: saved ${verifyRecord?.transactionResults?.lowFeeTransactions?.length || 0} low-fee and ${verifyRecord?.transactionResults?.normalFeeTransactions?.length || 0} normal-fee transactions`);
     
     // Monitor transactions for the test duration
@@ -195,7 +239,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     );
     
     // Save final results after monitoring
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
   }
 
   private async executeStuckTransactionTest(
@@ -242,6 +286,12 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     const parallelTxConfirmed = await this.countConfirmedTransactions(parallelTxHashes, 30000); // 30 second timeout
     const sequencerBlockedParallelProcessing = parallelTxConfirmed === 0;
     
+    if (!testRecord.transactionResults) {
+      testRecord.transactionResults = {
+        lowFeeTransactions: [],
+        normalFeeTransactions: []
+      };
+    }
     testRecord.transactionResults.stuckTransactionTest = {
       stuckTxHash: stuckTx.txHash,
       stuckTxNonce: stuckTx.nonce,
@@ -250,7 +300,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
       sequencerBlockedParallelProcessing,
     };
     
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
   }
 
   private async executeFeeMarketStressTest(
@@ -305,16 +355,16 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     };
     
     this.logger.log(`[DEBUG] Fee market test: Saving ${lowFeeTransactions.length} low-fee and ${normalFeeTransactions.length} normal-fee transactions`);
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
     
     // Verify the save worked by re-fetching
-    const verifyRecord = await this.sequencerTestRepository.findOne({ where: { sessionId: testRecord.sessionId } });
+    const verifyRecord = this.dataStorage.findOne('sequencerPerformanceTest', (record) => record.sessionId === testRecord.sessionId);
     this.logger.log(`[DEBUG] Fee market verification: saved ${verifyRecord?.transactionResults?.lowFeeTransactions?.length || 0} low-fee and ${verifyRecord?.transactionResults?.normalFeeTransactions?.length || 0} normal-fee transactions`);
     
     await this.monitorTransactions(testRecord, allTransactions, config.testDurationSeconds);
     
     // Save final results after monitoring
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
   }
 
   private async submitTestTransaction(
@@ -455,7 +505,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
       
       // Save real-time updates to database immediately
       if (hasUpdates) {
-        await this.sequencerTestRepository.save(testRecord);
+        this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
         
         // Calculate and update metrics in real-time
         await this.calculatePerformanceMetrics(testRecord);
@@ -483,13 +533,19 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     });
     
     if (finalUpdates) {
-      await this.sequencerTestRepository.save(testRecord);
+      this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
     }
     
     this.logger.log(`Monitoring completed. Final status: ${transactions.filter(tx => tx.status === 'confirmed').length}/${transactions.length} confirmed`);
   }
 
   private async calculatePerformanceMetrics(testRecord: SequencerPerformanceTest): Promise<void> {
+    if (!testRecord.transactionResults) {
+      testRecord.transactionResults = {
+        lowFeeTransactions: [],
+        normalFeeTransactions: []
+      };
+    }
     const { lowFeeTransactions, normalFeeTransactions } = testRecord.transactionResults;
     
     // Calculate inclusion rates with safe division and proper bounds
@@ -519,7 +575,7 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     const latencyRatio = normalFeeAvgMs > 0 ? lowFeeAvgMs / normalFeeAvgMs : 0;
     
     // Calculate parallel processing capability
-    const stuckTest = testRecord.transactionResults.stuckTransactionTest;
+    const stuckTest = testRecord.transactionResults?.stuckTransactionTest;
     const parallelProcessingTested = !!stuckTest;
     const sequencerSupportsParallelProcessing = stuckTest ? !stuckTest.sequencerBlockedParallelProcessing : false;
     
@@ -590,9 +646,12 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
       censorshipResistanceScore,
     };
     
-    testRecord.totalTestCostUSD = totalTestCostUSD;
+    testRecord.testMetadata = {
+      ...testRecord.testMetadata,
+      totalTestCostUSD
+    };
     
-    await this.sequencerTestRepository.save(testRecord);
+    this.dataStorage.update('sequencerPerformanceTest', testRecord.id, testRecord);
   }
 
   private calculateCensorshipResistanceScore(
@@ -685,17 +744,15 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
   }
 
   async getSequencerPerformanceHistory(limit: number = 50): Promise<SequencerPerformanceTest[]> {
-    return this.sequencerTestRepository.find({
-      order: { createdAt: 'DESC' },
-      take: limit,
-    });
+    const allTests = this.dataStorage.findAll('sequencerPerformanceTest')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return allTests.slice(0, limit);
   }
 
   async getSequencerPerformanceByNetwork(network: string): Promise<SequencerPerformanceTest[]> {
-    return this.sequencerTestRepository.find({
-      where: { l2Network: network },
-      order: { createdAt: 'DESC' },
-    });
+    return this.dataStorage.findAll('sequencerPerformanceTest', (test) => 
+      test.l2Network === network
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // Methods called by the controller
@@ -708,11 +765,9 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
   }
 
   async getTestResult(sessionId: string): Promise<SequencerPerformanceTest | null> {
-    const result = await this.sequencerTestRepository.findOne({
-      where: { sessionId },
-      // Note: transactionResults is stored as JSON in the entity, so no relations needed
-      // The data should be automatically loaded with the entity
-    });
+    const result = this.dataStorage.findAll('sequencerPerformanceTest', (test) => 
+      test.sessionId === sessionId
+    )[0] || null;
     
     if (result) {
       this.logger.debug(`Retrieved test result for session ${sessionId}: status=${result.status}, lowFee=${result.transactionResults?.lowFeeTransactions?.length || 0}, normalFee=${result.transactionResults?.normalFeeTransactions?.length || 0}`);
@@ -721,5 +776,17 @@ export class SequencerPerformanceService extends BaseService<SequencerPerformanc
     }
     
     return result;
+  }
+
+  // Export sequencer performance tests to CSV
+  async exportSequencerTestsToCsv(): Promise<string> {
+    const tests = this.dataStorage.findAll('sequencerPerformanceTest');
+    return this.csvExport.exportSequencerPerformance(tests);
+  }
+
+  // Export sequencer tests by network to CSV
+  async exportSequencerTestsByNetworkToCsv(network: string): Promise<string> {
+    const tests = await this.getSequencerPerformanceByNetwork(network);
+    return this.csvExport.exportSequencerPerformance(tests);
   }
 }

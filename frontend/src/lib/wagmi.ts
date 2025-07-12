@@ -12,12 +12,12 @@ if (!projectId) {
 }
 
 // 2. Create a metadata object - optional
-const metadata = {
-  name: 'L2 Benchmarking App',
-  description: 'Professional L2 blockchain benchmarking application',
-  url: 'https://l2benchmark.app', // origin must match your domain & subdomain
-  icons: ['https://avatars.githubusercontent.com/u/179229932']
-}
+// const metadata = {
+//   name: 'L2 Benchmarking App',
+//   description: 'Professional L2 blockchain benchmarking application',
+//   url: 'https://l2benchmark.app', // origin must match your domain & subdomain
+//   icons: ['https://avatars.githubusercontent.com/u/179229932']
+// }
 
 // 3. Convert centralized network configs to wagmi format
 const testnetNetworks = getTestnetNetworks()
@@ -54,7 +54,6 @@ const modal = createAppKit({
   adapters: [wagmiAdapter],
   networks,
   projectId,
-  metadata,
   features: {
     analytics: true // Optional - defaults to your Cloud configuration
   }

@@ -1,15 +1,82 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BaseService } from '../../../common/base.service';
-import { ComparisonReport } from '../entities/comparison-report.entity';
-import { ReportSection, SectionType, ContentFormat } from '../entities/report-section.entity';
+import { BaseDataService } from '../../../common/base.service';
+import { DataStorageService } from '../../../shared/data-storage.service';
 import {
   CreateComparisonReportRequestDto,
   ComparisonReportDto,
+  ComparisonType,
+  ReportStatus,
 } from '../../../common/dto/comparison-report.dto';
 import { SuccessResponseDto } from '../../../common/dto/base.dto';
 import { ValidationUtils } from '../../../common/utils';
+
+// Define interfaces since TypeORM entities are removed
+interface ReportSection {
+  sectionType: string;
+  title: string;
+  content: string;
+  orderIndex: number;
+}
+
+interface ComparisonReport {
+  id: string;
+  title: string;
+  description?: string;
+  reportType: ComparisonType;
+  status: string;
+  contractName: string;
+  sourceCodeHash: string;
+  networksCompared: string[];
+  comparisonConfig: any;
+  savingsBreakdown: {
+    breakdown: Array<{
+      networkId: string;
+      networkName?: string;
+      cost: number;
+      gasUsed: number;
+      savings: number;
+      rank?: number;
+    }>;
+  };
+  executiveSummary: any;
+  chartData: any;
+  metadata: any;
+  totalGasDifference: number;
+  savingsPercentage: number;
+  maxSavings?: number;
+  avgSavings?: number;
+  mostExpensiveNetwork?: string;
+  cheapestNetwork?: string;
+  totalNetworks?: number;
+  sections?: Array<{
+    sectionType: string;
+    title: string;
+    content: string;
+    orderIndex: number;
+  }>;
+  generationDuration?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define enums locally since entities are removed
+enum SectionType {
+  EXECUTIVE_SUMMARY = 'executive_summary',
+  COST_ANALYSIS = 'cost_analysis',
+  NETWORK_COMPARISON = 'network_comparison',
+  GAS_OPTIMIZATION = 'gas_optimization',
+  RECOMMENDATIONS = 'recommendations',
+  TECHNICAL_DETAILS = 'technical_details',
+  SECURITY_ANALYSIS = 'security_analysis',
+  APPENDIX = 'appendix'
+}
+
+enum ContentFormat {
+  TEXT = 'text',
+  HTML = 'html',
+  MARKDOWN = 'markdown',
+  JSON = 'json'
+}
 
 interface ReportTemplate {
   id: string;
@@ -26,7 +93,7 @@ interface ReportTemplate {
 }
 
 @Injectable()
-export class ReportGenerationService extends BaseService {
+export class ReportGenerationService extends BaseDataService<any> {
 
   private readonly templates: Map<string, ReportTemplate> = new Map([
     [
@@ -148,12 +215,9 @@ export class ReportGenerationService extends BaseService {
   ]);
 
   constructor(
-    @InjectRepository(ComparisonReport)
-    private readonly reportRepository: Repository<ComparisonReport>,
-    @InjectRepository(ReportSection)
-    private readonly sectionRepository: Repository<ReportSection>,
+    private readonly dataStorageService: DataStorageService,
   ) {
-    super();
+    super(dataStorageService, 'comparisonReports');
   }
 
   /**
@@ -167,11 +231,7 @@ export class ReportGenerationService extends BaseService {
 
       this.logger.log(`Generating content for report: ${reportId}`);
 
-      const report = await this.reportRepository.findOne({
-        where: { id: reportId },
-        relations: ['sections'],
-      });
-
+      const report = await this.findById(reportId);
       if (!report) {
         throw this.createError(
           'REPORT_NOT_FOUND',
@@ -194,13 +254,10 @@ export class ReportGenerationService extends BaseService {
       // Update generation duration
       report.generationDuration = Date.now() - startTime;
       report.markAsCompleted();
-      await this.reportRepository.save(report);
+      await this.updateById(reportId, report);
 
       // Reload with updated sections
-      const updatedReport = await this.reportRepository.findOne({
-        where: { id: reportId },
-        relations: ['sections'],
-      });
+      const updatedReport = await this.findById(reportId);
 
       const reportDto = this.mapToReportDto(updatedReport!);
 
@@ -236,11 +293,7 @@ export class ReportGenerationService extends BaseService {
     try {
       ValidationUtils.validateUUID(reportId);
 
-      const report = await this.reportRepository.findOne({
-        where: { id: reportId },
-        relations: ['sections'],
-      });
-
+      const report = await this.findById(reportId);
       if (!report) {
         throw this.createError(
           'REPORT_NOT_FOUND',
@@ -391,7 +444,8 @@ export class ReportGenerationService extends BaseService {
           section.content = this.generateDetailedRecommendations(report);
           break;
       }
-      await this.sectionRepository.save(section);
+      // Note: Section management would need to be handled differently with DataStorageService
+      // For now, we'll store sections as part of the report data
     }
   }
 
@@ -406,7 +460,7 @@ export class ReportGenerationService extends BaseService {
     };
 
     report.chartData = chartData;
-    await this.reportRepository.save(report);
+    await this.updateById(report.id, report);
   }
 
   /**
@@ -422,7 +476,7 @@ export class ReportGenerationService extends BaseService {
 
     for (const templateSection of template.sections) {
       if (!existingSectionTypes.has(templateSection.type)) {
-        const newSection = this.sectionRepository.create({
+        const newSection = {
           reportId: report.id,
           title: templateSection.title,
           sectionType: templateSection.type,
@@ -430,8 +484,10 @@ export class ReportGenerationService extends BaseService {
           content: this.generateSectionContent(templateSection.type, report),
           contentFormat: ContentFormat.MARKDOWN,
           isVisible: templateSection.required,
-        });
-        await this.sectionRepository.save(newSection);
+        };
+        // Add section to report's sections array
+        if (!report.sections) report.sections = [];
+        report.sections.push(newSection);
       }
     }
   }
@@ -452,10 +508,10 @@ ${report.executiveSummary.keyFindings.map((finding, index) => `${index + 1}. ${f
 
 ## Financial Impact
 
-- **Maximum Savings**: ${report.maxSavings.toFixed(2)}%
+- **Maximum Savings**: ${(report.maxSavings || 0).toFixed(2)}%
 - **Best Network**: ${report.cheapestNetwork}
 - **Worst Network**: ${report.mostExpensiveNetwork}
-- **Average Savings**: ${report.avgSavings.toFixed(2)}%
+- **Average Savings**: ${(report.avgSavings || 0).toFixed(2)}%
 
 ## Strategic Recommendations
 
@@ -1037,7 +1093,7 @@ Regular updates and monitoring are recommended for accurate cost tracking.`;
       title: report.title,
       description: report.description,
       type: report.reportType,
-      status: report.status,
+      status: report.status as ReportStatus,
       contract: {
         name: report.contractName || 'Unknown',
         sourceCodeHash: report.sourceCodeHash || 'unknown',

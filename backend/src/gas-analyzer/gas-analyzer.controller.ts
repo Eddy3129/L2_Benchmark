@@ -4,6 +4,33 @@ import { ComparisonReportService } from './comparison-report.service';
 import { ValidationUtils } from '../shared/validation-utils';
 import { AnalyzeContractRequest, CompareNetworksRequest } from '../shared/types';
 
+// Local interface definitions
+interface GasAnalysis {
+  id: string;
+  contractName: string;
+  sourceCode: string;
+  analysisType: any;
+  networks: string[];
+  results: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ComparisonReport {
+  id: string;
+  reportName: string;
+  networksCompared: string[];
+  comparisonConfig: any;
+  savingsBreakdown: any;
+  executiveSummary: any;
+  chartData: any;
+  metadata: any;
+  totalGasDifference: number;
+  savingsPercentage: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Controller('gas-analyzer')
 export class GasAnalyzerController {
   constructor(
@@ -47,18 +74,18 @@ export class GasAnalyzerController {
   }
   
   @Get('history')
-  async getAnalysisHistory(@Query('limit') limit?: string) {
+  async getAnalysisHistory(@Query('limit') limit?: string): Promise<GasAnalysis[]> {
     const limitNum = limit ? parseInt(limit, 10) : 50;
     return this.gasAnalyzerService.getGasAnalysisHistory(limitNum);
   }
 
   @Get('contract/:contractName')
-  async getAnalysisByContract(@Param('contractName') contractName: string) {
+  async getAnalysisByContract(@Param('contractName') contractName: string): Promise<GasAnalysis[]> {
     return this.gasAnalyzerService.getGasAnalysisByContract(contractName);
   }
 
   @Get('analysis/:id')
-  async getAnalysisById(@Param('id') id: string) {
+  async getAnalysisById(@Param('id') id: string): Promise<GasAnalysis | null> {
     return this.gasAnalyzerService.getGasAnalysisById(id);
   }
 
@@ -233,7 +260,7 @@ export class GasAnalyzerController {
   
   // Comparison Reports endpoints
   @Get('comparison-reports')
-  async getComparisonReports(@Query('limit') limit?: string) {
+  async getComparisonReports(@Query('limit') limit?: string): Promise<ComparisonReport[]> {
     try {
       const limitNum = limit ? ValidationUtils.validatePaginationParams(limit).limit : undefined;
       return await this.comparisonReportService.getAllReports(limitNum);
@@ -243,7 +270,7 @@ export class GasAnalyzerController {
   }
 
   @Get('comparison-reports/:id')
-  async getComparisonReportById(@Param('id') id: string) {
+  async getComparisonReportById(@Param('id') id: string): Promise<ComparisonReport | null> {
     try {
       const report = await this.comparisonReportService.getReportById(id);
       if (!report) {
