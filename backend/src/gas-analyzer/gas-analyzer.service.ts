@@ -823,7 +823,10 @@ export class GasAnalyzerService {
           1101: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Mainnet
           2442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
           324: { id: 'ethereum', name: 'ETH' },         // zkSync Era Mainnet
-          300: { id: 'ethereum', name: 'ETH' }          // zkSync Era Sepolia
+          300: { id: 'ethereum', name: 'ETH' },          // zkSync Era Sepolia
+          59141: { id: 'ethereum', name: 'ETH' },       // Linea Sepolia
+          763373: { id: 'ethereum', name: 'ETH' },      // Ink Sepolia
+          534351: {id:'ethereum',name:'ETH'}
       };
   
       const token = tokenMap[networkConfig.chainId] || { id: 'ethereum', name: 'ETH' };
@@ -940,5 +943,180 @@ export class GasAnalyzerService {
        
        const data = await response.json();
        return data.USD;
+   }
+
+   /**
+    * Get multi-chain gas data for dashboard
+    * Migrated from frontend for better modularity and consistency
+    */
+   async getMultiChainGasData(chainIds: string[], confidenceLevel: number = 99): Promise<any[]> {
+     this.logger.log(`Fetching multi-chain gas data for chains: ${chainIds.join(', ')} with ${confidenceLevel}% confidence`);
+     
+     const results: any[] = [];
+     
+     // Map of chain string IDs to numeric chain IDs
+     const chainIdMap: { [key: string]: number } = {
+       'mainnet': 1,
+       'ethereum': 1,
+       'polygon': 137,
+       'arbitrum': 42161,
+       'optimism': 10,
+       'base': 8453,
+       'polygon-zkevm': 1101,
+       'zksync-era': 324,
+       'scroll': 534352,
+       'ink': 57073,
+       'linea': 59144
+     };
+     
+     for (const chainId of chainIds) {
+       try {
+         const numericChainId = chainIdMap[chainId];
+         if (!numericChainId) {
+           this.logger.warn(`Unknown chain ID: ${chainId}`);
+           continue;
+         }
+         
+         // Fetch gas data using existing Blocknative integration
+         const gasData = await this.getBlocknativeGasPrice(numericChainId, confidenceLevel);
+         
+         if (!gasData) {
+           this.logger.warn(`Failed to fetch gas data for chain: ${chainId}`);
+           continue;
+         }
+         
+         // Get blob base fee for Ethereum mainnet only
+         let blobBaseFee: number | null = null;
+         if (numericChainId === 1) {
+           blobBaseFee = await this.getBlocknativeBlobBaseFee(confidenceLevel);
+         }
+         
+         // Format response to match frontend expectations
+         const chainResult = {
+           chainId,
+           gasData: {
+             system: chainId === 'mainnet' || chainId === 'ethereum' ? 'ethereum' : chainId,
+             network: 'mainnet',
+             unit: 'gwei',
+             maxPrice: gasData.totalFee,
+             currentBlockNumber: 0, // Will be populated by actual API
+             msSinceLastBlock: 0,
+             blockPrices: [{
+               blockNumber: 0,
+               estimatedTransactionCount: 0,
+               baseFeePerGas: gasData.baseFee,
+               blobBaseFeePerGas: blobBaseFee || 0,
+               estimatedPrices: [{
+                 confidence: gasData.confidence,
+                 price: gasData.totalFee,
+                 maxPriorityFeePerGas: gasData.priorityFee,
+                 maxFeePerGas: gasData.totalFee
+               }]
+             }]
+           },
+           distribution: {
+             // Same structure as gasData for compatibility
+             system: chainId === 'mainnet' || chainId === 'ethereum' ? 'ethereum' : chainId,
+             network: 'mainnet',
+             unit: 'gwei',
+             maxPrice: gasData.totalFee,
+             currentBlockNumber: 0,
+             msSinceLastBlock: 0,
+             blockPrices: [{
+               blockNumber: 0,
+               estimatedTransactionCount: 0,
+               baseFeePerGas: gasData.baseFee,
+               blobBaseFeePerGas: blobBaseFee || 0,
+               estimatedPrices: [{
+                 confidence: gasData.confidence,
+                 price: gasData.totalFee,
+                 maxPriorityFeePerGas: gasData.priorityFee,
+                 maxFeePerGas: gasData.totalFee
+               }]
+             }]
+           },
+           timestamp: Date.now()
+         };
+         
+         this.logger.log(`Successfully fetched gas data for ${chainId}: Base=${gasData.baseFee} gwei, Priority=${gasData.priorityFee} gwei, Total=${gasData.totalFee} gwei`);
+         
+         results.push(chainResult);
+         
+         // Add delay between requests to avoid rate limiting
+         if (results.length < chainIds.length) {
+           await new Promise(resolve => setTimeout(resolve, 200));
+         }
+       } catch (error) {
+         this.logger.error(`Failed to fetch data for chain ${chainId}:`, error);
+       }
+     }
+     
+     this.logger.log(`Multi-chain gas data fetch completed. Successfully fetched ${results.length}/${chainIds.length} chains`);
+     return results;
+   }
+
+   async getTokenPrices(chainIds: string[]): Promise<{ [key: string]: number }> {
+     this.logger.log(`Fetching token prices for chains: ${chainIds.join(', ')}`);
+     
+     const CG_API_KEY = process.env.COINGECKO_API_KEY || 'CG-njMzeCqg4NmSv1JFwKypf5Zy';
+     const CG_OPTIONS = {
+       method: 'GET',
+       headers: {
+         accept: 'application/json',
+         'x-cg-demo-api-key': CG_API_KEY
+       }
+     };
+
+     // Map chain IDs to CoinGecko IDs and symbols
+     const chainConfigs = {
+       'ethereum': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'polygon': { coingeckoId: 'pol', coingeckoSymbol: 'POL' },
+       'arbitrum': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'optimism': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'base': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'polygon-zkevm': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'zksync-era': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'scroll': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'ink': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'linea': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' }
+     };
+
+     const idsToFetch = new Set<string>();
+     const symbolsToFetch = new Set<string>();
+     
+     chainIds.forEach(chainId => {
+       const config = chainConfigs[chainId];
+       if (config?.coingeckoId) idsToFetch.add(config.coingeckoId);
+       if (config?.coingeckoSymbol) symbolsToFetch.add(config.coingeckoSymbol);
+     });
+
+     const pricePromises: Promise<any>[] = [];
+     if (idsToFetch.size > 0) {
+       const url = `https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=${Array.from(idsToFetch).join(',')}`;
+       pricePromises.push(fetch(url, CG_OPTIONS).then(res => res.json()));
+     }
+     if (symbolsToFetch.size > 0) {
+       const url = `https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&symbols=${Array.from(symbolsToFetch).join(',')}`;
+       pricePromises.push(fetch(url, CG_OPTIONS).then(res => res.json()));
+     }
+
+     try {
+       const results: any[] = await Promise.all(pricePromises);
+       const tokenPrices: { [key: string]: number } = {};
+       
+       results.forEach((result: any) => {
+         for (const key in result) {
+           if (result[key] && result[key].usd) {
+             tokenPrices[key] = result[key].usd;
+           }
+         }
+       });
+       
+       this.logger.log(`Fetched ${Object.keys(tokenPrices).length} token prices`);
+       return tokenPrices;
+     } catch (error) {
+       this.logger.error('Failed to fetch token prices from CoinGecko:', error);
+       throw new Error('Failed to fetch token prices');
+     }
    }
  }

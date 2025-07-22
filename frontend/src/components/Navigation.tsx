@@ -1,61 +1,60 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { WalletConnect } from './WalletConnect';
-import { useState } from 'react';
-import { 
-  BarChart3, 
-  Fuel, 
-  Zap, 
-  Search, 
-  Link as LinkIcon, 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import {
+  BarChart3,
+  Fuel,
+  Zap,
+  Search,
+  Link as LinkIcon,
   FileText,
   Menu,
   X,
-  Activity
-} from 'lucide-react';
+  Activity,
+} from "lucide-react";
 
 export function Navigation() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
-    { 
-      href: '/', 
-      label: 'Dashboard', 
-      icon: BarChart3, 
-      description: 'Overview & Analytics'
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: BarChart3,
+      description: "Overview & Analytics",
     },
-    { 
-      href: '/estimator', 
-      label: 'Gas Estimator', 
-      icon: Fuel, 
-      description: 'Multi-chain cost analysis'
+    {
+      href: "/estimator",
+      label: "Gas Estimator",
+      icon: Fuel,
+      description: "Multi-chain cost analysis",
     },
-    { 
-      href: '/benchmark', 
-      label: 'Live Benchmark', 
-      icon: Zap, 
-      description: 'Real-time testing suite'
+    {
+      href: "/benchmark",
+      label: "Live Benchmark",
+      icon: Zap,
+      description: "Real-time testing suite",
     },
-    { 
-      href: '/sequencer-analysis', 
-      label: 'Sequencer Analysis', 
-      icon: Search, 
-      description: 'Censorship resistance testing'
+    {
+      href: "/sequencer-analysis",
+      label: "Sequencer Analysis",
+      icon: Search,
+      description: "Censorship resistance testing",
     },
-    { 
-      href: '/l1-finality', 
-      label: 'L1 Finality', 
-      icon: LinkIcon, 
-      description: 'Settlement tracking'
+    {
+      href: "/l1-finality",
+      label: "L1 Finality",
+      icon: LinkIcon,
+      description: "Settlement tracking",
     },
-    { 
-      href: '/analysis', 
-      label: 'Reports', 
-      icon: FileText, 
-      description: 'Historical insights'
+    {
+      href: "/analysis",
+      label: "Reports",
+      icon: FileText,
+      description: "Historical insights",
     },
   ];
 
@@ -88,8 +87,8 @@ export function Navigation() {
                     href={item.href}
                     className={`relative flex items-center space-x-1.5 px-5 py-1.5 rounded-lg text-sm font-lekton transition-all duration-200 ${
                       isActive
-                        ? 'text-white bg-blue-600/20 border border-blue-600/30 shadow-lg'
-                        : 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:border hover:border-gray-700'
+                        ? "text-white bg-blue-600/20 border border-blue-600/30 shadow-lg"
+                        : "text-gray-300 hover:text-white hover:bg-gray-800/50 hover:border hover:border-gray-700"
                     }`}
                     title={item.description}
                   >
@@ -113,11 +112,6 @@ export function Navigation() {
                 )}
               </button>
             </div>
-
-            {/* Wallet Connection */}
-            <div className="hidden md:flex items-center">
-              <WalletConnect />
-            </div>
           </div>
         </div>
 
@@ -135,21 +129,20 @@ export function Navigation() {
                     onClick={() => setIsMenuOpen(false)}
                     className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-lekton text-sm transition-all duration-200 ${
                       isActive
-                        ? 'text-white bg-blue-600/20 border border-blue-600/30'
-                        : 'text-gray-300 hover:text-white hover:bg-gray-800/50'
+                        ? "text-white bg-blue-600/20 border border-blue-600/30"
+                        : "text-gray-300 hover:text-white hover:bg-gray-800/50"
                     }`}
                   >
                     <Icon className="w-4 h-4" />
                     <div>
                       <div className="font-medium">{item.label}</div>
-                      <div className="text-xs text-gray-400">{item.description}</div>
+                      <div className="text-xs text-gray-400">
+                        {item.description}
+                      </div>
                     </div>
                   </Link>
                 );
               })}
-              <div className="pt-4 border-t border-gray-800/50">
-                <WalletConnect />
-              </div>
             </div>
           </div>
         )}

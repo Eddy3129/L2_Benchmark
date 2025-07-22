@@ -65,7 +65,6 @@ Create a `.env.local` file in the frontend directory:
 # API Keys
 NEXT_PUBLIC_ETHERSCAN_API_KEY=your_api_key_here
 NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key
-NEXT_PUBLIC_BLOCKNATIVE_API_KEY=your_blocknative_key
 
 # Application Settings
 NEXT_PUBLIC_DEBUG_LOGS=true

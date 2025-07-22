@@ -16,32 +16,49 @@ export class AbiController {
     @Query('address') address: string,
     @Query('chainId') chainId: string,
   ) {
+    this.logger.log(`🔍 ABI Request received: address=${address}, chainId=${chainId}`);
+    
     if (!address) {
+      this.logger.warn('❌ Missing contract address in request');
       throw new HttpException('Contract address is required', HttpStatus.BAD_REQUEST);
     }
 
     if (!chainId) {
+      this.logger.warn('❌ Missing chain ID in request');
       throw new HttpException('Chain ID is required', HttpStatus.BAD_REQUEST);
     }
 
     // Validate address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      this.logger.warn(`❌ Invalid address format: ${address}`);
       throw new HttpException('Invalid contract address format', HttpStatus.BAD_REQUEST);
     }
 
     const chainIdNum = parseInt(chainId, 10);
     if (isNaN(chainIdNum)) {
+      this.logger.warn(`❌ Invalid chain ID: ${chainId}`);
       throw new HttpException('Invalid chain ID', HttpStatus.BAD_REQUEST);
     }
 
     try {
+      this.logger.log(`🚀 Fetching ABI for ${address} on chain ${chainIdNum}`);
       const result = await this.abiService.fetchContractAbi(address, chainIdNum);
+      
+      const functionCount = result.filter((item: any) => item.type === 'function').length;
+      const writableFunctionCount = result.filter((item: any) => 
+        item.type === 'function' && 
+        (item.stateMutability === 'nonpayable' || item.stateMutability === 'payable')
+      ).length;
+      
+      this.logger.log(`✅ ABI fetched successfully: ${functionCount} functions (${writableFunctionCount} writable)`);
+      
       return {
         success: true,
         data: result,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
+      this.logger.error(`❌ ABI fetch failed for ${address}: ${error.message}`);
       throw new HttpException(
         {
           success: false,

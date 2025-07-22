@@ -1,6 +1,3 @@
-// ABI service - calls the NestJS backend for secure API key management
-// No more CORS issues or exposed API keys!
-
 import { env } from './env';
 import { getContractAbi, getTestContract, STANDARD_ABIS } from '@/config/contracts';
 

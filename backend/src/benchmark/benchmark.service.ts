@@ -30,93 +30,10 @@ export class BenchmarkService {
   ) {}
 
   async createSession(sessionData: any): Promise<BenchmarkSession> {
-    // Validate UUID if provided
-    if (sessionData.id) {
-      try {
-        ValidationUtils.validateUUID(sessionData.id);
-      } catch (error) {
-        throw ValidationUtils.createValidationError(['Invalid session ID format']);
-      }
-    }
-
-    this.logger.log(`Starting benchmark execution for ${sessionData.contracts?.length || 0} contracts`);
-    
-    try {
-      // Execute real blockchain transactions
-      const executionResults = await this.blockchainExecutor.executeBenchmark(
-        sessionData.contracts || [],
-        sessionData.functions || ['transfer', 'approve', 'balanceOf']
-      );
-      
-      // Calculate aggregated metrics
-      const totalTransactions = executionResults.reduce((sum, result) => 
-        sum + result.transactions.totalTransactions, 0);
-      const successfulTransactions = executionResults.reduce((sum, result) => 
-        sum + result.transactions.successfulTransactions, 0);
-      const totalGasUsed = executionResults.reduce((sum, result) => 
-        sum + parseInt(result.transactions.totalGasUsed || '0'), 0);
-      const totalExecutionTime = executionResults.reduce((sum, result) => 
-        sum + result.functions.reduce((funcSum, func) => funcSum + func.executionTime, 0), 0);
-      
-      const avgGasUsed = totalTransactions > 0 ? totalGasUsed / totalTransactions : 0;
-      const avgExecutionTime = totalTransactions > 0 ? totalExecutionTime / totalTransactions : 0;
-      
-      // Transform frontend data to match entity structure
-      const transformedData: Partial<BenchmarkSession> = {
-        id: sessionData.id,
-        sessionName: sessionData.contractName || sessionData.sessionName || 'Benchmark Session',
-        status: 'completed',
-        results: {
-          contractName: sessionData.contractName || 'Unknown Contract',
-          networks: sessionData.networks || [],
-          contracts: executionResults,
-          functions: sessionData.functions || [],
-          timestamp: sessionData.timestamp || new Date().toISOString(),
-          executionSummary: {
-            totalTransactions,
-            successfulTransactions,
-            failedTransactions: totalTransactions - successfulTransactions,
-            successRate: totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0
-          }
-        },
-        totalOperations: totalTransactions,
-        avgGasUsed: avgGasUsed,
-        avgExecutionTime: avgExecutionTime,
-        completedAt: new Date()
-      };
-      
-      this.logger.log(`Benchmark completed: ${successfulTransactions}/${totalTransactions} transactions successful`);
-      return this.dataStorage.create('benchmarkSession', transformedData);
-      
-    } catch (error) {
-      this.logger.error(`Benchmark execution failed: ${error.message}`);
-      
-      // Create a session with error information
-      const transformedData: Partial<BenchmarkSession> = {
-        id: sessionData.id,
-        sessionName: sessionData.contractName || sessionData.sessionName || 'Benchmark Session',
-        status: 'failed',
-        results: {
-          contractName: sessionData.contractName || 'Unknown Contract',
-          networks: sessionData.networks || [],
-          contracts: sessionData.contracts || [],
-          functions: sessionData.functions || [],
-          timestamp: sessionData.timestamp || new Date().toISOString(),
-          error: error.message,
-          executionSummary: {
-            totalTransactions: 0,
-            successfulTransactions: 0,
-            failedTransactions: 0,
-            successRate: 0
-          }
-        },
-        totalOperations: 0,
-        avgGasUsed: 0,
-        avgExecutionTime: 0
-      };
-      
-      return this.dataStorage.create('benchmarkSession', transformedData);
-    }
+    throw ValidationUtils.createValidationError([
+      'Private key benchmarking is disabled for security reasons.',
+      'Please use wallet signing instead by connecting your wallet and using the wallet benchmark endpoint.'
+    ]);
   }
 
   async getAllSessions(limit?: number): Promise<BenchmarkSession[]> {

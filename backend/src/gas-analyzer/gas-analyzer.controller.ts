@@ -354,5 +354,61 @@ export class GasAnalyzerController {
     return await this.comparisonReportService.createReport(reportData);
   }
 
+  @Get('multi-chain-gas-data')
+  async getMultiChainGasData(
+    @Query('chains') chains: string,
+    @Query('confidenceLevel') confidenceLevel?: string
+  ) {
+    try {
+      // Parse chains parameter
+      const chainIds = chains ? chains.split(',').map(c => c.trim()) : ['polygon', 'arbitrum', 'optimism', 'base'];
+      const confidence = confidenceLevel ? parseInt(confidenceLevel) : 99;
+      
+      // Validate confidence level
+      if (confidence < 50 || confidence > 99) {
+        throw new HttpException('Confidence level must be between 50 and 99', HttpStatus.BAD_REQUEST);
+      }
+      
+      const result = await this.gasAnalyzerService.getMultiChainGasData(chainIds, confidence);
+      
+      return {
+        success: true,
+        data: result,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          chainsRequested: chainIds.length,
+          chainsReturned: result.length,
+          confidenceLevel: confidence
+        }
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to fetch multi-chain gas data: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Get('token-prices')
+  async getTokenPrices(
+    @Query('chains') chains: string
+  ) {
+    try {
+      const chainIds = chains ? chains.split(',').map(c => c.trim()) : [];
+      const result = await this.gasAnalyzerService.getTokenPrices(chainIds);
+      
+      return {
+        success: true,
+        data: result,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to fetch token prices: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   // Compilation error extraction moved to shared/validation-utils.ts
 }

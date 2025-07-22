@@ -64,7 +64,7 @@ export const TESTNET_NETWORKS: Record<string, NetworkConfig> = {
     name: 'optimism-sepolia',
     displayName: 'Optimism Sepolia',
     chainId: 11155420,
-    rpcUrl: getRpcUrl('OPTIMISM_SEPOLIA_RPC_URL', 'https://sepolia.optimism.io'),
+    rpcUrl: getRpcUrl('OP_SEPOLIA_RPC_URL', 'https://sepolia.optimism.io'),
     explorerUrl: 'https://sepolia-optimism.etherscan.io',
     explorerApiUrl: 'https://api-sepolia-optimism.etherscan.io/api',
     explorerApiKey: process.env.OPTIMISM_ETHERSCAN_API_KEY,
@@ -333,4 +333,8 @@ export const isTestnetNetwork = (networkId: string): boolean => {
 export const isL2Network = (networkId: string): boolean => {
   const network = getNetworkConfig(networkId);
   return network?.isL2 || false;
+};
+
+export const getNetworkByChainId = (chainId: number): NetworkConfig | undefined => {
+  return Object.values(ALL_NETWORKS).find(network => network.chainId === chainId);
 };

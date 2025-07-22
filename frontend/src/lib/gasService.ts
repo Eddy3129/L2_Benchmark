@@ -43,9 +43,6 @@ interface MultiChainGasData {
 }
 
 class MultiChainGasService {
-  private apiKey: string;
-  private baseUrl = 'https://api.blocknative.com';
-
   public readonly supportedChains: ChainConfig[] = [
     {
       id: 'mainnet',
@@ -130,97 +127,73 @@ class MultiChainGasService {
       icon: 'Z',
       apiChainId: 324,
       coingeckoId: 'ethereum'
-    }
+    },
+    {
+      id: 'scroll',
+      name: 'Scroll',
+      symbol: 'ETH',
+      chainId: 534352,
+      rpcUrl: 'https://rpc.scroll.io',
+      blockExplorer: 'https://scrollscan.com/',
+      color: '#FFEAA7',
+      icon: 'S',
+      apiChainId: 534352,
+      coingeckoId: 'ethereum'
+    },
+    {
+      id: 'ink',
+      name: 'Ink',
+      symbol: 'ETH',
+      chainId: 57073,
+      rpcUrl: 'https://rpc-gel.inkonchain.com',
+      blockExplorer: 'https://explorer.inkonchain.com',
+      color: '#000000',
+      icon: 'I',
+      apiChainId: 57073,
+      coingeckoId: 'ethereum'
+    },
+    {
+      id: 'linea',
+      name: 'Linea',
+      symbol: 'ETH',
+      chainId: 59144,
+      rpcUrl: 'https://rpc.linea.build',
+      blockExplorer: 'https://lineascan.build/',
+      color: '#61DFFF',
+      icon: 'L',
+      apiChainId: 59144,
+      coingeckoId: 'ethereum'
+    },
   ];
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-  }
-
-  private async fetchBlockPrices(chain: ChainConfig, confidenceLevels?: string): Promise<GasPriceData> {
-    let url = `${this.baseUrl}/gasprices/blockprices?chainid=${chain.apiChainId}`;
-    if (confidenceLevels) {
-      url += `&confidenceLevels=${confidenceLevels}`;
-    }
-
-    try {
-      const headers: Record<string, string> = {};
-      
-      if (this.apiKey && this.apiKey.trim() !== '') {
-        headers['Authorization'] = this.apiKey;
-      }
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Blocknative API Error for ${chain.id}:`, {
-          status: response.status,
-          statusText: response.statusText,
-          url,
-          error: errorText
-        });
-        throw new Error(`Blocknative API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`Failed to fetch block prices for ${chain.id}:`, error);
-      throw error;
-    }
-  }
-
-  async getGasPrices(chainId: string = 'mainnet'): Promise<GasPriceData> {
-    const chain = this.getChainConfig(chainId);
-    if (!chain) {
-      throw new Error(`Unsupported chain: ${chainId}`);
-    }
-    return this.fetchBlockPrices(chain);
-  }
-
-  async getGasDistribution(chainId: string = 'mainnet'): Promise<GasDistribution> {
-    const chain = this.getChainConfig(chainId);
-    if (!chain) {
-      throw new Error(`Unsupported chain: ${chainId}`);
-    }
-    // Reverted to original confidence levels as requested
-    const confidenceLevels = '70,80,90,95,99';
-    return this.fetchBlockPrices(chain, confidenceLevels);
+  constructor() {
+    // No longer needs API key since all calls go through backend
   }
 
   async getMultiChainGasData(chainIds: string[]): Promise<MultiChainGasData[]> {
-    const results: MultiChainGasData[] = [];
-    
-    for (const chainId of chainIds) {
-      try {
-        // NOTE: This now fetches the same data twice. For performance, you could later refactor
-        // this to make only one `getGasDistribution` call and use that data for both gasData and distribution.
-        // However, keeping it as is to avoid changing original logic.
-        const [gasData, distribution] = await Promise.all([
-          this.getGasPrices(chainId),
-          this.getGasDistribution(chainId)
-        ]);
-        
-        results.push({
-          chainId,
-          gasData,
-          distribution,
-          timestamp: Date.now()
-        });
-        
-        if (results.length < chainIds.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      } catch (error) {
-        console.error(`Failed to fetch data for chain ${chainId}:`, error);
+    try {
+      // Call the backend API
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const chainsParam = chainIds.join(',');
+      const url = `${backendUrl}/api/gas-analyzer/multi-chain-gas-data?chains=${chainsParam}&confidenceLevel=99`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
       }
+      
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        throw new Error('Invalid response format from backend');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error('Failed to fetch multi-chain gas data from backend:', error);
+      throw error;
     }
-
-    return results;
   }
 
   calculateOptimalGasPrice(distribution: GasDistribution | null, urgency: 'slow' | 'standard' | 'fast'): number {
@@ -276,5 +249,5 @@ class MultiChainGasService {
   }
 }
 
-export const multiChainGasService = new MultiChainGasService(process.env.NEXT_PUBLIC_BLOCKNATIVE_API_KEY || '');
+export const multiChainGasService = new MultiChainGasService();
 export type { GasPriceData, GasDistribution, MultiChainGasData, ChainConfig };

@@ -80,100 +80,50 @@ export class WalletBenchmarkService {
     request: WalletBenchmarkRequest,
     progressCallback?: (progress: { stage: string; currentNetwork?: string; currentFunction?: string }) => void
   ): Promise<BenchmarkSession> {
-    this.logger.log(`Starting wallet benchmark for ${request.walletAddress}`);
+    this.logger.log(`Creating wallet benchmark session for ${request.walletAddress}`);
     
     // Validate wallet address
     if (!ethers.isAddress(request.walletAddress)) {
       throw new Error('Invalid wallet address provided');
     }
 
-    const results: WalletContractExecutionResult[] = [];
-    let totalSignedTransactions = 0;
+    // Since we're moving to frontend execution, this method now just
+    // creates a session placeholder. The real execution happens in the frontend.
+    progressCallback?.({ stage: 'creating_session' });
     
-    for (const contract of request.contracts) {
-      progressCallback?.({ stage: 'executing', currentNetwork: contract.networkId });
-      
-      try {
-        const result = await this.executeWalletContractBenchmark(
-          contract, 
-          request.functions, 
-          request.walletAddress,
-          progressCallback
-        );
-        results.push(result);
-        totalSignedTransactions += result.transactions.walletSignedTransactions;
-      } catch (error) {
-        this.logger.error(`Failed to execute wallet benchmark for contract ${contract.address} on ${contract.networkId}: ${error.message}`);
-        
-        // Add failed result
-        results.push({
-          networkId: contract.networkId,
-          address: contract.address,
-          name: contract.name,
-          transactions: {
-            totalTransactions: 0,
-            successfulTransactions: 0,
-            failedTransactions: request.functions.length,
-            walletSignedTransactions: 0,
-            totalGasUsed: '0',
-            totalFees: '0'
-          },
-          functions: request.functions.map(funcName => ({
-            name: funcName,
-            gasUsed: 0,
-            executionTime: 0,
-            success: false,
-            error: error.message,
-            walletSigned: false
-          }))
-        });
-      }
-    }
-    
-    // Calculate aggregated metrics
-    const totalTransactions = results.reduce((sum, r) => sum + r.transactions.totalTransactions, 0);
-    const successfulTransactions = results.reduce((sum, r) => sum + r.transactions.successfulTransactions, 0);
-    const totalGasUsed = results.reduce((sum, r) => sum + parseInt(r.transactions.totalGasUsed), 0);
-    const totalExecutionTime = results.reduce((sum, r) => {
-      return sum + r.functions.reduce((funcSum, f) => funcSum + f.executionTime, 0);
-    }, 0);
-    
-    const avgGasUsed = totalTransactions > 0 ? Math.round(totalGasUsed / totalTransactions) : 0;
-    const avgExecutionTime = totalTransactions > 0 ? Math.round(totalExecutionTime / totalTransactions) : 0;
-    
-    // Create benchmark session
+    // Create benchmark session with placeholder data
     const sessionData = {
       sessionName: `Wallet Benchmark - ${request.contractName}`,
-      status: successfulTransactions > 0 ? 'completed' : 'failed',
+      status: 'pending',
       benchmarkConfig: {
         contractName: request.contractName,
         networks: request.networks,
-        totalOperations: totalTransactions,
+        totalOperations: 0,
         walletAddress: request.walletAddress,
         useWalletSigning: true,
-        signedTransactions: totalSignedTransactions
+        signedTransactions: 0
       },
       benchmarkResults: {
         results: {
           contractName: request.contractName,
           networks: request.networks,
-          contracts: results,
+          contracts: [],
           executionSummary: {
-            totalTransactions,
-            successfulTransactions,
-            failedTransactions: totalTransactions - successfulTransactions,
-            walletSignedTransactions: totalSignedTransactions,
-            successRate: totalTransactions > 0 ? (successfulTransactions / totalTransactions) * 100 : 0,
-            totalGasUsed: totalGasUsed.toString(),
-            avgGasUsed,
-            avgExecutionTime
+            totalTransactions: 0,
+            successfulTransactions: 0,
+            failedTransactions: 0,
+            walletSignedTransactions: 0,
+            successRate: 0,
+            totalGasUsed: '0',
+            avgGasUsed: 0,
+            avgExecutionTime: 0
           },
           timestamp: request.timestamp
         },
-        avgGasUsed,
-        avgExecutionTime
+        avgGasUsed: 0,
+        avgExecutionTime: 0
       },
-      completedAt: new Date()
+      completedAt: null
     };
     
     return this.dataStorage.create('benchmarkSession', sessionData);
@@ -192,11 +142,18 @@ export class WalletBenchmarkService {
 
     this.logger.log(`Executing wallet benchmark for contract ${contract.address} on ${networkConfig.displayName}`);
     this.logger.log(`Wallet address: ${walletAddress}`);
+    this.logger.log(`Contract ABI exists: ${!!contract.abi}, ABI length: ${contract.abi?.length || 0}`);
+    this.logger.log(`Contract data:`, JSON.stringify({ networkId: contract.networkId, address: contract.address, name: contract.name, abiLength: contract.abi?.length }, null, 2));
 
     // For wallet benchmarking, we simulate the transactions that would be signed
     // In a real implementation, this would integrate with the frontend wallet
     const transactionResults: WalletTransactionResult[] = [];
     
+    // Check if ABI exists
+    if (!contract.abi || !Array.isArray(contract.abi)) {
+      throw new Error(`Contract ABI is missing or invalid for ${contract.address}`);
+    }
+
     // Filter functions that exist in the contract ABI
     const availableFunctions = functions.filter(funcName => {
       const func = contract.abi.find(item => item.type === 'function' && item.name === funcName);
@@ -303,23 +260,92 @@ export class WalletBenchmarkService {
       
       // Estimate gas (this doesn't require wallet signing)
       let gasEstimate = BigInt(21000); // Default gas limit
+      let gasEstimationSuccess = false;
+      
       try {
         if (mockParams.length === 0) {
           gasEstimate = await contractInstance[functionName].estimateGas();
         } else {
           gasEstimate = await contractInstance[functionName].estimateGas(...mockParams);
         }
+        gasEstimationSuccess = true;
       } catch (gasError) {
         this.logger.warn(`Gas estimation failed for ${functionName}: ${gasError.message}`);
-        gasEstimate = BigInt(100000); // Fallback gas estimate
+        
+        // For functions with tokenId parameters, try multiple fallback values
+        if (mockParams.length >= 2 && funcAbi.inputs.some(input => 
+          input.name && (input.name.toLowerCase().includes('tokenid') || input.name.toLowerCase().includes('id'))
+        )) {
+          const fallbackTokenIds = ['1', '2', '3', '4', '5']; // Try multiple tokenIds
+          
+          for (const tokenId of fallbackTokenIds) {
+            try {
+              const fallbackParams = [...mockParams];
+              // Find the tokenId parameter and replace it
+              const tokenIdIndex = funcAbi.inputs.findIndex(input => 
+                input.name && (input.name.toLowerCase().includes('tokenid') || input.name.toLowerCase().includes('id'))
+              );
+              if (tokenIdIndex !== -1) {
+                fallbackParams[tokenIdIndex] = tokenId;
+              }
+              
+              gasEstimate = await contractInstance[functionName].estimateGas(...fallbackParams);
+              gasEstimationSuccess = true;
+              this.logger.log(`Gas estimation succeeded with tokenId ${tokenId} for ${functionName}`);
+              break;
+            } catch (fallbackError) {
+              // Continue to next tokenId
+              continue;
+            }
+          }
+        }
+        
+        // Final fallback for approve functions specifically
+        if (!gasEstimationSuccess && functionName === 'approve' && mockParams.length >= 2) {
+          try {
+            const fallbackParams = [...mockParams];
+            fallbackParams[1] = '0'; // Try tokenId 0
+            gasEstimate = await contractInstance[functionName].estimateGas(...fallbackParams);
+            gasEstimationSuccess = true;
+            this.logger.log(`Gas estimation succeeded with tokenId 0 for ${functionName}`);
+          } catch (fallbackError) {
+            this.logger.warn(`Final fallback gas estimation also failed for ${functionName}: ${fallbackError.message}`);
+            gasEstimate = BigInt(100000); // Final fallback gas estimate
+          }
+        } else if (!gasEstimationSuccess) {
+          gasEstimate = BigInt(100000); // Fallback gas estimate
+        }
+      }
+      
+      // Skip functions that failed gas estimation as they likely require specific state
+      if (!gasEstimationSuccess) {
+        const executionTime = Date.now() - startTime;
+        this.logger.warn(`Skipping ${functionName} due to gas estimation failure`);
+        return {
+          txHash: '',
+          functionName,
+          gasUsed: 0,
+          executionTime,
+          success: false,
+          error: 'Gas estimation failed - function may require specific contract state',
+          fees: '0',
+          walletSigned: false,
+          networkId: contract.networkId
+        };
       }
       
       const executionTime = Date.now() - startTime;
       
-      // Simulate successful wallet signing
-      const mockTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+      // Get current gas price for fee calculation
       const gasPrice = await provider.getFeeData();
-      const fees = ethers.formatEther((gasEstimate * (gasPrice.gasPrice || BigInt(20000000000))).toString());
+      const effectiveGasPrice = gasPrice.gasPrice || BigInt(20000000000); // 20 gwei fallback
+      
+      // Calculate fees in ETH
+      const feesInWei = gasEstimate * effectiveGasPrice;
+      const fees = ethers.formatEther(feesInWei.toString());
+      
+      // Simulate successful wallet signing if gas estimation succeeded
+      const mockTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
       
       return {
         txHash: mockTxHash,
@@ -350,13 +376,18 @@ export class WalletBenchmarkService {
   }
 
   private generateMockParameters(inputs: any[], walletAddress: string): any[] {
-    return inputs.map(input => {
+    return inputs.map((input, index) => {
       switch (input.type) {
         case 'address':
           return walletAddress;
         case 'uint256':
         case 'uint':
-          return '1000000000000000000'; // 1 token with 18 decimals
+          // For tokenId parameters (common in NFTs), use smaller values that are more likely to exist
+          if (input.name && (input.name.toLowerCase().includes('tokenid') || input.name.toLowerCase().includes('id'))) {
+            return '0'; // Use tokenId 0 which often exists
+          }
+          // For amount parameters, use smaller values to avoid overflow and high gas costs
+          return '1000000000000000'; // 0.001 token with 18 decimals
         case 'bool':
           return true;
         case 'string':
@@ -365,7 +396,11 @@ export class WalletBenchmarkService {
           return '0x';
         default:
           if (input.type.startsWith('uint')) {
-            return '1000';
+            // For smaller uint types, use appropriate values
+            if (input.name && (input.name.toLowerCase().includes('tokenid') || input.name.toLowerCase().includes('id'))) {
+              return '0'; // Use tokenId 0 for better compatibility
+            }
+            return '100'; // Smaller default values
           }
           return '0x';
       }

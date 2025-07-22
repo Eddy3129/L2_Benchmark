@@ -5,6 +5,7 @@ import { GasAnalyzerModule } from './gas-analyzer/gas-analyzer.module';
 import { AbiModule } from './abi/abi.module';
 import { GasAnalysisModule } from './modules/gas-analysis/gas-analysis.module';
 import { ComparisonReportModule } from './modules/comparison-report/comparison-report.module';
+import { PrivateKeyBenchmarkModule } from './modules/private-key-benchmark/private-key-benchmark.module';
 import networkConfig from './config/network.config';
 
 @Module({
@@ -18,6 +19,7 @@ import networkConfig from './config/network.config';
     AbiModule,
     GasAnalysisModule,
     ComparisonReportModule,
+    PrivateKeyBenchmarkModule,
   ],
 })
 export class AppModule {}

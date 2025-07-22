@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiService } from '../lib/api';
+import { apiService } from '@/lib/api';
 import { CONTRACT_TEMPLATES, loadContractTemplate } from '@/lib/contractTemplate';
 import { Code, BarChart3 } from 'lucide-react';
 

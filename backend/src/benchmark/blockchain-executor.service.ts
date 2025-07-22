@@ -95,13 +95,23 @@ export class BlockchainExecutorService {
     functions: string[],
     progressCallback?: (progress: { stage: string; currentNetwork?: string; currentFunction?: string }) => void
   ): Promise<ContractExecutionResult> {
+    this.logger.log(`🚀 Starting contract benchmark for ${contract.name} (${contract.address}) on ${contract.networkId}`);
+    
     const networkConfig = getNetworkConfig(contract.networkId);
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${contract.networkId}`);
     }
 
+    this.logger.debug(`📡 Network config loaded: ${networkConfig.displayName}`, {
+      rpcUrl: networkConfig.rpcUrl,
+      chainId: networkConfig.chainId,
+      nativeCurrency: networkConfig.nativeCurrency.symbol
+    });
+
     const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
     const wallet = new ethers.Wallet(process.env.TEST_WALLET_PRIVATE_KEY!, provider);
+    
+    this.logger.debug(`👛 Wallet initialized: ${wallet.address}`);
     
     // Check wallet balance
     if (!wallet.provider) {
@@ -110,12 +120,14 @@ export class BlockchainExecutorService {
     const balance = await wallet.provider.getBalance(wallet.address);
     const requiredAmount = ethers.parseEther('0.01'); // Minimum required balance
     
+    this.logger.log(`💰 Wallet balance: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}`);
+    
     if (balance < requiredAmount) {
       throw new Error(`Insufficient balance: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}, required: ${ethers.formatEther(requiredAmount)} ${networkConfig.nativeCurrency.symbol}`);
     }
 
-    this.logger.log(`Executing benchmark for contract ${contract.address} on ${networkConfig.displayName}`);
-    this.logger.log(`Wallet balance: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}`);
+    this.logger.log(`✅ Executing benchmark for contract ${contract.address} on ${networkConfig.displayName}`);
+    this.logger.log(`💳 Wallet balance sufficient: ${ethers.formatEther(balance)} ${networkConfig.nativeCurrency.symbol}`);
 
     const contractInstance = new ethers.Contract(contract.address, contract.abi, wallet);
     const transactionResults: TransactionResult[] = [];
@@ -139,7 +151,13 @@ export class BlockchainExecutorService {
       }
     }
 
-    for (const funcName of availableFunctions) {
+    this.logger.log(`📋 Executing ${availableFunctions.length} functions: ${availableFunctions.join(', ')}`);
+    
+    for (let i = 0; i < availableFunctions.length; i++) {
+      const funcName = availableFunctions[i];
+      
+      this.logger.log(`🔧 Executing function ${i + 1}/${availableFunctions.length}: ${funcName}`);
+      
       progressCallback?.({ 
         stage: 'executing', 
         currentNetwork: contract.networkId, 
@@ -147,13 +165,26 @@ export class BlockchainExecutorService {
       });
       
       try {
+        const startTime = Date.now();
         const result = await this.executeContractFunction(contractInstance, funcName, contract.abi);
+        const endTime = Date.now();
+        
         transactionResults.push(result);
+        
+        this.logger.log(`✅ Function ${funcName} completed successfully`, {
+          gasUsed: result.gasUsed,
+          executionTime: endTime - startTime,
+          txHash: result.txHash,
+          fees: result.fees
+        });
         
         // Small delay between function calls
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
-        this.logger.error(`Failed to execute function ${funcName}: ${error.message}`);
+        this.logger.error(`❌ Failed to execute function ${funcName}`, {
+          error: error.message,
+          stack: error.stack
+        });
         transactionResults.push({
           txHash: '',
           functionName: funcName,
@@ -170,6 +201,22 @@ export class BlockchainExecutorService {
     const successfulTxs = transactionResults.filter(tx => tx.success);
     const totalGasUsed = transactionResults.reduce((sum, tx) => sum + tx.gasUsed, 0);
     const totalFees = transactionResults.reduce((sum, tx) => sum + parseFloat(tx.fees), 0);
+
+    this.logger.log(`🏁 Contract benchmark completed`, {
+      contractAddress: contract.address,
+      networkId: contract.networkId,
+      totalFunctions: transactionResults.length,
+      successfulFunctions: successfulTxs.length,
+      failedFunctions: transactionResults.length - successfulTxs.length,
+      totalGasUsed,
+      totalFees: totalFees.toFixed(6),
+      results: transactionResults.map(tx => ({
+        function: tx.functionName,
+        success: tx.success,
+        gasUsed: tx.gasUsed,
+        error: tx.error
+      }))
+    });
 
     return {
       networkId: contract.networkId,
@@ -209,20 +256,37 @@ export class BlockchainExecutorService {
     // Generate appropriate parameters for the function
     const params = this.generateFunctionParameters(funcAbi.inputs || []);
     
-    this.logger.debug(`Executing ${functionName} with params: ${JSON.stringify(params)}`);
+    this.logger.debug(`🔧 Executing ${functionName} with params:`, {
+      functionName,
+      params: JSON.stringify(params),
+      paramCount: params.length
+    });
 
     try {
       // Estimate gas first
       let gasEstimate: bigint;
       try {
+        this.logger.debug(`⛽ Estimating gas for ${functionName}...`);
         gasEstimate = await contract[functionName].estimateGas(...params);
+        this.logger.debug(`⛽ Gas estimation successful: ${gasEstimate.toString()}`);
       } catch (estimateError) {
-        this.logger.warn(`Gas estimation failed for ${functionName}, using default: ${estimateError.message}`);
+        this.logger.warn(`⚠️ Gas estimation failed for ${functionName}, using default`, {
+          error: estimateError.message,
+          defaultGas: '100000'
+        });
         gasEstimate = BigInt(100000); // Default gas limit
       }
 
       // Add 20% buffer to gas estimate
       const gasLimit = gasEstimate + (gasEstimate * BigInt(20)) / BigInt(100);
+      
+      this.logger.debug(`📊 Transaction parameters`, {
+        functionName,
+        gasEstimate: gasEstimate.toString(),
+        gasLimit: gasLimit.toString(),
+        maxPriorityFeePerGas: '2 gwei',
+        maxFeePerGas: '20 gwei'
+      });
 
       // Execute the transaction
       const tx = await contract[functionName](...params, {
@@ -231,9 +295,10 @@ export class BlockchainExecutorService {
         maxFeePerGas: ethers.parseUnits('20', 'gwei')
       });
 
-      this.logger.debug(`Transaction submitted: ${tx.hash}`);
+      this.logger.log(`📤 Transaction submitted: ${tx.hash}`);
 
       // Wait for confirmation
+      this.logger.debug(`⏳ Waiting for transaction confirmation...`);
       const receipt = await tx.wait();
       const endTime = Date.now();
       
@@ -245,7 +310,13 @@ export class BlockchainExecutorService {
       const executionTime = endTime - startTime;
       const fees = ethers.formatEther(receipt.gasUsed * receipt.gasPrice || BigInt(0));
 
-      this.logger.log(`Function ${functionName} executed successfully. Gas used: ${gasUsed}, Time: ${executionTime}ms`);
+      this.logger.log(`✅ Function ${functionName} executed successfully`, {
+        txHash: tx.hash,
+        gasUsed,
+        executionTime,
+        fees,
+        status: receipt.status === 1 ? 'success' : 'failed'
+      });
 
       return {
         txHash: tx.hash,
@@ -259,7 +330,11 @@ export class BlockchainExecutorService {
       const endTime = Date.now();
       const executionTime = endTime - startTime;
       
-      this.logger.error(`Function ${functionName} failed: ${error.message}`);
+      this.logger.error(`❌ Function ${functionName} failed`, {
+        error: error.message,
+        executionTime,
+        stack: error.stack
+      });
       
       return {
         txHash: '',

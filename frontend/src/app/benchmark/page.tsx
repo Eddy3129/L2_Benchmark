@@ -10,21 +10,21 @@ export default function BenchmarkPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white mb-2">
-                Multi-Network Benchmark Suite
+                Live Benchmarker
               </h1>
               <p className="text-gray-400 text-sm">
-                Professional contract benchmarking across testnet networks with real transaction analysis.
+                Deployed Smart Contract Analysis across Layer 2 networks
               </p>
             </div>
             <div className="text-right">
               <div className="text-xs text-gray-500">Powered by</div>
-              <div className="text-sm font-semibold text-blue-400">Wagmi & Viem</div>
+              <div className="text-sm font-semibold text-blue-400">Hardhat & Ethers.js</div>
             </div>
           </div>
         </div>
       </div>
-      
-      <BenchmarkIDE />
-    </div>
+    
+    <BenchmarkIDE />
+     </div>
   );
 }

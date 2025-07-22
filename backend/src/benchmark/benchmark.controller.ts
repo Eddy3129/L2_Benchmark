@@ -38,6 +38,17 @@ export class BenchmarkController {
   @Post('wallet-sessions')
   async createWalletSession(@Body() walletBenchmarkData: any): Promise<BenchmarkSession> {
     try {
+      // Debug: Log the received data
+      console.log('=== WALLET BENCHMARK DATA RECEIVED ===');
+      console.log('Full data:', JSON.stringify(walletBenchmarkData, null, 2));
+      console.log('Contracts:', walletBenchmarkData.contracts);
+      if (walletBenchmarkData.contracts && walletBenchmarkData.contracts.length > 0) {
+        console.log('First contract ABI exists:', !!walletBenchmarkData.contracts[0].abi);
+        console.log('First contract ABI length:', walletBenchmarkData.contracts[0].abi?.length || 0);
+        console.log('First contract ABI type:', typeof walletBenchmarkData.contracts[0].abi);
+      }
+      console.log('======================================');
+      
       // Validate required fields for wallet benchmarking
       if (!walletBenchmarkData.walletAddress) {
         throw ValidationUtils.createValidationError(['Wallet address is required for wallet benchmarking']);
@@ -130,6 +141,56 @@ export class BenchmarkController {
         throw error;
       }
       throw ValidationUtils.createInternalServerError('Failed to retrieve sessions by date range');
+    }
+  }
+
+  @Post('wallet-results')
+  async saveWalletBenchmarkResults(@Body() results: any): Promise<BenchmarkSession> {
+    try {
+      console.log('=== SAVING WALLET BENCHMARK RESULTS ===');
+      console.log('Results:', JSON.stringify(results, null, 2));
+      console.log('======================================');
+      
+      // Validate required fields
+      if (!results.walletAddress) {
+        throw ValidationUtils.createValidationError(['Wallet address is required']);
+      }
+      
+      if (!results.contractName) {
+        throw ValidationUtils.createValidationError(['Contract name is required']);
+      }
+      
+      // Convert frontend results to backend session format
+      const sessionData = {
+        sessionName: `Wallet Benchmark - ${results.contractName}`,
+        status: 'completed',
+        benchmarkConfig: {
+          contractName: results.contractName,
+          networks: results.networks || [],
+          totalOperations: results.totalOperations || 0,
+          walletAddress: results.walletAddress,
+          useWalletSigning: true,
+          signedTransactions: results.signedTransactions || 0
+        },
+        benchmarkResults: {
+          results: results.results || {},
+          avgGasUsed: results.avgGasUsed || 0,
+          avgExecutionTime: results.avgExecutionTime || 0
+        },
+        totalOperations: results.totalOperations || 0,
+        avgGasUsed: results.avgGasUsed || 0,
+        avgExecutionTime: results.avgExecutionTime || 0,
+        completedAt: new Date()
+      };
+      
+      // Use dataStorage directly since createSession is disabled
+      return await this.walletBenchmarkService['dataStorage'].create('benchmarkSession', sessionData);
+    } catch (error) {
+      console.error('Error saving wallet benchmark results:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw ValidationUtils.createInternalServerError('Failed to save wallet benchmark results');
     }
   }
 }

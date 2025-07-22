@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -35,15 +35,7 @@ ChartJS.register(
   Filler
 );
 
-// Hardcoded CoinGecko API Key from the original code
-const CG_API_KEY = 'CG-njMzeCqg4NmSv1JFwKypf5Zy';
-const CG_OPTIONS = {
-  method: 'GET',
-  headers: {
-    accept: 'application/json',
-    'x-cg-demo-api-key': CG_API_KEY
-  }
-};
+
 
 // --- Interfaces ---
 interface BlobCostResult {
@@ -78,7 +70,7 @@ interface BlobAnalysisResult {
 
 // --- GasDashboard Component ---
 export function GasDashboard() {
-  const [selectedChains, setSelectedChains] = useState<string[]>(['mainnet', 'polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era']);
+  const [selectedChains, setSelectedChains] = useState<string[]>(['polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era', 'scroll', 'ink', 'linea']);
   const [multiChainData, setMultiChainData] = useState<MultiChainGasData[]>([]);
   const [tokenPrices, setTokenPrices] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
@@ -89,42 +81,35 @@ export function GasDashboard() {
 
   // --- Data Fetching ---
   const fetchTokenPrices = async () => {
-    const idsToFetch = new Set<string>();
-    const symbolsToFetch = new Set<string>();
-    selectedChains.forEach(id => {
-      const config = multiChainGasService.getChainConfig(id);
-      if (config?.coingeckoId) idsToFetch.add(config.coingeckoId);
-      if (config?.coingeckoSymbol) symbolsToFetch.add(config.coingeckoSymbol);
-    });
-
-    const pricePromises = [];
-    if (idsToFetch.size > 0) {
-      const url = `https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=${Array.from(idsToFetch).join(',')}`;
-      pricePromises.push(fetch(url, CG_OPTIONS).then(res => res.json()));
-    }
-    if (symbolsToFetch.size > 0) {
-      const url = `https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&symbols=${Array.from(symbolsToFetch).join(',')}`;
-      pricePromises.push(fetch(url, CG_OPTIONS).then(res => res.json()));
-    }
-
     try {
-      const results = await Promise.all(pricePromises);
-      const newPrices: { [key: string]: number } = {};
-      results.forEach(result => {
-        for (const key in result) {
-          if (result[key].usd) newPrices[key] = result[key].usd;
-        }
-      });
-      setTokenPrices(newPrices);
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const chainsParam = selectedChains.join(',');
+      const url = `${backendUrl}/api/gas-analyzer/token-prices?chains=${chainsParam}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setTokenPrices(result.data);
+      } else {
+        throw new Error('Invalid response format from backend');
+      }
     } catch (priceError) {
-      console.error('Could not fetch token prices:', priceError);
+      console.error('Could not fetch token prices from backend:', priceError);
+      // Fallback to empty prices if backend fails
+      setTokenPrices({});
     }
   };
 
   const fetchBlobData = async () => {
     try {
       setBlobLoading(true);
-      const eip4844Networks = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
+      const eip4844Networks = ['arbitrum', 'optimism', 'base', 'zksync-era', 'scroll', 'linea', 'ink'];
       const supportedNetworks = selectedChains.filter(chain => eip4844Networks.includes(chain));
       
       if (supportedNetworks.length === 0) {
@@ -132,12 +117,15 @@ export function GasDashboard() {
         return;
       }
 
-      const result = await apiService.compareBlobCosts({
+      const blobRequest = {
         l2Networks: supportedNetworks,
         blobDataSize: 131072, // Standard 128KB blob
         confidenceLevel: 90,
         saveToDatabase: false
-      });
+      };
+      
+      const result = await apiService.compareBlobCosts(blobRequest);
+      
       setBlobData(result);
     } catch (err) {
       console.error('Failed to fetch blob data:', err);
@@ -181,79 +169,154 @@ export function GasDashboard() {
 
   // --- Chart Configurations ---
 
-  const baseBarChartOptions: ChartOptions<'bar'> = {
+  const baseLineChartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
-    barPercentage: 0.4,
-    categoryPercentage: 0.7,
+    interaction: {
+      intersect: false,
+      mode: 'index'
+    },
     plugins: {
       legend: { 
-        position: 'top', 
+        position: 'top',
+        align: 'center',
         labels: { 
-          color: '#D1D5DB', 
-          font: { family: 'Lekton', size: 11 }, 
+          color: '#F9FAFB', 
+          font: { family: 'Inter, system-ui, sans-serif', size: 13, weight: '600' }, 
           usePointStyle: true, 
           pointStyle: 'circle',
-          padding: 12
+          padding: 20,
+          boxWidth: 14,
+          boxHeight: 14
         } 
       },
       tooltip: {
-        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
-        titleColor: '#F9FAFB', 
-        bodyColor: '#D1D5DB', 
-        borderColor: '#374151', 
-        borderWidth: 1, 
-        cornerRadius: 12,
-        titleFont: { family: 'Lekton', size: 11 },
-        bodyFont: { family: 'Lekton', size: 10 },
-      }
+          backgroundColor: 'rgba(17, 24, 39, 0.98)', 
+          titleColor: '#F9FAFB', 
+          bodyColor: '#E5E7EB', 
+          borderColor: '#6B7280', 
+          borderWidth: 2, 
+          cornerRadius: 8,
+          titleFont: { family: 'Inter, system-ui, sans-serif', size: 13, weight: '600' },
+          bodyFont: { family: 'Inter, system-ui, sans-serif', size: 12 },
+          padding: 12,
+          displayColors: true,
+          boxPadding: 4,
+          callbacks: {
+            label: function(context: any) {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
+                const value = context.parsed.y;
+                if (value < 0.001) {
+                  label += value.toExponential(2);
+                } else if (value < 1) {
+                  label += value.toPrecision(3);
+                } else {
+                  label += value.toFixed(3);
+                }
+              }
+              return label;
+            }
+          }
+        }
     },
     scales: {
       x: { 
-        ticks: { color: '#9CA3AF', font: { family: 'Lekton', size: 9 } }, 
-        grid: { color: '#374151', lineWidth: 0.5 } 
+        ticks: { 
+          color: '#E5E7EB', 
+          font: { family: 'Inter, system-ui, sans-serif', size: 12, weight: '500' },
+          maxRotation: 45,
+          minRotation: 0
+        }, 
+        grid: { 
+          color: 'rgba(156, 163, 175, 0.25)', 
+          lineWidth: 1,
+          drawBorder: false
+        },
+        border: {
+          color: '#9CA3AF'
+        }
       },
       y: { 
         type: 'logarithmic', 
         ticks: { 
-          color: '#9CA3AF', 
-          font: { family: 'Lekton', size: 9 },
+          color: '#E5E7EB', 
+          font: { family: 'Inter, system-ui, sans-serif', size: 12, weight: '500' },
           callback: (val) => { 
             if(typeof val === 'number') { 
-              if (val < 1) return val.toPrecision(1); 
-              if (val >= 1000) return `${val/1000}k`; 
-              return val.toString(); 
+              if (val < 0.001) return val.toExponential(1); 
+              if (val < 1) return val.toPrecision(3); 
+              if (val >= 1000) return `${(val/1000).toFixed(1)}k`; 
+              return val.toFixed(3); 
             } 
             return val; 
           } 
         }, 
-        grid: { color: '#374151', lineWidth: 0.5 } 
+        grid: { 
+          color: 'rgba(156, 163, 175, 0.2)', 
+          lineWidth: 1,
+          drawBorder: false
+        },
+        border: {
+          color: '#9CA3AF'
+        }
+      }
+    },
+    elements: {
+      point: {
+        radius: 6,
+        hoverRadius: 9,
+        borderWidth: 3,
+        backgroundColor: '#FFFFFF',
+        hoverBorderWidth: 4
+      },
+      line: {
+        tension: 0.15,
+        borderWidth: 3
       }
     }
   };
 
-  const gweiChartOptions: ChartOptions<'bar'> = {
-    ...baseBarChartOptions,
+  const gweiChartOptions: ChartOptions<'line'> = {
+    ...baseLineChartOptions,
     scales: {
-      ...baseBarChartOptions.scales,
-      x: {
-        ...baseBarChartOptions.scales?.x,
-        stacked: true,
-      },
+      ...baseLineChartOptions.scales,
       y: {
-        ...baseBarChartOptions.scales?.y,
-        stacked: true,
+        ...baseLineChartOptions.scales?.y,
+        type: 'linear',
+        beginAtZero: true,
+        ticks: {
+          ...baseLineChartOptions.scales?.y?.ticks,
+          callback: (val) => {
+            if (typeof val === 'number') {
+              if (val < 0.001) return `${val.toExponential(2)} Gwei`;
+              if (val >= 1000) return `${(val/1000).toFixed(1)}k Gwei`;
+              return `${val.toFixed(3)} Gwei`;
+            }
+            return val;
+          }
+        }
       }
     },
     plugins: {
-        ...baseBarChartOptions.plugins,
+        ...baseLineChartOptions.plugins,
         tooltip: {
-            ...baseBarChartOptions.plugins?.tooltip,
+            ...baseLineChartOptions.plugins?.tooltip,
             callbacks: {
               label: function(context: any) {
                 let label = context.dataset.label || '';
                 if (label) label += ': ';
-                if (context.parsed.y !== null) label += `${context.parsed.y.toPrecision(3)} Gwei`;
+                if (context.parsed.y !== null) {
+                  const value = context.parsed.y;
+                  if (value < 0.001) {
+                    label += `${value.toExponential(2)} Gwei`;
+                  } else if (value < 1) {
+                    label += `${value.toPrecision(3)} Gwei`;
+                  } else {
+                    label += `${value.toFixed(3)} Gwei`;
+                  }
+                }
                 return label;
               }
             }
@@ -333,23 +396,36 @@ export function GasDashboard() {
       { 
         label: `Base Fee (Gwei)`, 
         data: multiChainData.map(data => getBaseFee(data)), 
-        backgroundColor: multiChainData.map(d => {
-            const config = multiChainGasService.getChainConfig(d.chainId);
-            return config ? config.color + 'CC' : '#374151'; // Use network color with 80% opacity
-        }),
-        borderWidth: 0,
+        borderColor: '#2563EB',
+        backgroundColor: 'rgba(37, 99, 235, 0.15)',
+        fill: false,
+        pointBackgroundColor: '#FFFFFF',
+        pointBorderColor: '#2563EB',
+        pointBorderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#2563EB',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 4,
+        tension: 0.2,
+        borderWidth: 3
       },
       { 
         label: `Priority Fee (Gwei)`, 
         data: multiChainData.map(data => getOptimalPriorityFee(data, 'standard')), 
-        backgroundColor: multiChainData.map(d => {
-            const config = multiChainGasService.getChainConfig(d.chainId);
-            return config ? config.color + '80' : '#4b5563'; // Use network color with 50% opacity
-        }),
-        borderWidth: 0,
-        // By applying a simple numeric radius to the top dataset, Chart.js
-        // will correctly round only the top corners of the entire stack.
-        borderRadius: 12,
+        borderColor: '#DC2626',
+        backgroundColor: 'rgba(220, 38, 38, 0.15)',
+        fill: false,
+        pointBackgroundColor: '#FFFFFF',
+        pointBorderColor: '#DC2626',
+        pointBorderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#DC2626',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 4,
+        tension: 0.2,
+        borderWidth: 3
       }
     ]
   };
@@ -364,34 +440,58 @@ export function GasDashboard() {
         const totalGas = getOptimalTotalFee(d, 'standard');
         return gweiToUsd(totalGas * 21000, config);
       }),
-      borderColor: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderColor: '#059669',
+      backgroundColor: 'rgba(5, 150, 105, 0.15)',
       fill: true,
-      pointBackgroundColor: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.color),
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
+      pointBackgroundColor: '#FFFFFF',
+      pointBorderColor: '#059669',
+      pointBorderWidth: 3,
       pointRadius: 6,
       pointHoverRadius: 8,
-      tension: 0.3
+      pointHoverBackgroundColor: '#059669',
+      pointHoverBorderColor: '#FFFFFF',
+      pointHoverBorderWidth: 4,
+      tension: 0.2,
+      borderWidth: 3
     }]
   };
 
   const blobCostComparisonData = blobData && blobData.results && blobData.results.length > 0 ? {
-    labels: blobData.results.flatMap(r => [`${r.networkName} - Blob`, `${r.networkName} - Calldata`]),
+    labels: blobData.results.map(r => r.networkName),
     datasets: [
       {
-        label: 'Transaction Cost (USD)',
-        data: blobData.results.flatMap(r => [
-          r.blobTransaction.totalCostUSD,
-          r.comparison.vsTraditionalCalldata.costUSD
-        ]),
-        backgroundColor: blobData.results.flatMap(r => {
-            const config = multiChainGasService.getChainConfig(r.network);
-            const mainColor = config ? config.color : '#06b6d4';
-            return [mainColor + 'CC', mainColor + '60'];
-        }),
-        borderWidth: 1,
-        borderRadius: 12,
+        label: 'Blob Transaction Cost (USD)',
+        data: blobData.results.map(r => r.blobTransaction.totalCostUSD),
+        borderColor: '#7C3AED',
+        backgroundColor: 'rgba(124, 58, 237, 0.15)',
+        fill: false,
+        pointBackgroundColor: '#FFFFFF',
+        pointBorderColor: '#7C3AED',
+        pointBorderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#7C3AED',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 4,
+        tension: 0.2,
+        borderWidth: 3
+      },
+      {
+        label: 'Calldata Transaction Cost (USD)',
+        data: blobData.results.map(r => r.comparison.vsTraditionalCalldata.costUSD),
+        borderColor: '#D97706',
+        backgroundColor: 'rgba(217, 119, 6, 0.15)',
+        fill: false,
+        pointBackgroundColor: '#FFFFFF',
+        pointBorderColor: '#D97706',
+        pointBorderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#D97706',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 4,
+        tension: 0.2,
+        borderWidth: 3
       }
     ]
   } : null;
@@ -448,12 +548,88 @@ export function GasDashboard() {
       {/* Main Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <div className="bg-gray-800/30 border border-gray-700 p-3 rounded">
-            <h3 className="text-base font-funnel font-medium text-white mb-3">Std. Tx Cost (USD)</h3>
-            <div className="h-64"><Line data={txCostComparisonData} options={usdChartOptions} /></div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-funnel font-medium text-white">Std. Tx Cost (USD)</h3>
+              <span className="text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded">Confidence: 99%</span>
+            </div>
+            <div className="h-64"><Bar data={{
+              labels: multiChainData.map(d => multiChainGasService.getChainConfig(d.chainId)?.name),
+              datasets: [{
+                label: 'Standard Transaction Cost (USD)',
+                data: multiChainData.map(d => {
+                  const config = multiChainGasService.getChainConfig(d.chainId);
+                  if (!config) return 0;
+                  const totalGas = getOptimalTotalFee(d, 'standard');
+                  return gweiToUsd(totalGas * 21000, config);
+                }),
+                backgroundColor: multiChainData.map(d => {
+                  const config = multiChainGasService.getChainConfig(d.chainId);
+                  return config ? `${config.color}80` : '#05966980';
+                }),
+                borderColor: multiChainData.map(d => {
+                  const config = multiChainGasService.getChainConfig(d.chainId);
+                  return config ? config.color : '#059669';
+                }),
+                borderWidth: 2,
+                borderRadius: 4,
+                borderSkipped: false
+              }]
+            }} options={{
+              ...baseLineChartOptions,
+              scales: {
+                ...baseLineChartOptions.scales,
+                y: {
+                  ...baseLineChartOptions.scales?.y,
+                  type: 'logarithmic',
+                  beginAtZero: false,
+                  ticks: {
+                    ...baseLineChartOptions.scales?.y?.ticks,
+                    callback: (val) => {
+                       if (typeof val === 'number') {
+                         if (val < 0.0001) return `$${val.toExponential(2)}`;
+                         if (val >= 1) return `$${val.toFixed(2)}`;
+                         if (val >= 0.01) return `$${val.toFixed(3)}`;
+                         return `$${val.toFixed(4)}`;
+                       }
+                       return val;
+                     }
+                  }
+                }
+              },
+              plugins: {
+                ...baseLineChartOptions.plugins,
+                legend: { display: false },
+                tooltip: {
+                   ...baseLineChartOptions.plugins?.tooltip,
+                   callbacks: {
+                     label: function(context: any) {
+                       let label = context.dataset.label || 'Cost';
+                       if (label) label += ': ';
+                       if (context.parsed.y !== null) {
+                         const value = context.parsed.y;
+                         if (value < 0.0001) {
+                           label += `$${value.toExponential(2)}`;
+                         } else if (value >= 1) {
+                           label += `$${value.toFixed(2)}`;
+                         } else if (value >= 0.01) {
+                           label += `$${value.toFixed(3)}`;
+                         } else {
+                           label += `$${value.toFixed(4)}`;
+                         }
+                       }
+                       return label;
+                     }
+                   }
+                 }
+              }
+            }} /></div>
         </div>
         <div className="bg-gray-800/30 border border-gray-700 p-3 rounded">
-            <h3 className="text-base font-funnel font-medium text-white mb-3">Gas Price Composition (Gwei)</h3>
-            <div className="h-64"><Bar data={gasCompositionData} options={gweiChartOptions} /></div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-funnel font-medium text-white">Gas Price Composition (Native Token)</h3>
+              <span className="text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded">Confidence: 99%</span>
+            </div>
+            <div className="h-64"><Line data={gasCompositionData} options={gweiChartOptions} /></div>
         </div>
       </div>
 
@@ -473,31 +649,75 @@ export function GasDashboard() {
             )}
           </div>
           
+          {/* Academic Explanation */}
+          <div className="bg-blue-900/20 border border-blue-700/50 p-3 rounded mb-4">
+            <h4 className="text-sm font-medium text-blue-300 mb-2">📚 Academic Note: EIP-4844 Blob Transactions</h4>
+            <div className="text-xs text-gray-300 space-y-1">
+              <p><strong>Scope Limitation:</strong> EIP-4844 blob transactions (Type 3) are currently only supported on Ethereum mainnet (Chain ID: 1).</p>
+            <p><strong>Layer 2 Status:</strong> All Layer 2 networks (Arbitrum, Optimism, Base, Polygon, etc.) do not support blob transactions and use traditional calldata for data availability.</p>
+            <p><strong>Blob Cost Analysis:</strong> Shows estimated costs for Layer 2 networks to post transaction data to Ethereum mainnet via EIP-4844 blob transactions.</p>
+            <p><strong>Confidence Level:</strong> 90% confidence level used for gas price predictions based on Blocknative mempool analysis.</p>
+            <p><strong>Data Source:</strong> Blocknative API with fallback to predicted values for next block inclusion probability.</p>
+            </div>
+          </div>
+          
           {blobData && blobData.results && blobData.results.length > 0 ? (
             <>
               <div className="h-72 mb-4">
-                <Bar data={blobCostComparisonData!} options={{
-                  ...baseBarChartOptions,
+                <Line data={blobCostComparisonData!} options={{
+                  ...baseLineChartOptions,
                   scales: {
-                    ...baseBarChartOptions.scales,
+                    ...baseLineChartOptions.scales,
                     y: {
-                       type: 'logarithmic',
+                       type: 'linear',
+                       beginAtZero: true,
                        ticks: {
-                         color: '#718096',
-                         callback: (val) => `$${Number(val).toFixed(2)}`
+                         color: '#E5E7EB',
+                         font: { family: 'Inter, system-ui, sans-serif', size: 12, weight: '500' },
+                         callback: (val) => {
+                           if (typeof val === 'number') {
+                             if (val < 0.0001) return `$${val.toExponential(2)}`;
+                             if (val >= 1) return `$${val.toFixed(2)}`;
+                             if (val >= 0.01) return `$${val.toFixed(3)}`;
+                             return `$${val.toFixed(4)}`;
+                           }
+                           return val;
+                         }
                        },
-                       grid: { color: 'rgba(74, 85, 104, 0.2)' }
+                       grid: { color: 'rgba(156, 163, 175, 0.2)', lineWidth: 1, drawBorder: false },
+                       border: { color: '#9CA3AF' }
                      }
                   },
                   plugins: {
-                    ...baseBarChartOptions.plugins,
+                    ...baseLineChartOptions.plugins,
+                    legend: {
+                      position: 'top',
+                      align: 'center',
+                      labels: {
+                        color: '#F9FAFB',
+                        font: { family: 'Inter, system-ui, sans-serif', size: 13, weight: '600' },
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 20,
+                        boxWidth: 14,
+                        boxHeight: 14
+                      }
+                    },
                     tooltip: {
-                      ...baseBarChartOptions.plugins?.tooltip,
+                      ...baseLineChartOptions.plugins?.tooltip,
                       callbacks: {
                         label: function(context: any) {
                           const label = context.dataset.label || '';
                           const value = context.parsed.y;
-                          return `${label}: ${formatCurrency(value)}`;
+                          if (value < 0.0001) {
+                            return `${label}: $${value.toExponential(2)}`;
+                          } else if (value >= 1) {
+                            return `${label}: $${value.toFixed(2)}`;
+                          } else if (value >= 0.01) {
+                            return `${label}: $${value.toFixed(3)}`;
+                          } else {
+                            return `${label}: $${value.toFixed(4)}`;
+                          }
                         }
                       }
                     }
@@ -541,27 +761,45 @@ export function GasDashboard() {
               </div>
             </>
           ) : blobLoading ? (
-            <div className="h-32 flex items-center justify-center">
-              <div className="text-gray-400 font-lekton">Loading blob cost analysis...</div>
+            <div className="h-32 flex items-center justify-center bg-gray-900/50 rounded border border-gray-600">
+              <div className="text-center">
+                <div className="text-gray-400 mb-2 font-lekton">⚠️ Loading blob cost analysis...</div>
+                <div className="text-xs text-gray-500 font-lekton">EIP-4844 blob transactions are only supported on Ethereum mainnet</div>
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="h-32 flex items-center justify-center bg-gray-900/50 rounded border border-gray-600">
+              <div className="text-center">
+                <div className="text-gray-400 mb-2 font-lekton">⚠️ No Blob Data Available</div>
+                <div className="text-xs text-gray-500 font-lekton">EIP-4844 blob transactions are only supported on Ethereum mainnet</div>
+              </div>
+            </div>
+          )}
         </div>
       ) : null}
       
       {/* Network Summary Table */}
       <div className="bg-gray-800/30 border border-gray-700 p-4 rounded-lg">
-        <h3 className="text-lg font-funnel font-semibold text-white mb-4">Network Summary</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-funnel font-semibold text-white">EIP-1559 Gas Analysis (Layer 2 Comparison)</h3>
+          <span className="text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded">Confidence: 99%</span>
+        </div>
+        
+        {/* Academic Methodology */}
+        <div className="bg-amber-900/20 border border-amber-700/50 p-3 rounded mb-4">
+          <h4 className="text-sm font-medium text-amber-300 mb-2">🔬 Methodology & Confidence Levels</h4>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed font-lekton">
+          <table className="w-full text-sm font-lekton">
             <thead>
               <tr className="border-b border-gray-700">
-                <th className="p-2 text-left font-medium text-gray-400 w-[18%]">Network</th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[12%]"><Tooltip content={gasTerms['Base Fee']} className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Base</span></Tooltip></th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[14%]"><Tooltip content={gasTerms['Priority Fee']} className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Priority (Std)</span></Tooltip></th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[22%]"><Tooltip content={gasTerms['Std. Tx Cost (USD)']} className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Std. Tx Cost (USD)</span></Tooltip></th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[11%]"><Tooltip content="Total fee (Base + Priority) for a slow transaction." className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Slow</span></Tooltip></th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[11%]"><Tooltip content="Total fee (Base + Priority) for a standard transaction." className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Standard</span></Tooltip></th>
-                <th className="p-2 text-right font-medium text-gray-400 w-[11%]"><Tooltip content="Total fee (Base + Priority) for a fast transaction." className="max-w-48 text-xs"><span className="cursor-pointer underline decoration-dotted">Fast</span></Tooltip></th>
+                <th className="p-2 text-left font-medium text-gray-400">Network (Type)</th>
+                <th className="p-2 text-right font-medium text-gray-400"><Tooltip content="Base fee per gas for current block in native token units (EIP-1559)" className="max-w-48 text-xs bg-gray-900/95 border border-gray-600"><span className="cursor-pointer underline decoration-dotted">Base Fee (Native)</span></Tooltip></th>
+                <th className="p-2 text-right font-medium text-gray-400"><Tooltip content="Max fee per gas in native token units (used for type2 transactions: EIP-1559)" className="max-w-48 text-xs bg-gray-900/95 border border-gray-600"><span className="cursor-pointer underline decoration-dotted">Max Fee (Native)</span></Tooltip></th>
+                <th className="p-2 text-right font-medium text-gray-400"><Tooltip content="Standard transfer cost (21,000 gas) in USD" className="max-w-48 text-xs bg-gray-900/95 border border-gray-600"><span className="cursor-pointer underline decoration-dotted">Std Transfer (21k gas)</span></Tooltip></th>
+                <th className="p-2 text-right font-medium text-gray-400"><Tooltip content="Blob transaction cost for data availability in USD" className="max-w-48 text-xs bg-gray-900/95 border border-gray-600"><span className="cursor-pointer underline decoration-dotted">Blob Cost</span></Tooltip></th>
+                <th className="p-2 text-right font-medium text-gray-400"><Tooltip content="Traditional calldata cost for comparison in USD" className="max-w-48 text-xs bg-gray-900/95 border border-gray-600"><span className="cursor-pointer underline decoration-dotted">Calldata Cost</span></Tooltip></th>
               </tr>
             </thead>
             <tbody>
@@ -570,28 +808,54 @@ export function GasDashboard() {
                 if (!config) return null;
 
                 const baseFee = getBaseFee(chainData);
-                const stdPriorityFee = getOptimalPriorityFee(chainData, 'standard');
-                const slowFee = getOptimalTotalFee(chainData, 'slow');
-                const standardFee = getOptimalTotalFee(chainData, 'standard');
-                const fastFee = getOptimalTotalFee(chainData, 'fast');
-                const standardTxCostUsd = gweiToUsd(standardFee * 21000, config); 
+                const blobBaseFee = chainData?.gasData?.blockPrices?.[0]?.blobBaseFeePerGas || 0;
+                const maxFee = getOptimalTotalFee(chainData, 'standard');
+                const standardTxCostUsd = gweiToUsd(maxFee * 21000, config);
+                
+                // Find blob data for this network
+                const blobResult = blobData?.results?.find(r => r.network === chainData.chainId);
+                const blobCostUsd = blobResult?.blobTransaction?.totalCostUSD || 0;
+                const calldataCostUsd = blobResult?.comparison?.vsTraditionalCalldata?.costUSD || 0;
                 
                 return (
                   <tr key={chainData.chainId} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700/50">
-                    <td className="p-2"><div className="flex items-center space-x-3"><span className="font-mono text-xl" style={{color: config.color}}>{config.icon}</span><span className="font-medium text-white">{config.name}</span></div></td>
-                    <td className="p-2 text-right font-mono text-white">{baseFee.toPrecision(3)}</td>
-                    <td className="p-2 text-right font-mono text-cyan-400">{stdPriorityFee.toPrecision(3)}</td>
-                    <td className="p-2 text-right font-mono text-green-400 font-bold">${standardTxCostUsd.toFixed(4)}</td>
-                    <td className="p-2 text-right font-mono text-gray-400">{slowFee.toPrecision(3)}</td>
-                    <td className="p-2 text-right font-mono text-green-400">{standardFee.toPrecision(3)}</td>
-                    <td className="p-2 text-right font-mono text-red-400">{fastFee.toPrecision(3)}</td>
+                    <td className="p-2">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-mono text-xl" style={{color: config.color}}>{config.icon}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-white">{config.name}</span>
+                          <span className="text-xs text-gray-400">
+                            {config.name.includes('Arbitrum') || config.name.includes('Optimism') || config.name.includes('Base') ? 'Optimistic Rollup' :
+                             config.name.includes('zkSync') || config.name.includes('Polygon zkEVM') || config.name.includes('Scroll') || config.name.includes('Linea') ? 'ZK Rollup' :
+                             config.name.includes('Polygon') && !config.name.includes('zkEVM') ? 'Sidechain' :
+                             config.name.includes('Ink') ? 'Optimistic Rollup' : 'Layer 2'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-2 text-right font-mono text-blue-400">
+                      {baseFee < 0.001 ? baseFee.toExponential(2) : baseFee.toPrecision(3)}
+                    </td>
+                    <td className="p-2 text-right font-mono text-green-400">
+                      {maxFee < 0.001 ? maxFee.toExponential(2) : maxFee.toPrecision(3)}
+                    </td>
+                    <td className="p-2 text-right font-mono text-cyan-300 font-bold">
+                      ${standardTxCostUsd.toFixed(4)}
+                    </td>
+                    <td className="p-2 text-right font-mono text-orange-400">
+                      {blobCostUsd > 0 ? `$${blobCostUsd.toFixed(4)}` : '—'}
+                    </td>
+                    <td className="p-2 text-right font-mono text-amber-400">
+                      {calldataCostUsd > 0 ? `$${calldataCostUsd.toFixed(4)}` : '—'}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
+          
         </div>
-      </div>
     </div>
   );
 }

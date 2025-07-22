@@ -5,7 +5,6 @@ export const env = {
   // API Keys
   ETHERSCAN_API_KEY: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || '',
   ALCHEMY_API_KEY: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '',
-  BLOCKNATIVE_API_KEY: process.env.NEXT_PUBLIC_BLOCKNATIVE_API_KEY || '',
   
   // Backend Configuration
   BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001',

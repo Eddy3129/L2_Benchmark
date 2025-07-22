@@ -168,7 +168,15 @@ export interface ContractDeployment {
 
 // Test contract deployments for benchmarking
 export const TEST_CONTRACTS: Record<string, Record<string, ContractDeployment>> = {
-  arbitrumSepolia: {
+  // Arbitrum Sepolia (Chain ID: 421614)
+  '421614': {
+    myNFT: {
+      address: '0x10025Ae0c53473E68Ff7DaeD5236436CaE604e56', // Actual deployed MyNFT contract
+      name: 'MyNFT',
+      abi: STANDARD_ABIS.ERC721,
+      type: 'ERC721',
+      verified: true
+    },
     tokenA: {
       address: '0x1234567890123456789012345678901234567890', // Replace with actual deployed address
       name: 'TokenA',
@@ -191,7 +199,8 @@ export const TEST_CONTRACTS: Record<string, Record<string, ContractDeployment>> 
       verified: true
     }
   },
-  optimismSepolia: {
+  // Optimism Sepolia (Chain ID: 11155420)
+  '11155420': {
     tokenA: {
       address: '0x4567890123456789012345678901234567890123', // Replace with actual deployed address
       name: 'TokenA',
@@ -207,7 +216,8 @@ export const TEST_CONTRACTS: Record<string, Record<string, ContractDeployment>> 
       verified: true
     }
   },
-  baseSepolia: {
+  // Base Sepolia (Chain ID: 84532)
+  '84532': {
     tokenA: {
       address: '0x6789012345678901234567890123456789012345', // Replace with actual deployed address
       name: 'TokenA',
@@ -223,7 +233,8 @@ export const TEST_CONTRACTS: Record<string, Record<string, ContractDeployment>> 
       verified: true
     }
   },
-  polygonAmoy: {
+  // Polygon Amoy (Chain ID: 80002)
+  '80002': {
     tokenA: {
       address: '0x8901234567890123456789012345678901234567', // Replace with actual deployed address
       name: 'TokenA',
@@ -243,16 +254,21 @@ export const TEST_CONTRACTS: Record<string, Record<string, ContractDeployment>> 
 
 // Function to get a test contract by address and network
 export const getTestContract = (address: string, chainId: number): ContractDeployment | undefined => {
-  // This is a placeholder implementation. In a real app, you'd have a more robust way
-  // to look up contracts by chainId and address.
-  for (const network in TEST_CONTRACTS) {
-    for (const contractKey in TEST_CONTRACTS[network]) {
-      const contract = TEST_CONTRACTS[network][contractKey];
-      if (contract.address.toLowerCase() === address.toLowerCase()) {
-        return contract;
-      }
+  // Look up contracts by both chainId and address to ensure we get the right network
+  const networkId = chainId.toString();
+  const networkContracts = TEST_CONTRACTS[networkId];
+  
+  if (!networkContracts) {
+    return undefined;
+  }
+  
+  for (const contractKey in networkContracts) {
+    const contract = networkContracts[contractKey];
+    if (contract.address.toLowerCase() === address.toLowerCase()) {
+      return contract;
     }
   }
+  
   return undefined;
 };
 

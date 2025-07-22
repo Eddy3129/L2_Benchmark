@@ -281,7 +281,7 @@ export default function AnalysisPage() {
         const successRate = session.results.transactions.totalTransactions > 0 
           ? (Number(session.results.transactions.successfulTransactions) || 0) / (Number(session.results.transactions.totalTransactions) || 1) * 100
           : 0;
-        csvContent += `"${session.sessionName}",${session.totalOperations || 0},${session.avgGasUsed || 0},${Number(session.avgExecutionTime) || 0},${successRate.toFixed(2)}%,${session.results.transactions.totalGasUsed || 0},${session.results.transactions.totalFees || 0},"${session.createdAt}"\n`;
+        csvContent += `"${session.sessionName}",${session.totalOperations || 0},${session.avgGasUsed || 0},${session.avgExecutionTime ? ((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2) : 0},${successRate.toFixed(2)}%,${session.results.transactions.totalGasUsed || 0},${session.results.transactions.totalFees || 0},"${session.createdAt}"\n`;
       });
     }
 
@@ -712,9 +712,9 @@ export default function AnalysisPage() {
                     <p className="text-sm font-medium text-gray-400">Avg Execution Time</p>
                     <p className="text-xl font-bold text-white">
                       {benchmarkSessions.length > 0 
-                        ? (benchmarkSessions.reduce((sum, s) => sum + (Number(s.avgExecutionTime) || 0), 0) / benchmarkSessions.length).toFixed(2)
+                        ? (benchmarkSessions.reduce((sum, s) => sum + (Number(s.avgExecutionTime) || 0), 0) / benchmarkSessions.length / 1000).toFixed(2)
                         : '0.00'
-                      }ms
+                      }s
                     </p>
                   </div>
                   <div className="p-3 bg-yellow-500/20 rounded-lg">
@@ -786,7 +786,7 @@ export default function AnalysisPage() {
                               {(Number(session.avgGasUsed) || 0).toLocaleString()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                              {(Number(session.avgExecutionTime) || 0).toFixed(2)}ms
+                              {((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2)}s
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -856,7 +856,7 @@ export default function AnalysisPage() {
                                       <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
                                           <span className="text-gray-400">Avg Execution Time:</span>
-                                          <span className="text-white font-mono">{(Number(session.avgExecutionTime) || 0).toFixed(2)}ms</span>
+                                          <span className="text-white font-mono">{((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2)}s</span>
                                         </div>
                                         <div className="flex justify-between">
                                           <span className="text-gray-400">Total Operations:</span>

@@ -1,290 +1,442 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Plus, Trash2, AlertCircle, Wallet, Check } from 'lucide-react';
-import { NetworkConfig } from '@/types/shared';
-import { abiService } from '@/lib/abiService';
-import { WalletConnect } from './WalletConnect';
+import React, { useState, useEffect } from 'react';
+import { Play, Plus, Trash2, RefreshCw, Settings, Network, Code2, AlertCircle } from 'lucide-react';
+import { getTestnetNetworks, getNetworkDisplayName, getNetworkColor } from '@/config/networks';
 
-interface BenchmarkContract {
+interface Contract {
   networkId: string;
   address: string;
   name?: string;
-  abi?: any[];
 }
 
-interface BenchmarkProgress {
-  stage: 'idle' | 'configuring' | 'executing' | 'analyzing' | 'complete';
-  progress: number;
-  message: string;
-  currentNetwork?: string;
-  currentFunction?: string;
+interface BenchmarkFunction {
+  name: string;
+  inputs: {
+    name: string;
+    type: string;
+    internalType?: string;
+  }[];
+  stateMutability: string;
+}
+
+interface FunctionParameters {
+  [functionName: string]: {
+    [paramName: string]: string;
+  };
 }
 
 interface BenchmarkConfigTabProps {
-  contracts: BenchmarkContract[];
-  onAddContract: (contract: BenchmarkContract) => void;
-  onRemoveContract: (networkId: string) => void;
-  onStartBenchmark: () => void;
-  benchmarkProgress: BenchmarkProgress;
-  error: string | null;
-  isBenchmarking: boolean;
-  testnetNetworks: NetworkConfig[];
-  useWalletSigning: boolean;
-  onToggleWalletSigning: (enabled: boolean) => void;
-  isWalletConnected: boolean;
-  walletAddress?: string;
+  onBenchmarkComplete: (result: any) => void;
+  onSwitchToResults: () => void;
 }
 
-export function BenchmarkConfigTab({
-  contracts,
-  onAddContract,
-  onRemoveContract,
-  onStartBenchmark,
-  benchmarkProgress,
-  error,
-  isBenchmarking,
-  testnetNetworks,
-  useWalletSigning,
-  onToggleWalletSigning,
-  isWalletConnected,
-  walletAddress
-}: BenchmarkConfigTabProps) {
-  const [selectedNetwork, setSelectedNetwork] = useState<string>('');
-  const [contractAddress, setContractAddress] = useState<string>('');
-  const [isLoadingAbi, setIsLoadingAbi] = useState(false);
-  const [abiError, setAbiError] = useState<string | null>(null);
+const API_BASE = 'http://localhost:3001';
 
-  const handleAddContract = async () => {
-    if (!selectedNetwork || !contractAddress) {
-      setAbiError('Please select a network and enter a contract address.');
-      return;
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
-      setAbiError('Please enter a valid contract address.');
-      return;
-    }
-    if (contracts.find(c => c.networkId === selectedNetwork)) {
-      setAbiError('Contract already added for this network.');
-      return;
-    }
-    setIsLoadingAbi(true);
-    setAbiError(null);
+export default function BenchmarkConfigTab({ onBenchmarkComplete, onSwitchToResults }: BenchmarkConfigTabProps) {
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [selectedFunctions, setSelectedFunctions] = useState<string[]>([]);
+  const [availableFunctions, setAvailableFunctions] = useState<BenchmarkFunction[]>([]);
+  const [functionParameters, setFunctionParameters] = useState<FunctionParameters>({});
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newContract, setNewContract] = useState({ networkId: '', address: '', name: '' });
+  const [validatingContract, setValidatingContract] = useState(false);
+  const [progress, setProgress] = useState({ stage: 'idle', message: 'Ready to benchmark' });
+
+  const testnetNetworks = getTestnetNetworks();
+
+  const validateContract = async (address: string, networkId: string) => {
+    setValidatingContract(true);
     try {
-      const networkConfig = testnetNetworks.find(n => n.id === selectedNetwork);
-      if (!networkConfig) {
-        throw new Error('Network configuration not found');
+      const response = await fetch(`${API_BASE}/api/private-benchmark/validate-contract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, networkId })
+      });
+      const data = await response.json();
+      
+      if (data.success && data.valid) {
+        // Filter out owner-only functions
+        const ownerOnlyPatterns = ['onlyOwner', 'owner', 'admin', 'mint', 'burn', 'pause', 'unpause'];
+        const usableFunctions = data.functions.filter((func: BenchmarkFunction) => {
+          const isOwnerOnly = ownerOnlyPatterns.some(pattern => 
+            func.name.toLowerCase().includes(pattern.toLowerCase())
+          );
+          return !isOwnerOnly;
+        });
+        
+        if (usableFunctions.length === 0) {
+          setError('No usable functions found. All functions appear to be owner-only or restricted.');
+          return false;
+        }
+        
+        setAvailableFunctions(usableFunctions);
+        setSelectedFunctions(usableFunctions.slice(0, 3).map((f: BenchmarkFunction) => f.name));
+        
+        // Initialize parameter fields for each function
+        const initialParams: FunctionParameters = {};
+        usableFunctions.forEach((func: BenchmarkFunction) => {
+          initialParams[func.name] = {};
+          func.inputs.forEach(input => {
+            initialParams[func.name][input.name] = '';
+          });
+        });
+        setFunctionParameters(initialParams);
+        
+        return true;
+      } else {
+        setError(data.error || 'Contract validation failed');
+        return false;
       }
-      const abiData = await abiService.fetchContractAbi(contractAddress, networkConfig.chainId);
-      const contract: BenchmarkContract = {
-        networkId: selectedNetwork,
-        address: contractAddress,
-        name: abiData.contractName || `Contract on ${testnetNetworks.find(n => n.id === selectedNetwork)?.name}`,
-        abi: abiData.abi
-      };
-      onAddContract(contract);
-      setContractAddress('');
-      setSelectedNetwork('');
-    } catch (error: any) {
-      console.error('Failed to fetch ABI:', error);
-      setAbiError(error.message || 'Failed to fetch contract ABI.');
+    } catch (error) {
+      setError('Failed to validate contract');
+      return false;
     } finally {
-      setIsLoadingAbi(false);
+      setValidatingContract(false);
     }
   };
 
-  const getNetworkConfig = (networkId: string) => {
-    return testnetNetworks.find(n => n.id === networkId);
+  const addContract = async () => {
+    if (!newContract.address || !newContract.networkId) {
+      setError('Please provide contract address and select a network');
+      return;
+    }
+
+    const isValid = await validateContract(newContract.address, newContract.networkId);
+    if (isValid) {
+      setContracts(prev => [...prev, {
+        ...newContract,
+        name: newContract.name || `Contract_${newContract.address.slice(0, 8)}`
+      }]);
+      setNewContract({ networkId: '', address: '', name: '' });
+      setError(null);
+    }
+  };
+
+  const removeContract = (index: number) => {
+    setContracts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const startBenchmark = async () => {
+    if (contracts.length === 0) {
+      setError('Please add at least one contract');
+      return;
+    }
+
+    if (selectedFunctions.length === 0) {
+      setError('Please select at least one function');
+      return;
+    }
+
+    // Validate that all required parameters are provided
+    const missingParams: string[] = [];
+    selectedFunctions.forEach(funcName => {
+      const func = availableFunctions.find(f => f.name === funcName);
+      if (func && func.inputs.length > 0) {
+        func.inputs.forEach(input => {
+          const paramValue = functionParameters[funcName]?.[input.name];
+          if (!paramValue || paramValue.trim() === '') {
+            missingParams.push(`${funcName}.${input.name} (${input.type})`);
+          }
+        });
+      }
+    });
+
+    if (missingParams.length > 0) {
+      setError(`Missing required parameters: ${missingParams.join(', ')}`);
+      return;
+    }
+
+    setIsRunning(true);
+    setError(null);
+    setProgress({ stage: 'configuring', message: 'Configuring benchmark...' });
+
+    try {
+      const response = await fetch(`${API_BASE}/api/private-benchmark/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contracts: contracts.map(c => ({ networkId: c.networkId, address: c.address, name: c.name })),
+          functions: selectedFunctions,
+          parameters: functionParameters
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setProgress({ stage: 'executing', message: 'Executing transactions...' });
+        // Poll for results and switch to results tab when complete
+        pollBenchmarkResults(data.sessionId);
+      } else {
+        throw new Error(data.message || 'Failed to start benchmark');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to start benchmark');
+      setIsRunning(false);
+      setProgress({ stage: 'idle', message: 'Ready to benchmark' });
+    }
+  };
+
+  const pollBenchmarkResults = async (sessionId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/private-benchmark/sessions/${sessionId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          if (data.session.status === 'completed') {
+            clearInterval(pollInterval);
+            setIsRunning(false);
+            setProgress({ stage: 'complete', message: 'Benchmark completed!' });
+            onBenchmarkComplete(data.session);
+            setTimeout(() => {
+              onSwitchToResults();
+              setProgress({ stage: 'idle', message: 'Ready to benchmark' });
+            }, 1500);
+          } else if (data.session.status === 'failed') {
+            clearInterval(pollInterval);
+            setIsRunning(false);
+            setError('Benchmark failed');
+            setProgress({ stage: 'idle', message: 'Ready to benchmark' });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to poll benchmark status:', error);
+      }
+    }, 2000);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Contract Configuration */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-bold text-white mb-4">Contract Configuration</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-3">
-          {/* Network Dropdown */}
-          <div className="md:col-span-5">
-            <label className="block text-xs font-medium text-gray-300 mb-1">Network</label>
-            <select
-              value={selectedNetwork}
-              onChange={(e) => setSelectedNetwork(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoadingAbi}
-            >
-              <option value="">Select Network</option>
-              {testnetNetworks.map(network => (
-                <option key={network.id} value={network.id}>{network.name}</option>
-              ))}
-            </select>
-          </div>
+    <div className="space-y-8">
 
-          {/* Contract Address */}
-          <div className="md:col-span-5">
-            <label className="block text-xs font-medium text-gray-300 mb-1">Contract Address</label>
-            <input
-              type="text"
-              value={contractAddress}
-              onChange={(e) => setContractAddress(e.target.value)}
-              placeholder="0x..."
-              className="w-full px-2.5 py-1.5 bg-gray-700 border border-gray-600 rounded-md text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoadingAbi}
-            />
-          </div>
-          
-          {/* Add Button */}
-          <div className="md:col-span-2">
-             <button
-                onClick={handleAddContract}
-                disabled={isLoadingAbi || !selectedNetwork || !contractAddress}
-                className="flex w-full justify-center items-center space-x-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-             >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isLoadingAbi ? '...' : 'Add'}</span>
-             </button>
+      {/* Error Display */}
+      {error && (
+        <div className="p-4 bg-red-900/50 border border-red-500 rounded-lg">
+          <p className="text-red-300">{error}</p>
+        </div>
+      )}
+
+      {/* Progress Display */}
+      {isRunning && (
+        <div className="p-4 bg-blue-900/50 border border-blue-500 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
+            <span className="text-blue-300">{progress.message}</span>
           </div>
         </div>
+      )}
 
-        {abiError && (
-          <div className="flex items-center space-x-2 p-2 bg-red-900/50 border border-red-700 rounded-md text-red-300">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span className="text-xs">{abiError}</span>
-          </div>
-        )}
-
-        {contracts.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-base font-semibold text-white mb-2">Added Contracts ({contracts.length})</h3>
-            <div className="space-y-1.5">
-              {contracts.map((contract) => {
-                const networkConfig = getNetworkConfig(contract.networkId);
-                return (
-                  <div key={contract.networkId} className="flex items-center justify-between p-2 bg-gray-700/50 rounded-md">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2.5">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: networkConfig?.color || '#6b7280' }}></div>
-                        <div>
-                          <div className="text-sm text-white font-medium">{networkConfig?.name}</div>
-                          <div className="text-gray-400 text-xs font-mono">{contract.address}</div>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onRemoveContract(contract.networkId)}
-                      className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md transition-colors"
-                      disabled={isBenchmarking}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Configuration Panel */}
+        <div className="space-y-6">
+          {/* Add Contract Section */}
+          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Code2 className="w-5 h-5 text-blue-400" />
+              <h2 className="text-lg font-semibold text-white">Add Contract</h2>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Wallet Connection */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-bold text-white mb-4">Wallet Connection</h2>
-        
-        <div className="space-y-4">
-          {/* Wallet Connection Status */}
-          <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-md">
-            <div className="flex items-center space-x-3">
-              <Wallet className="w-5 h-5 text-blue-400" />
+            
+            <div className="space-y-4">
               <div>
-                <div className="text-sm font-medium text-white">
-                  {isWalletConnected ? 'Wallet Connected' : 'Wallet Not Connected'}
-                </div>
-                {isWalletConnected && walletAddress && (
-                  <div className="text-xs text-gray-400 font-mono">
-                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                  </div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Network</label>
+                <select
+                  value={newContract.networkId}
+                  onChange={(e) => setNewContract(prev => ({ ...prev, networkId: e.target.value }))}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Network</option>
+                  {testnetNetworks.map(network => (
+                    <option key={network.id} value={network.id}>
+                      {network.displayName} ({network.category.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Contract Address</label>
+                <input
+                  type="text"
+                  value={newContract.address}
+                  onChange={(e) => setNewContract(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="0x..."
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Name (Optional)</label>
+                <input
+                  type="text"
+                  value={newContract.name}
+                  onChange={(e) => setNewContract(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Contract name"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <button
+                onClick={addContract}
+                disabled={validatingContract || !newContract.address || !newContract.networkId}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
+              >
+                {validatingContract ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
                 )}
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              {isWalletConnected && <Check className="w-4 h-4 text-green-400" />}
-              <WalletConnect />
+                <span>{validatingContract ? 'Validating...' : 'Add Contract'}</span>
+              </button>
             </div>
           </div>
 
-          {/* Wallet Signing Option */}
-          <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-md">
-            <div>
-              <div className="text-sm font-medium text-white">Use Wallet Signing</div>
-              <div className="text-xs text-gray-400">
-                Sign transactions with your connected wallet instead of using backend keys
+          {/* Function Selection */}
+          {availableFunctions.length > 0 && (
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Settings className="w-5 h-5 text-green-400" />
+                <h2 className="text-lg font-semibold text-white">Select Functions ({selectedFunctions.length})</h2>
               </div>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useWalletSigning}
-                onChange={(e) => onToggleWalletSigning(e.target.checked)}
-                disabled={!isWalletConnected}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          {useWalletSigning && !isWalletConnected && (
-            <div className="flex items-center space-x-2 p-2 bg-yellow-900/50 border border-yellow-700 rounded-md text-yellow-300">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span className="text-xs">Please connect your wallet to use wallet signing</span>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {availableFunctions.map((func, index) => (
+                  <div key={index} className="border border-gray-600 rounded-lg p-4">
+                    <label className="flex items-center space-x-3 mb-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedFunctions.includes(func.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFunctions(prev => [...prev, func.name]);
+                          } else {
+                            setSelectedFunctions(prev => prev.filter(f => f !== func.name));
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-white font-mono text-sm">{func.name}()</span>
+                      <span className="text-gray-400 text-xs">{func.stateMutability}</span>
+                    </label>
+                    
+                    {/* Parameter inputs for selected functions */}
+                    {selectedFunctions.includes(func.name) && func.inputs.length > 0 && (
+                      <div className="ml-7 space-y-3 border-l-2 border-blue-500/30 pl-4">
+                        <p className="text-gray-300 text-sm font-medium">Parameters:</p>
+                        {func.inputs.map((input, inputIndex) => (
+                          <div key={inputIndex} className="space-y-1">
+                            <label className="block text-sm text-gray-300">
+                              <span className="font-mono">{input.name}</span>
+                              <span className="text-gray-400 ml-2">({input.type})</span>
+                              <span className="text-red-400 ml-1">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={functionParameters[func.name]?.[input.name] || ''}
+                              onChange={(e) => {
+                                setFunctionParameters(prev => ({
+                                  ...prev,
+                                  [func.name]: {
+                                    ...prev[func.name],
+                                    [input.name]: e.target.value
+                                  }
+                                }));
+                              }}
+                              placeholder={`Enter ${input.type} value`}
+                              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500 font-mono"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Show parameter info for unselected functions */}
+                    {!selectedFunctions.includes(func.name) && func.inputs.length > 0 && (
+                      <div className="ml-7 text-gray-500 text-sm">
+                        Parameters: {func.inputs.map(input => `${input.name}: ${input.type}`).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Benchmark Execution */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-bold text-white mb-3">Benchmark Execution</h2>
-        
-        {isBenchmarking && (
-          <div className="mb-4">
-            <div className="flex justify-between text-xs text-gray-300 mb-1">
-              <span>{benchmarkProgress.message}</span>
-              <span>{benchmarkProgress.progress}%</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-1.5 mb-1">
-              <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${benchmarkProgress.progress}%` }}></div>
-            </div>
-            {benchmarkProgress.currentNetwork && (
-              <div className="text-xs text-gray-400">
-                Processing: {benchmarkProgress.currentNetwork}
-                {benchmarkProgress.currentFunction && ` - ${benchmarkProgress.currentFunction}`}
+        {/* Contracts & Actions Panel */}
+        <div className="space-y-6">
+          {/* Contract List */}
+          {contracts.length > 0 && (
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Network className="w-5 h-5 text-purple-400" />
+                <h2 className="text-lg font-semibold text-white">Contracts ({contracts.length})</h2>
               </div>
-            )}
+              <div className="space-y-3">
+                {contracts.map((contract, index) => {
+                  const networkColor = getNetworkColor(contract.networkId);
+                  return (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-md">
+                      <div className="flex items-center space-x-3">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: networkColor }}
+                        />
+                        <div>
+                          <p className="text-white font-medium text-sm">{contract.name}</p>
+                          <p className="text-gray-400 text-xs font-mono">{contract.address.slice(0, 10)}...{contract.address.slice(-8)}</p>
+                          <p className="text-gray-500 text-xs">{getNetworkDisplayName(contract.networkId)}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeContract(index)}
+                        className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Start Benchmark */}
+          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Execute Benchmark</h2>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm text-gray-400">
+                  <p>• {contracts.length} contract(s) configured</p>
+                  <p>• {selectedFunctions.length} function(s) selected</p>
+                  <p>• Private key execution mode</p>
+                </div>
+                {(contracts.length === 0 || selectedFunctions.length === 0) && (
+                  <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                    <div className="flex items-center space-x-2 text-yellow-400">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-sm">
+                        {contracts.length === 0 ? 'Add at least one contract to proceed' : 'Select at least one function to benchmark'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={startBenchmark}
+                disabled={isRunning || contracts.length === 0 || selectedFunctions.length === 0}
+                className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-md transition-colors font-medium"
+              >
+                {isRunning ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Play className="w-5 h-5" />
+                )}
+                <span>{isRunning ? 'Running Benchmark...' : 'Start Benchmark'}</span>
+              </button>
+            </div>
           </div>
-        )}
-
-        {error && (
-          <div className="flex items-center space-x-2 p-2 bg-red-900/50 border border-red-700 rounded-lg text-red-300 mb-3">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span className="text-xs">{error}</span>
-          </div>
-        )}
-
-        <button
-          onClick={onStartBenchmark}
-          disabled={isBenchmarking || contracts.length === 0}
-          className="w-full py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors font-medium text-sm"
-        >
-          {isBenchmarking ? 'Running Benchmark...' : 'Start Benchmark'}
-        </button>
-
-        {contracts.length === 0 && (
-          <p className="text-gray-400 text-xs mt-2 text-center">
-            Add at least one contract to start
-          </p>
-        )}
+        </div>
       </div>
     </div>
   );
 }
-
-export default BenchmarkConfigTab;
