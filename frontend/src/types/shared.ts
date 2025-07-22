@@ -7,6 +7,9 @@ export interface NetworkResult {
     gasUsed: string;
     costETH: string;
     costUSD: number;
+    l1DataCost?: number; // L1 data posting cost for L2s
+    l2ExecutionCost?: number; // L2 execution cost
+    totalCost?: number; // Total cost including L1 + L2
   };
   functions: GasEstimate[];
   gasPrice: string;
@@ -17,6 +20,13 @@ export interface NetworkResult {
     totalFee: number;
     confidence: number;
     source: string;
+    l1DataFee?: number; // L1 data fee component
+    l2ExecutionFee?: number; // L2 execution fee component
+  };
+  simulationData?: {
+    forkBlockNumber: number;
+    actualGasUsed: string;
+    simulationAccuracy: 'HIGH' | 'MEDIUM' | 'LOW';
   };
 }
 
@@ -25,12 +35,42 @@ export interface GasEstimate {
   gasUsed: string;
   estimatedCostETH: string;
   estimatedCostUSD: number;
+  l1DataCost?: number; // L1 data posting cost for L2s
+  l2ExecutionCost?: number; // L2 execution cost
+  totalCost?: number; // Total cost including L1 + L2
+  simulationData?: {
+    actualGasUsed: string;
+    simulationAccuracy: 'HIGH' | 'MEDIUM' | 'LOW';
+  };
 }
 
 export interface AnalysisProgress {
   stage: 'idle' | 'compiling' | 'deploying' | 'analyzing' | 'complete';
   progress: number;
   message: string;
+  currentNetwork?: string;
+  networksCompleted?: number;
+  totalNetworks?: number;
+}
+
+export interface SequentialAnalysisResult {
+  contractName: string;
+  timestamp: string;
+  compilation: any;
+  results: NetworkResult[];
+  totalOperations: number;
+  avgGasUsed: number;
+  avgExecutionTime: number;
+  analysisMethod: 'SIMULATION' | 'STATIC' | 'HYBRID';
+  networksAnalyzed: string[];
+}
+
+export interface NetworkAnalysisStatus {
+  network: string;
+  status: 'pending' | 'analyzing' | 'completed' | 'failed';
+  progress: number;
+  error?: string;
+  result?: NetworkResult;
 }
 
 export interface NetworkConfig {

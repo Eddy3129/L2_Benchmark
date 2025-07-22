@@ -13,10 +13,12 @@ interface AnalysisResult {
   avgExecutionTime: number;
   id?: number;
   createdAt?: string;
+  analysisMethod?: 'SIMULATION' | 'STATIC' | 'HYBRID';
+  networksAnalyzed?: string[];
 }
 
 // Import shared types and utilities
-import { NetworkResult, GasEstimate, AnalysisProgress } from '@/types/shared';
+import { NetworkResult, GasEstimate, AnalysisProgress, SequentialAnalysisResult, NetworkAnalysisStatus } from '@/types/shared';
 import { getAllNetworks } from '@/utils/networkConfig';
 
 
@@ -37,7 +39,7 @@ export function GasEstimatorIDE() {
   const [code, setCode] = useState('');
   const [contractName, setContractName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>(CONTRACT_TEMPLATES[0].id);
-  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['mainnet', 'polygon', 'arbitrum']);
+  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['mainnet', 'polygon', 'arbitrum', 'optimism', 'base', 'linea', 'scroll', 'ink']);
   const [confidenceLevel, setConfidenceLevel] = useState<number>(99);
   const [saveToDatabase, setSaveToDatabase] = useState(true);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
@@ -48,6 +50,8 @@ export function GasEstimatorIDE() {
     message: 'Ready to analyze'
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [networkStatuses, setNetworkStatuses] = useState<NetworkAnalysisStatus[]>([]);
+  const [currentAnalysisMethod, setCurrentAnalysisMethod] = useState<'SIMULATION' | 'STATIC' | 'HYBRID'>('SIMULATION');
   const [error, setError] = useState<string | null>(null);
   const [compilationError, setCompilationError] = useState<string | null>(null);
 
@@ -63,13 +67,7 @@ export function GasEstimatorIDE() {
     setAnalysisProgress({ stage, ...stageInfo });
   };
 
-  const handleNetworkToggle = (networkId: string) => {
-    setSelectedNetworks(prev => 
-      prev.includes(networkId)
-        ? prev.filter(id => id !== networkId)
-        : [...prev, networkId]
-    );
-  };
+
 
   const handleTemplateChange = async (templateId: string) => {
     const template = CONTRACT_TEMPLATES.find(t => t.id === templateId);
@@ -122,44 +120,127 @@ export function GasEstimatorIDE() {
     setError(null);
     setCompilationError(null);
     setAnalysisResult(null);
-    updateProgress('compiling');
+    
+    // Initialize network statuses
+    const initialStatuses: NetworkAnalysisStatus[] = selectedNetworks.map(network => ({
+      network,
+      status: 'pending',
+      progress: 0
+    }));
+    setNetworkStatuses(initialStatuses);
+    
+    // Start with compilation
+    setAnalysisProgress({
+      stage: 'compiling',
+      progress: 10,
+      message: 'Compiling Solidity contract...',
+      currentNetwork: undefined,
+      networksCompleted: 0,
+      totalNetworks: selectedNetworks.length
+    });
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const results: NetworkResult[] = [];
+      let compilation: any = null;
       
-      // Always use unified analysis for comprehensive data
-      const result = await apiService.analyzeContract({
-        code,
-        contractName,
-        networks: selectedNetworks,
-        saveToDatabase,
-        confidenceLevel
-      });
-
-      updateProgress('deploying');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      updateProgress('analyzing');
+      // Sequential network analysis
+      for (let i = 0; i < selectedNetworks.length; i++) {
+        const network = selectedNetworks[i];
+        
+        // Update network status to analyzing
+        setNetworkStatuses(prev => prev.map(status => 
+          status.network === network 
+            ? { ...status, status: 'analyzing', progress: 0 }
+            : status
+        ));
+        
+        // Update overall progress
+        const baseProgress = 20 + (i / selectedNetworks.length) * 70;
+        setAnalysisProgress({
+          stage: 'analyzing',
+          progress: baseProgress,
+          message: `Forking ${network} mainnet and analyzing...`,
+          currentNetwork: network,
+          networksCompleted: i,
+          totalNetworks: selectedNetworks.length
+        });
+        
+        try {
+          const networkResult = await apiService.analyzeNetworkSequentially({
+            code,
+            network,
+            contractName,
+            confidenceLevel
+          });
+          
+          if (!compilation && networkResult.compilation) {
+            compilation = networkResult.compilation;
+          }
+          
+          results.push(networkResult.result);
+          
+          // Update network status to completed
+          setNetworkStatuses(prev => prev.map(status => 
+            status.network === network 
+              ? { ...status, status: 'completed', progress: 100, result: networkResult.result }
+              : status
+          ));
+          
+        } catch (networkError: any) {
+          console.error(`Analysis failed for ${network}:`, networkError);
+          
+          // Update network status to failed
+          setNetworkStatuses(prev => prev.map(status => 
+            status.network === network 
+              ? { ...status, status: 'failed', progress: 0, error: networkError.message }
+              : status
+          ));
+          
+          // Continue with other networks instead of failing completely
+        }
+      }
+      
+      if (results.length === 0) {
+        throw new Error('All network analyses failed. Please check your contract code and try again.');
+      }
       
       const transformedResult: AnalysisResult = {
-        contractName: result.contractName || contractName,
-        compilation: result.compilation,
-        results: result.results || [],
-        timestamp: result.timestamp || new Date().toISOString(),
-        totalOperations: result.results?.length || 0,
-        avgGasUsed: result.results?.length > 0 ? 
-          result.results.reduce((sum: number, r: any) => {
+        contractName,
+        compilation,
+        results,
+        timestamp: new Date().toISOString(),
+        totalOperations: results.length,
+        avgGasUsed: results.length > 0 ? 
+          results.reduce((sum, r) => {
             const totalGas = parseInt(r.deployment?.gasUsed || '0') + 
-              r.functions?.reduce((fSum: number, f: any) => fSum + parseInt(f.gasUsed || '0'), 0);
+              r.functions?.reduce((fSum, f) => fSum + parseInt(f.gasUsed || '0'), 0);
             return sum + totalGas;
-          }, 0) / result.results.length : 0,
+          }, 0) / results.length : 0,
         avgExecutionTime: 0,
+        analysisMethod: currentAnalysisMethod,
+        networksAnalyzed: selectedNetworks
       };
       
       setAnalysisResult(transformedResult);
       
-      updateProgress('complete');
+      // Final progress update
+      setAnalysisProgress({
+        stage: 'complete',
+        progress: 100,
+        message: `Analysis complete - ${results.length} networks analyzed`,
+        currentNetwork: undefined,
+        networksCompleted: selectedNetworks.length,
+        totalNetworks: selectedNetworks.length
+      });
+      
       setActiveTab('results');
-      setTimeout(() => updateProgress('idle'), 2000);
+      setTimeout(() => {
+        setAnalysisProgress({
+          stage: 'idle',
+          progress: 0,
+          message: 'Ready to analyze'
+        });
+      }, 2000);
     } catch (err: any) {
       console.error('Analysis error:', err);
       
@@ -201,7 +282,12 @@ export function GasEstimatorIDE() {
       }
       
       setError(errorMessage);
-      updateProgress('idle');
+      setAnalysisProgress({
+        stage: 'idle',
+        progress: 0,
+        message: 'Ready to analyze'
+      });
+      setNetworkStatuses([]);
       setActiveTab('editor');
     }
   };
@@ -259,7 +345,7 @@ export function GasEstimatorIDE() {
             selectedTemplate={selectedTemplate}
             setSelectedTemplate={setSelectedTemplate}
             selectedNetworks={selectedNetworks}
-            onNetworkToggle={handleNetworkToggle}
+            onNetworkChange={setSelectedNetworks}
             confidenceLevel={confidenceLevel}
             setConfidenceLevel={setConfidenceLevel}
             saveToDatabase={saveToDatabase}
@@ -273,6 +359,8 @@ export function GasEstimatorIDE() {
             isAnalyzing={isAnalyzing}
             handleTemplateChange={handleTemplateChange}
             handleAnalyze={handleAnalyze}
+            networkStatuses={networkStatuses}
+            analysisMethod={currentAnalysisMethod}
           />
         ) : (
           <GasEstimatorResultsTab analysisResult={analysisResult} />

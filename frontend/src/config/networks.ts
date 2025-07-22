@@ -274,6 +274,78 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     finalityBlocks: 128,
     isTestnet: false,
     isL2: true
+  },
+  linea: {
+    id: 'linea',
+    name: 'linea',
+    displayName: 'Linea',
+    chainId: 59144,
+    rpcUrl: getRpcUrl('LINEA_RPC_URL', 'https://rpc.linea.build'),
+    explorerUrl: 'https://lineascan.build',
+    explorerApiUrl: 'https://api.lineascan.build/api',
+    explorerApiKey: process.env.LINEASCAN_API_KEY,
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'linea',
+    color: '#121212',
+    blockTime: 2,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'mainnet',
+    isTestnet: false,
+    isL2: true
+  },
+  scroll: {
+    id: 'scroll',
+    name: 'scroll',
+    displayName: 'Scroll',
+    chainId: 534352,
+    rpcUrl: getRpcUrl('SCROLL_RPC_URL', 'https://rpc.scroll.io'),
+    explorerUrl: 'https://scrollscan.com',
+    explorerApiUrl: 'https://api.scrollscan.com/api',
+    explorerApiKey: process.env.SCROLLSCAN_API_KEY,
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'scroll',
+    color: '#FFEEDA',
+    blockTime: 3,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'mainnet',
+    isTestnet: false,
+    isL2: true
+  },
+  ink: {
+    id: 'ink',
+    name: 'ink',
+    displayName: 'Ink',
+    chainId: 57073,
+    rpcUrl: getRpcUrl('INK_RPC_URL', 'https://rpc-gel.inkonchain.com'),
+    explorerUrl: 'https://explorer.inkonchain.com',
+    explorerApiUrl: 'https://api.explorer.inkonchain.com/api',
+    explorerApiKey: process.env.INKSCAN_API_KEY,
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'ink',
+    color: '#000000',
+    blockTime: 2,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'mainnet',
+    isTestnet: false,
+    isL2: true
   }
 };
 

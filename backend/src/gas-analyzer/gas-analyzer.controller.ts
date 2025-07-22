@@ -72,6 +72,50 @@ export class GasAnalyzerController {
       throw ValidationUtils.createInternalServerError('Internal server error during contract analysis');
     }
   }
+
+  @Post('analyze-network')
+  async analyzeNetwork(@Body() body: { code: string; network: string; contractName: string; confidenceLevel?: number }) {
+    // Validate request
+    if (!body.code || !body.network || !body.contractName) {
+      throw ValidationUtils.createValidationError(['Code, network, and contract name are required']);
+    }
+
+    const { code, network, contractName, confidenceLevel = 70 } = body;
+    
+    try {
+      // Use the existing service but for a single network
+      const result = await this.gasAnalyzerService.analyzeContract(code, [network], contractName, confidenceLevel);
+      
+      // Return the result for the single network
+      if (result.results && result.results.length > 0) {
+        return {
+          network: network,
+          result: result.results[0],
+          analysisMethod: 'SIMULATION' // Indicate this uses mainnet forking
+        };
+      } else {
+        throw new Error(`No analysis result found for network: ${network}`);
+      }
+    } catch (error) {
+      // Handle compilation errors specifically
+      if (error.message && error.message.includes('Compilation failed')) {
+        throw ValidationUtils.createCompilationError(error.message);
+      }
+      
+      // Handle validation errors
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      // Handle other service errors
+      if (error.message) {
+        throw ValidationUtils.createValidationError([error.message]);
+      }
+      
+      // Fallback for unknown errors
+      throw ValidationUtils.createInternalServerError(`Internal server error during network analysis for ${network}`);
+    }
+  }
   
   @Get('history')
   async getAnalysisHistory(@Query('limit') limit?: string): Promise<GasAnalysis[]> {

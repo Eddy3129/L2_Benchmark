@@ -10,7 +10,7 @@ import {
   FileText,
   Save
 } from 'lucide-react';
-import { AnalysisProgress } from '@/types/shared';
+import { AnalysisProgress, NetworkAnalysisStatus } from '@/types/shared';
 
 interface AnalysisResult {
   contractName: string;
@@ -32,7 +32,7 @@ interface ContractEditorTabProps {
   selectedTemplate: string;
   setSelectedTemplate: (template: string) => void;
   selectedNetworks: string[];
-  onNetworkToggle: (networkId: string) => void;
+  onNetworkChange: (networks: string[]) => void;
   confidenceLevel: number;
   setConfidenceLevel: (level: number) => void;
   saveToDatabase: boolean;
@@ -46,35 +46,41 @@ interface ContractEditorTabProps {
   isAnalyzing: boolean;
   handleTemplateChange: (templateId: string) => void;
   handleAnalyze: () => void;
+  networkStatuses?: NetworkAnalysisStatus[];
+  analysisMethod?: 'SIMULATION' | 'STATIC' | 'HYBRID';
 }
 
-export function ContractEditorTab({
+export default function ContractEditorTab({
   code,
   setCode,
   contractName,
   setContractName,
   selectedTemplate,
+  setSelectedTemplate,
   selectedNetworks,
-  onNetworkToggle,
+  onNetworkChange,
   confidenceLevel,
   setConfidenceLevel,
   saveToDatabase,
   setSaveToDatabase,
   isLoadingTemplate,
+  setIsLoadingTemplate,
   analysisProgress,
   analysisResult,
   error,
   compilationError,
   isAnalyzing,
   handleTemplateChange,
-  handleAnalyze
+  handleAnalyze,
+  networkStatuses,
+  analysisMethod
 }: ContractEditorTabProps) {
   return (
     <div className="space-y-4">
       {/* Top Section: Network & Confidence Selector */}
       <NetworkConfidenceSelector
-        selectedNetwork={selectedNetworks}
-        onNetworkChange={onNetworkToggle}
+        selectedNetworks={selectedNetworks}
+        onNetworkChange={onNetworkChange}
         confidenceLevel={confidenceLevel}
         onConfidenceChange={setConfidenceLevel}
         className=""
@@ -84,6 +90,8 @@ export function ContractEditorTab({
         analysisProgress={analysisProgress}
         onAnalyze={handleAnalyze}
         isLoadingTemplate={isLoadingTemplate}
+        networkStatuses={networkStatuses}
+        analysisMethod={analysisMethod}
       />
       
       {/* Main Content Grid */}
@@ -211,5 +219,3 @@ export function ContractEditorTab({
     </div>
   );
 }
-
-export default ContractEditorTab;

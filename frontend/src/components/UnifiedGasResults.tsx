@@ -259,9 +259,9 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         />
         <StatCard 
           icon={Zap} 
-          title="Functions Analyzed" 
-          value={summaryStats.totalFunctions.toString()}
-          subtitle="total functions"
+          title="Deploy Gas Used" 
+          value={sortedResults.length > 0 ? parseInt(sortedResults[0].deployment.gasUsed).toLocaleString() : '0'}
+          subtitle="same across all networks"
           color="amber"
         />
       </section>
@@ -283,11 +283,11 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
               <thead className="bg-gray-800">
                 <tr>
                   <th scope="col" className="py-3 pl-4 pr-2 text-left text-xs font-semibold text-white sm:pl-4">Network</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Deploy Cost</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Deploy Gas</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Gas Price</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Function Cost</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Ethereum Layer 1</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Total Cost</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">L2 Execution</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">L1 Data Cost</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Confidence Level</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Ethereum</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800 bg-gray-900">
@@ -310,10 +310,28 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                           </div>
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-semibold text-white font-mono">{formatCurrency(networkResult.deployment.costUSD)}</td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">{parseInt(networkResult.deployment.gasUsed).toLocaleString()}</td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">{parseFloat(networkResult.gasPrice).toFixed(2)} Gwei</td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-white font-mono">{formatCurrency(totalFunctionCost)}</td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-semibold text-white font-mono">
+                        {formatCurrency(networkResult.deployment.totalCost || networkResult.deployment.costUSD)}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
+                        {networkResult.deployment.l2ExecutionCost ? formatCurrency(networkResult.deployment.l2ExecutionCost) : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
+                        {networkResult.deployment.l1DataCost ? formatCurrency(networkResult.deployment.l1DataCost) : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400">
+                        {networkResult.simulationData ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              networkResult.simulationData.simulationAccuracy === 'HIGH' ? 'bg-green-400' :
+                              networkResult.simulationData.simulationAccuracy === 'MEDIUM' ? 'bg-yellow-400' : 'bg-red-400'
+                            }`}></div>
+                            <span className="text-xs">{networkResult.simulationData.simulationAccuracy}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">STATIC</span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs">
                         <SavingsIndicator savings={savings.savings} percentage={savings.percentage} />
                       </td>

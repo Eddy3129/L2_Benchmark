@@ -27,13 +27,19 @@ export interface GasEstimate {
   gasUsed: string;
   estimatedCostETH: string;
   estimatedCostUSD: number;
+  l1DataCost?: number; // L1 data posting cost for L2s
+  l2ExecutionCost?: number; // L2 execution cost
+  totalCost?: number; // Total cost including L1 + L2
 }
 
 export interface NetworkAnalysisResult {
   deployment: { 
     gasUsed: string; 
     costETH: string; 
-    costUSD: number; 
+    costUSD: number;
+    l1DataCost?: number; // L1 data posting cost for L2s
+    l2ExecutionCost?: number; // L2 execution cost
+    totalCost?: number; // Total cost including L1 + L2
   };
   functions: GasEstimate[];
   gasPrice: string;
@@ -44,6 +50,11 @@ export interface NetworkAnalysisResult {
 export interface NetworkResult extends NetworkAnalysisResult {
   network: string;
   networkName: string;
+  simulationData?: {
+    forkBlockNumber: number;
+    actualGasUsed: string;
+    simulationAccuracy: 'HIGH' | 'MEDIUM' | 'LOW';
+  };
 }
 
 export interface AnalysisResult {

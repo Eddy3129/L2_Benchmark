@@ -5,6 +5,10 @@ import { ethers } from 'ethers';
 // Base service
 import { BaseService } from '../../../common/base.service';
 
+// Services
+import { ForkingService } from './forking.service';
+import { BlocknativeApiService } from '../../../shared/blocknative-api.service';
+
 // DTOs
 import {
   GasEstimateDto,
@@ -49,7 +53,11 @@ export class GasEstimationService extends BaseService {
   private readonly gasPriceCache = new Map<string, GasPriceData>();
   private readonly providerCache = new Map<string, ethers.Provider>();
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly forkingService: ForkingService,
+    private readonly blocknativeApi: BlocknativeApiService
+  ) {
     super();
   }
 
@@ -270,7 +278,17 @@ export class GasEstimationService extends BaseService {
   private async estimateSimulationDeploymentGas(request: EstimationRequest): Promise<number> {
     try {
       const networkConfig = NetworkConfigService.getNetwork(request.network);
-      const provider = await this.getProvider(networkConfig!);
+      if (!networkConfig) {
+        throw new Error(`Network configuration not found for ${request.network}`);
+      }
+
+      // Use mainnet forking for accurate simulation
+      if (this.shouldUseFork(networkConfig)) {
+        return await this.estimateDeploymentWithFork(networkConfig, request);
+      }
+      
+      // Fallback to direct provider estimation for local networks
+      const provider = await this.getProvider(networkConfig);
       
       // Create contract factory
       const factory = new ethers.ContractFactory(
@@ -336,9 +354,18 @@ export class GasEstimationService extends BaseService {
    */
   private async estimateSimulationFunctionGas(request: EstimationRequest): Promise<number> {
     try {
-      // This would require deploying the contract and calling the function
-      // For now, fall back to static estimation
-      return this.estimateStaticFunctionGas(request.compilation, request.functionCall!);
+      const networkConfig = NetworkConfigService.getNetwork(request.network);
+      if (!networkConfig || !request.functionCall) {
+        throw new Error('Invalid network configuration or function call');
+      }
+
+      // Use mainnet forking for accurate simulation
+      if (this.shouldUseFork(networkConfig)) {
+        return await this.estimateFunctionWithFork(networkConfig, request);
+      }
+      
+      // Fallback to static estimation for local networks
+      return this.estimateStaticFunctionGas(request.compilation, request.functionCall);
     } catch (error) {
       this.logger.warn(`Function simulation failed: ${error.message}`);
       return this.estimateStaticFunctionGas(request.compilation, request.functionCall!);
@@ -384,7 +411,7 @@ export class GasEstimationService extends BaseService {
   }
 
   /**
-   * Gets current gas price for network
+   * Gets current gas price for network using Blocknative API
    */
   private async getCurrentGasPrice(network: string): Promise<GasPriceData> {
     const cacheKey = `gasPrice_${network}`;
@@ -397,6 +424,24 @@ export class GasEstimationService extends BaseService {
     
     try {
       const networkConfig = NetworkConfigService.getNetwork(network)!;
+      
+      // Try Blocknative API first for professional gas price data
+      const blocknativeData = await this.getBlocknativeGasPrice(networkConfig.chainId, 95);
+      if (blocknativeData) {
+        const gasPriceData: GasPriceData = {
+          network,
+          gasPrice: Math.round(blocknativeData.totalFee * 1_000_000_000), // Convert gwei to wei
+          maxFeePerGas: Math.round(blocknativeData.totalFee * 1_000_000_000),
+          maxPriorityFeePerGas: Math.round(blocknativeData.priorityFee * 1_000_000_000),
+          baseFee: Math.round(blocknativeData.baseFee * 1_000_000_000),
+          timestamp: new Date(),
+        };
+        
+        this.gasPriceCache.set(cacheKey, gasPriceData);
+        return gasPriceData;
+      }
+      
+      // Fallback to RPC provider if Blocknative fails
       const provider = await this.getProvider(networkConfig);
       const feeData = await provider.getFeeData();
       
@@ -416,7 +461,7 @@ export class GasEstimationService extends BaseService {
     } catch (error) {
       this.logger.warn(`Failed to get gas price for ${network}: ${error.message}`);
       
-      // Return default gas price
+      // Only use hardcoded defaults as last resort
       return {
         network,
         gasPrice: this.getDefaultGasPrice(network),
@@ -519,7 +564,234 @@ export class GasEstimationService extends BaseService {
   }
 
   /**
-   * Gets default gas price for network
+   * Determines if forking should be used for the network
+   */
+  private shouldUseFork(networkConfig: NetworkConfig): boolean {
+    // Use forking for mainnet and major L2 networks (not local networks)
+    const networkName = networkConfig.name.toLowerCase();
+    const isLocal = networkName.includes('hardhat') || networkName.includes('localhost') || networkConfig.chainId === 31337;
+    
+    // Use forking for major networks that benefit from real state
+    const shouldFork = !isLocal && (
+      networkName.includes('mainnet') ||
+      networkName.includes('arbitrum') ||
+      networkName.includes('optimism') ||
+      networkName.includes('base') ||
+      networkName.includes('polygon') ||
+      networkName.includes('zksync') ||
+      networkName.includes('linea') ||
+      networkName.includes('scroll') ||
+      networkName.includes('ink')
+    );
+    
+    return shouldFork;
+  }
+
+  /**
+   * Estimates deployment gas using mainnet fork
+   */
+  private async estimateDeploymentWithFork(
+    networkConfig: NetworkConfig,
+    request: EstimationRequest
+  ): Promise<number> {
+    try {
+      // Get optimal block for forking
+      const blockNumber = await this.forkingService.getOptimalForkBlock(networkConfig);
+      
+      // Create fork
+      const fork = await this.forkingService.createFork(networkConfig, blockNumber);
+      
+      // Simulate deployment
+      const result = await this.forkingService.simulateDeployment(
+        fork,
+        request.compilation,
+        request.constructorArgs || []
+      );
+      
+      if (result.success) {
+        this.logger.log(`Fork simulation successful: ${result.gasUsed} gas used`);
+        return result.gasUsed;
+      } else {
+        throw new Error(result.error || 'Fork simulation failed');
+      }
+    } catch (error) {
+      this.logger.warn(`Fork-based estimation failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Estimates function gas using mainnet fork
+   */
+  private async estimateFunctionWithFork(
+    networkConfig: NetworkConfig,
+    request: EstimationRequest
+  ): Promise<number> {
+    try {
+      if (!request.functionCall) {
+        throw new Error('Function call data is required');
+      }
+      
+      // Get optimal block for forking
+      const blockNumber = await this.forkingService.getOptimalForkBlock(networkConfig);
+      
+      // Create fork
+      const fork = await this.forkingService.createFork(networkConfig, blockNumber);
+      
+      // Simulate function call
+      const result = await this.forkingService.simulateFunctionCall(
+        fork,
+        request.compilation,
+        request.functionCall,
+        request.constructorArgs || []
+      );
+      
+      if (result.success) {
+        this.logger.log(`Fork function simulation successful: ${result.gasUsed} gas used`);
+        return result.gasUsed;
+      } else {
+        // Even if execution failed, we might have a gas estimate
+        if (result.gasUsed > 0) {
+          this.logger.warn(`Function execution failed but gas estimated: ${result.gasUsed}`);
+          return result.gasUsed;
+        }
+        throw new Error(result.error || 'Fork function simulation failed');
+      }
+    } catch (error) {
+      this.logger.warn(`Fork-based function estimation failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Estimates total L2 cost including L1 data cost
+   */
+  async estimateL2TotalCost(
+    networkConfig: NetworkConfig,
+    l2GasUsed: number,
+    transactionData: string,
+    l1GasPrice: number,
+    l2GasPrice: number
+  ): Promise<{ l2Cost: number; l1DataCost: number; totalCost: number }> {
+    try {
+      // Calculate L2 execution cost
+      const l2Cost = l2GasUsed * l2GasPrice;
+      
+      // Calculate L1 data cost
+      const l1DataGas = await this.forkingService.calculateL1DataCost(
+        networkConfig,
+        transactionData,
+        l1GasPrice
+      );
+      const l1DataCost = l1DataGas * l1GasPrice;
+      
+      // Total cost
+      const totalCost = l2Cost + l1DataCost;
+      
+      return {
+        l2Cost,
+        l1DataCost,
+        totalCost
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to calculate L2 total cost: ${error.message}`);
+      // Fallback to L2 cost only
+      const l2Cost = l2GasUsed * l2GasPrice;
+      return {
+        l2Cost,
+        l1DataCost: 0,
+        totalCost: l2Cost
+      };
+    }
+  }
+
+  /**
+   * Gets gas price from Blocknative API
+   */
+  private async getBlocknativeGasPrice(chainId: number, confidenceLevel: number = 95): Promise<{ baseFee: number; priorityFee: number; totalFee: number; confidence: number; source: string } | null> {
+    const apiKey = process.env.BLOCKNATIVE_API_KEY;
+    if (!apiKey) {
+      this.logger.warn('BLOCKNATIVE_API_KEY not configured');
+      return null;
+    }
+
+    // Map chain IDs to Blocknative supported mainnet chains only
+    const supportedChains: { [chainId: number]: boolean } = {
+      1: true,        // Ethereum Mainnet
+      137: true,      // Polygon Mainnet
+      42161: true,    // Arbitrum One
+      10: true,       // Optimism Mainnet
+      8453: true,     // Base Mainnet
+      43114: true,    // Avalanche
+      56: true,       // BSC
+      100: true,      // Gnosis
+      324: true,      // ZKsync
+      59144: true,    // Linea
+      534352: true,   // Scroll
+      57073: true,    // Ink
+    };
+
+    if (!supportedChains[chainId]) {
+      this.logger.warn(`Blocknative does not support chain ID ${chainId}`);
+      return null;
+    }
+
+    try {
+      const url = `https://api.blocknative.com/gasprices/blockprices?chainid=${chainId}&confidenceLevels=${confidenceLevel}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Blocknative API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      const blockPrices = data.blockPrices?.[0];
+      if (!blockPrices) {
+        throw new Error('No block prices data available');
+      }
+
+      const estimatedPrices = blockPrices.estimatedPrices;
+      if (!estimatedPrices || estimatedPrices.length === 0) {
+        throw new Error('No estimated prices available');
+      }
+
+      let selectedPrice = estimatedPrices.find((price: any) => price.confidence === confidenceLevel);
+      
+      if (!selectedPrice) {
+        selectedPrice = estimatedPrices.reduce((closest: any, current: any) => {
+          return Math.abs(current.confidence - confidenceLevel) < Math.abs(closest.confidence - confidenceLevel) 
+            ? current : closest;
+        });
+      }
+
+      if (!selectedPrice) {
+        throw new Error('No suitable gas price estimate found');
+      }
+
+      this.logger.log(`Blocknative gas price for chain ${chainId}: ${selectedPrice.maxFeePerGas} gwei (confidence: ${selectedPrice.confidence}%)`);
+
+      return {
+        baseFee: blockPrices.baseFeePerGas || 0,
+        priorityFee: selectedPrice.maxPriorityFeePerGas || 0,
+        totalFee: selectedPrice.maxFeePerGas || selectedPrice.price || 0,
+        confidence: selectedPrice.confidence,
+        source: 'blocknative'
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch Blocknative gas prices for chain ${chainId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets default gas price for network (fallback only)
    */
   private getDefaultGasPrice(network: string): number {
     const defaults = {
@@ -528,6 +800,9 @@ export class GasEstimationService extends BaseService {
       arbitrum: 100000000, // 0.1 gwei
       optimism: 1000000, // 0.001 gwei
       base: 1000000, // 0.001 gwei
+      scroll: 1000000, // 0.001 gwei
+      ink: 1000000, // 0.001 gwei
+      linea: 1000000, // 0.001 gwei
       avalanche: 25000000000, // 25 gwei
       fantom: 20000000000, // 20 gwei
       bsc: 5000000000, // 5 gwei
@@ -551,5 +826,12 @@ export class GasEstimationService extends BaseService {
     this.gasPriceCache.clear();
     this.providerCache.clear();
     this.logger.log('Gas estimation cache cleared');
+  }
+
+  /**
+   * Cleanup method to be called when service is destroyed
+   */
+  async onModuleDestroy() {
+    await this.forkingService.cleanupAllForks();
   }
 }

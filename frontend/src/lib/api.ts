@@ -18,6 +18,7 @@ export interface GasAnalysis {
 
 export interface BenchmarkSession {
     id?: number;
+    sessionName?: string;
     results: {
       transactions: {
         totalTransactions: number;
@@ -134,6 +135,32 @@ export interface ComparisonResult {
 
     return response.json();
   }
+
+  // New method for sequential network analysis with forking
+  async analyzeNetworkSequentially(data: {
+    code: string;
+    network: string;
+    contractName: string;
+    confidenceLevel?: number;
+  }) {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/analyze-network`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to analyze network ${data.network}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Note: Progress tracking is handled on the frontend side
+  // No backend endpoint needed for progress updates
 
   async compareLocalVsL2(request: {
     code: string;
