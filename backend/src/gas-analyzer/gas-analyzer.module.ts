@@ -11,19 +11,17 @@ import { AdvancedAnalysisController } from './controllers/advanced-analysis.cont
 import { BlockchainMonitorService } from './blockchain-monitor.service';
 import { FinalityCalculatorService } from './finality-calculator.service';
 import { PriceOracleService } from './price-oracle.service';
-import { DataStorageService } from '../shared/data-storage.service';
-import { CsvExportService } from '../shared/csv-export.service';
+import { SharedModule } from '../shared/shared.module';
 
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     HttpModule,
+    SharedModule,
   ],
   controllers: [GasAnalyzerController, AdvancedAnalysisController],
   providers: [
-    DataStorageService,
-    CsvExportService,
     GasAnalyzerService,
     ComparisonReportService,
     SequencerPerformanceService,
@@ -33,8 +31,6 @@ import { CsvExportService } from '../shared/csv-export.service';
     PriceOracleService,
   ],
   exports: [
-    DataStorageService,
-    CsvExportService,
     GasAnalyzerService,
     ComparisonReportService,
     SequencerPerformanceService,

@@ -10,6 +10,7 @@ interface ChainConfig {
   apiChainId?: number;
   coingeckoId?: string; 
   coingeckoSymbol?: string;
+  type: 'optimistic-rollup' | 'zk-rollup' | 'sidechain' | 'mainnet';
 }
 
 interface GasPriceData {
@@ -44,18 +45,18 @@ interface MultiChainGasData {
 
 class MultiChainGasService {
   public readonly supportedChains: ChainConfig[] = [
-    {
-      id: 'mainnet',
-      name: 'Ethereum',
-      symbol: 'ETH',
-      chainId: 1,
-      rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/',
-      blockExplorer: 'https://etherscan.io',
-      color: '#627EEA',
-      icon: 'Ξ',
-      apiChainId: 1,
-      coingeckoId: 'ethereum'
-    },
+    // {
+    //   id: 'mainnet',
+    //   name: 'Ethereum',
+    //   symbol: 'ETH',
+    //   chainId: 1,
+    //   rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/',
+    //   blockExplorer: 'https://etherscan.io',
+    //   color: '#627EEA',
+    //   icon: 'Ξ',
+    //   apiChainId: 1,
+    //   coingeckoId: 'ethereum'
+    // },
     {
       id: 'polygon',
       name: 'Polygon PoS',
@@ -66,7 +67,8 @@ class MultiChainGasService {
       color: '#8247E5',
       icon: '⬟',
       apiChainId: 137,
-      coingeckoSymbol: 'pol'
+      coingeckoId: 'polygon-ecosystem-token',
+      type: 'sidechain'
     },
     {
       id: 'arbitrum',
@@ -78,7 +80,8 @@ class MultiChainGasService {
       color: '#28A0F0',
       icon: 'A',
       apiChainId: 42161,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'optimistic-rollup'
     },
     {
       id: 'optimism',
@@ -90,7 +93,8 @@ class MultiChainGasService {
       color: '#FF0420',
       icon: 'O',
       apiChainId: 10,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'optimistic-rollup'
     },
     {
       id: 'base',
@@ -102,7 +106,8 @@ class MultiChainGasService {
       color: '#0052FF',
       icon: 'B',
       apiChainId: 8453,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'optimistic-rollup'
     },
     {
       id: 'polygon-zkevm',
@@ -114,7 +119,8 @@ class MultiChainGasService {
       color: '#7B3FE4',
       icon: 'Z',
       apiChainId: 1101,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'zk-rollup'
     },
     {
       id: 'zksync-era',
@@ -126,7 +132,8 @@ class MultiChainGasService {
       color: '#4E529A',
       icon: 'Z',
       apiChainId: 324,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'zk-rollup'
     },
     {
       id: 'scroll',
@@ -138,7 +145,8 @@ class MultiChainGasService {
       color: '#FFEAA7',
       icon: 'S',
       apiChainId: 534352,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'zk-rollup'
     },
     {
       id: 'ink',
@@ -150,7 +158,8 @@ class MultiChainGasService {
       color: '#000000',
       icon: 'I',
       apiChainId: 57073,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'zk-rollup'
     },
     {
       id: 'linea',
@@ -162,7 +171,8 @@ class MultiChainGasService {
       color: '#61DFFF',
       icon: 'L',
       apiChainId: 59144,
-      coingeckoId: 'ethereum'
+      coingeckoId: 'ethereum',
+      type: 'zk-rollup'
     },
   ];
 

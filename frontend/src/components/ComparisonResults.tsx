@@ -101,7 +101,7 @@ const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
 
         {/* Total Savings Summary */}
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-lg font-semibold text-white mb-3">Total Cost Analysis</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">L1 Publishing Cost Analysis</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {result.comparisons.map((comp, index) => (
             <div key={`total-cost-${comp.network}-${index}`} className="text-center p-3 bg-gray-700 rounded-lg">
@@ -183,7 +183,7 @@ const ComparisonResults: React.FC<ComparisonResultsProps> = ({ result }) => {
                 ))}
               </tr>
               <tr className="hover:bg-gray-750">
-                <td className="px-4 py-3 text-gray-300 font-medium">Cost (USD)</td>
+                <td className="px-4 py-3 text-gray-300 font-medium">L1 Publishing Cost (USD)</td>
                 <td className="px-4 py-3 text-center text-white">
                   {formatCurrency(result.comparisons[0]?.deployment?.baseline?.costUSD || 0)}
                 </td>

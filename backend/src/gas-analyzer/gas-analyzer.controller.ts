@@ -151,7 +151,7 @@ export class GasAnalyzerController {
     
     try {
       // Validate L2 networks support EIP-4844
-      const supportedL2s = ['arbitrum', 'optimism', 'base', 'polygon', 'zksync-era'];
+      const supportedL2s = ['arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era', 'linea','ink','scroll'];
       const validL2s = l2Networks.filter(network => supportedL2s.includes(network));
       
       if (validL2s.length === 0) {

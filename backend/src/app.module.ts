@@ -6,13 +6,17 @@ import { AbiModule } from './abi/abi.module';
 import { GasAnalysisModule } from './modules/gas-analysis/gas-analysis.module';
 import { ComparisonReportModule } from './modules/comparison-report/comparison-report.module';
 import { PrivateKeyBenchmarkModule } from './modules/private-key-benchmark/private-key-benchmark.module';
+import { SharedModule } from './shared/shared.module';
 import networkConfig from './config/network.config';
+import appConfig from './config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [networkConfig],
+      envFilePath: ['.env.local', '.env'],
+      load: [appConfig, networkConfig],
+      cache: true,
     }),
     BenchmarkModule,
     GasAnalyzerModule,
@@ -20,6 +24,7 @@ import networkConfig from './config/network.config';
     GasAnalysisModule,
     ComparisonReportModule,
     PrivateKeyBenchmarkModule,
+    SharedModule,
   ],
 })
 export class AppModule {}

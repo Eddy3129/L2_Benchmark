@@ -82,7 +82,10 @@ const BlobCostComparison: React.FC = () => {
     'optimism', 
     'base',
     'polygon',
-    'zksync-era'
+    'zksync-era',
+    'linea',
+    'scroll',
+    'ink'
   ];
 
   const handleNetworkToggle = (networkId: string) => {

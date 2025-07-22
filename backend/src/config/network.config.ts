@@ -1,5 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import { IsString, IsNumber, IsOptional, IsUrl, IsEnum, validateSync } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsUrl, IsEnum, validateSync, IsBoolean } from 'class-validator';
 import { plainToClass, Transform, Type } from 'class-transformer';
 import { Injectable } from '@nestjs/common';
 
@@ -16,7 +16,10 @@ export enum NetworkCategory {
   OPTIMISM = 'optimism',
   POLYGON = 'polygon',
   BASE = 'base',
-  ZKSYNC = 'zksync'
+  ZKSYNC = 'zksync',
+  LINEA = 'linea',
+  SCROLL = 'scroll',
+  INK = 'ink'
 }
 
 export class NetworkConfig {
@@ -81,6 +84,10 @@ export class NetworkConfig {
   @IsString()
   @IsOptional()
   etherscanApiUrl?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isLayer2?: boolean;
 }
 
 export class NetworksConfig {
@@ -149,6 +156,7 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
     chainId: 42161,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.ARBITRUM,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://arbiscan.io',
@@ -164,6 +172,7 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     chainId: 421614,
     gasPriceChainId: 11155111,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.ARBITRUM,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://sepolia.arbiscan.io',
@@ -178,6 +187,7 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     rpcUrl: process.env.OPTIMISM_RPC_URL || 'https://mainnet.optimism.io',
     chainId: 10,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.OPTIMISM,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://optimistic.etherscan.io',
@@ -192,6 +202,7 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     rpcUrl: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
     chainId: 8453,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.BASE,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://basescan.org',
@@ -363,13 +374,13 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
    {
     name: 'lineaSepolia',
     displayName: 'Linea Sepolia',
-    rpcUrl: process.env.LINEA_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.LINEA_SEPOLIA_RPC_URL || 'https://rpc.sepolia.linea.build',
     chainId: 59141,
     gasPriceChainId: 11155111,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.LINEA,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.lineascan.build/',
+    blockExplorerUrl: 'https://sepolia.lineascan.build',
     blockTime: 1,
     gasLimit: 30000000,
     parentChain: 'sepolia',
@@ -378,28 +389,28 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
   {
     name: 'linea',
     displayName: 'Linea Mainnet',
-    rpcUrl: process.env.LINEA_MAINNET_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.LINEA_MAINNET_RPC_URL || 'https://rpc.linea.build',
     chainId: 59144,
     gasPriceChainId: 1,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.LINEA,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.lineascan.build/',
+    blockExplorerUrl: 'https://lineascan.build',
     blockTime: 1,
     gasLimit: 30000000,
-    parentChain: 'sepolia',
+    parentChain: 'mainnet',
     finalityBlocks: 1
   },
   {
     name: 'scrollSepolia',
     displayName: 'Scroll Sepolia',
-    rpcUrl: process.env.SCROLL_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.SCROLL_SEPOLIA_RPC_URL || 'https://sepolia-rpc.scroll.io',
     chainId: 534351,
     gasPriceChainId: 11155111,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.SCROLL,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.scrollscan.com/',
+    blockExplorerUrl: 'https://sepolia.scrollscan.com',
     blockTime: 1,
     gasLimit: 30000000,
     parentChain: 'sepolia',
@@ -408,28 +419,28 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
    {
     name: 'scroll',
     displayName: 'Scroll Mainnet',
-    rpcUrl: process.env.SCROLL_MAINNET_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.SCROLL_MAINNET_RPC_URL || 'https://rpc.scroll.io',
     chainId: 534352,
     gasPriceChainId: 1,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.SCROLL,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.scrollscan.com/',
+    blockExplorerUrl: 'https://scrollscan.com',
     blockTime: 1,
     gasLimit: 30000000,
-    parentChain: 'sepolia',
+    parentChain: 'mainnet',
     finalityBlocks: 1
   },
   {
     name: 'inkSepolia',
     displayName: 'Ink Sepolia',
-    rpcUrl: process.env.INK_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.INK_SEPOLIA_RPC_URL || 'https://rpc-gel-sepolia.inkonchain.com',
     chainId: 763373,
     gasPriceChainId: 11155111,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.INK,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.scrollscan.com/',
+    blockExplorerUrl: 'https://explorer-sepolia.inkonchain.com',
     blockTime: 1,
     gasLimit: 30000000,
     parentChain: 'sepolia',
@@ -438,16 +449,16 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
   {
     name: 'ink',
     displayName: 'Ink Mainnet',
-    rpcUrl: process.env.INK_MAINNET_RPC_URL || 'https://sepolia.era.zksync.dev',
+    rpcUrl: process.env.INK_MAINNET_RPC_URL || 'https://rpc-gel.inkonchain.com',
     chainId: 57073,
     gasPriceChainId: 1,
     type: NetworkType.L2,
-    category: NetworkCategory.ZKSYNC,
+    category: NetworkCategory.INK,
     nativeCurrency: 'ETH',
-    blockExplorerUrl: 'https://sepolia.scrollscan.com/',
+    blockExplorerUrl: 'https://explorer.inkonchain.com',
     blockTime: 1,
     gasLimit: 30000000,
-    parentChain: 'sepolia',
+    parentChain: 'mainnet',
     finalityBlocks: 1
   },
   {
@@ -503,6 +514,10 @@ export class NetworkConfigService {
 
   static getNetwork(name: string): NetworkConfig | undefined {
     return this.networks.get(name);
+  }
+
+  static getNetworkByChainId(chainId: number): NetworkConfig | undefined {
+    return this.getAllNetworks().find(network => network.chainId === chainId);
   }
 
   static getAllNetworks(): NetworkConfig[] {

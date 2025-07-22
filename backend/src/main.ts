@@ -1,17 +1,22 @@
-import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { NetworkConfigService } from './config/network.config';
+import { AppConfig } from './config/app.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // Initialize NetworkConfigService
+  // Get configuration services
   const configService = app.get(ConfigService);
+  
+  // Initialize NetworkConfigService
   const networksConfig = configService.get('networks');
   NetworkConfigService.initialize(networksConfig);
+  
+  // Get app configuration
+  const appConfig = configService.get<AppConfig>('app');
   
   // Enable global validation pipe
   app.useGlobalPipes(new ValidationPipe({
@@ -21,15 +26,16 @@ async function bootstrap() {
   }));
   
   // Set global prefix for all routes
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix(appConfig?.API_PREFIX || 'api');
   
-  // Enable CORS
   app.enableCors({
-    origin: 'http://localhost:3000', // Allow requests from your frontend
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true, // If you need to send cookies or auth headers
+    credentials: true,
   });
   
-  await app.listen(process.env.PORT ?? 3001); // Also note: should be 3001 to match your error
+  const port = appConfig?.PORT || 3001;
+  await app.listen(port);
+  console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();

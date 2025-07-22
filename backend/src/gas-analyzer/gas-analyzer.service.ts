@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { ethers, ContractFactory, Interface, FunctionFragment, Signer } from 'ethers';
 import { DataStorageService } from '../shared/data-storage.service';
 import { CsvExportService } from '../shared/csv-export.service';
+import { BlocknativeApiService } from '../shared/blocknative-api.service';
 
 // Import shared utilities
 import { 
@@ -46,6 +47,8 @@ export class GasAnalyzerService {
   constructor(
     private dataStorage: DataStorageService,
     private csvExport: CsvExportService,
+    private readonly networkService: NetworkConfigService,
+    private readonly blocknativeApi: BlocknativeApiService
   ) {
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
   }
@@ -77,8 +80,6 @@ export class GasAnalyzerService {
         this.logger.warn(`RPC URL not configured for network: ${networkKey}. Skipping.`);
         continue;
       }
-
-      this.logger.log(`Analyzing network: ${networkConfig.name}`);
       
       let networkResult: NetworkAnalysisResult;
       
@@ -255,8 +256,6 @@ export class GasAnalyzerService {
         this.logger.warn(`Network configuration not found for: ${networkKey}`);
         continue;
       }
-
-      this.logger.log(`Analyzing blob costs for: ${networkConfig.name}`);
       
       // Get mainnet gas prices for realistic cost calculation
       const mainnetChainId = NetworkConfigService.getMainnetChainId(networkKey);
@@ -268,7 +267,8 @@ export class GasAnalyzerService {
         networkConfig,
         blobDataSize,
         mainnetGasPriceData,
-        tokenPriceUSD
+        tokenPriceUSD,
+        networkKey
       );
       
       results.push({
@@ -290,7 +290,8 @@ export class GasAnalyzerService {
     networkConfig: NetworkConfig,
     blobDataSize: number,
     gasPriceData: GasPriceData,
-    tokenPriceUSD: number
+    tokenPriceUSD: number,
+    networkKey: string
   ): Promise<any> {
     // EIP-4844 blob specifications
     const BLOB_SIZE = 131072; // 128KB per blob
@@ -314,10 +315,10 @@ export class GasAnalyzerService {
     // Get real-time blob gas price from Blocknative API
     let estimatedBlobGasPrice: number;
     try {
-      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(99); // Use 70% confidence for blob pricing
+      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(networkConfig, 99); // Use 70% confidence for blob pricing
       if (blocknativeBlobBaseFee !== null) {
         estimatedBlobGasPrice = blocknativeBlobBaseFee;
-        this.logger.log(`Using real-time blob base fee: ${estimatedBlobGasPrice} gwei`);
+        this.logger.log(`Using real-time blob base fee for ${networkKey}: ${estimatedBlobGasPrice} gwei`);
       } else {
         throw new Error('Blocknative blob base fee not available');
       }
@@ -624,67 +625,95 @@ export class GasAnalyzerService {
     }
   }
 
-  private async getBlocknativeBlobBaseFee(confidenceLevel: number = 99): Promise<number | null> {
+  private async getBlocknativeBlobBaseFee(
+    networkConfig: NetworkConfig, // The config for the network selected by the user (e.g., Arbitrum)
+    confidence: number,
+  ): Promise<any> { // Tip: Replace 'any' with a more specific type like 'number' or a custom interface
+    let targetNetworkForApiCall = networkConfig;
+
+    // ======================= THE CORE FIX =======================
+    // If the requested network is an L2, the blob fee is determined by the L1 it posts to.
+    // We must override the network config to point to Ethereum Mainnet for the API call.
+    if (networkConfig.type === NetworkType.L2) { // Check if it's an L2
+      this.logger.debug(`Original network is L2 (${networkConfig.name}). Redirecting to L1 for blob fee.`);
+
+      // Find your L1 configuration. This is a robust way to do it.
+      const l1Config = NetworkConfigService.getNetworkByChainId(1); // Use static method to get L1 config
+
+      if (!l1Config) {
+        this.logger.error('CRITICAL: L1 (Ethereum Mainnet) configuration not found. Cannot calculate blob fees for L2s.');
+        // Fallback to your estimation logic as a last resort
+        return this.getBlobFeeFromBasefeeEstimates(confidence);
+      }
+
+      // Set the L1 config as the target for our Blocknative API call
+      targetNetworkForApiCall = l1Config;
+    }
+    // ===================== END OF THE FIX =====================
+
+    try {
+      // ALWAYS use `targetNetworkForApiCall` from now on.
+      const baseFeeData = await this.blocknativeApi.getBaseFeeEstimates();
+      const nextBlockEstimates = baseFeeData?.estimatedBaseFees?.[0]?.['pending+1'];
+
+      if (!nextBlockEstimates) {
+        throw new Error('Estimated base fees not available in Blocknative response.');
+      }
+
+      // Find the fee based on the 'confidence' level, with a fallback to the closest match
+      let feeEstimate = nextBlockEstimates.find((p: any) => p.confidence === confidence);
+      if (!feeEstimate) {
+        this.logger.debug(`Confidence level ${confidence}% not found, finding closest match.`);
+        feeEstimate = nextBlockEstimates.reduce((closest: any, current: any) => 
+          Math.abs(current.confidence - confidence) < Math.abs(closest.confidence - confidence) ? current : closest
+        );
+      }
+
+      const blobBaseFee = feeEstimate?.blobBaseFee;
+
+      if (blobBaseFee === undefined) {
+        throw new Error(`Blob base fee not found for confidence level ${confidence}`);
+      }
+
+      return blobBaseFee;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch blob base fee from Blocknative for target network ${targetNetworkForApiCall.name}. Falling back to estimation.`,
+        error.message,
+      );
+      // Your existing fallback logic
+      return this.getBlobFeeFromBasefeeEstimates(confidence);
+    }
+  }
+
+  private async getBlobFeeFromBasefeeEstimates(confidenceLevel: number): Promise<number | null> {
     const apiKey = process.env.BLOCKNATIVE_API_KEY;
     if (!apiKey) {
       this.logger.warn('BLOCKNATIVE_API_KEY not configured');
       return null;
     }
-
+    const url = 'https://api.blocknative.com/gasprices/basefee-estimates';
     try {
-      const url = 'https://api.blocknative.com/gasprices/basefee-estimates';
-      
       const response = await fetch(url, {
-        headers: {
-          'X-Api-Key': apiKey,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' }
       });
-
-      if (!response.ok) {
-        throw new Error(`Blocknative basefee-estimates API error: ${response.status} ${response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data = await response.json();
-      
-      // Get current blob base fee
-      const currentBlobBaseFee = data.blobBaseFeePerGas;
-      if (currentBlobBaseFee !== undefined) {
-        this.logger.log(`Current blob base fee: ${currentBlobBaseFee} gwei`);
-        return currentBlobBaseFee;
-      }
+      if (data.blobBaseFeePerGas) return data.blobBaseFeePerGas;
 
-      // If current is not available, get prediction for next block
-      const estimatedBaseFees = data.estimatedBaseFees;
-      if (!estimatedBaseFees || estimatedBaseFees.length === 0) {
-        throw new Error('No estimated base fees available');
-      }
+      const nextBlockEstimate = data.estimatedBaseFees?.[0]?.['pending+1'];
+      if (!nextBlockEstimate) throw new Error('No estimates available');
 
-      // Get the first prediction (pending+1)
-      const nextBlockEstimate = estimatedBaseFees[0]['pending+1'];
-      if (!nextBlockEstimate || nextBlockEstimate.length === 0) {
-        throw new Error('No next block estimates available');
-      }
-
-      // Find the estimate for the requested confidence level
-      let selectedEstimate = nextBlockEstimate.find((estimate: any) => estimate.confidence === confidenceLevel);
-      
+      let selectedEstimate = nextBlockEstimate.find((e: any) => e.confidence === confidenceLevel);
       if (!selectedEstimate) {
-        // Fallback to closest confidence level
-        selectedEstimate = nextBlockEstimate.reduce((closest: any, current: any) => {
-          return Math.abs(current.confidence - confidenceLevel) < Math.abs(closest.confidence - confidenceLevel) 
-            ? current : closest;
-        });
+        selectedEstimate = nextBlockEstimate.reduce((closest: any, current: any) => 
+          Math.abs(current.confidence - confidenceLevel) < Math.abs(closest.confidence - confidenceLevel) ? current : closest
+        );
       }
-
-      if (!selectedEstimate || selectedEstimate.blobBaseFee === undefined) {
-        throw new Error('No suitable blob base fee estimate found');
-      }
-
-      this.logger.log(`Predicted blob base fee: ${selectedEstimate.blobBaseFee} gwei (confidence: ${selectedEstimate.confidence}%, requested: ${confidenceLevel}%)`);
+      if (!selectedEstimate?.blobBaseFee) throw new Error('No suitable blob fee estimate found');
       return selectedEstimate.blobBaseFee;
     } catch (error) {
-      this.logger.error('Failed to fetch Blocknative blob base fee:', error);
+      this.logger.error('Failed to fetch from basefee-estimates:', error);
       return null;
     }
   }
@@ -849,7 +878,6 @@ export class GasAnalyzerService {
           try {
               const price = await fetchPrice();
               if (price && price > 0) {
-                  this.logger.log(`Successfully fetched ${token.name} price: $${price}`);
                   return price;
               }
           } catch (error) {
@@ -976,6 +1004,12 @@ export class GasAnalyzerService {
            this.logger.warn(`Unknown chain ID: ${chainId}`);
            continue;
          }
+
+         const networkConfig = NetworkConfigService.getNetwork(chainId);
+         if (!networkConfig) {
+            this.logger.warn(`Network configuration not found for: ${chainId}`);
+            continue;
+         }
          
          // Fetch gas data using existing Blocknative integration
          const gasData = await this.getBlocknativeGasPrice(numericChainId, confidenceLevel);
@@ -988,7 +1022,7 @@ export class GasAnalyzerService {
          // Get blob base fee for Ethereum mainnet only
          let blobBaseFee: number | null = null;
          if (numericChainId === 1) {
-           blobBaseFee = await this.getBlocknativeBlobBaseFee(confidenceLevel);
+           blobBaseFee = await this.getBlocknativeBlobBaseFee(networkConfig, confidenceLevel);
          }
          
          // Format response to match frontend expectations
@@ -1036,10 +1070,7 @@ export class GasAnalyzerService {
              }]
            },
            timestamp: Date.now()
-         };
-         
-         this.logger.log(`Successfully fetched gas data for ${chainId}: Base=${gasData.baseFee} gwei, Priority=${gasData.priorityFee} gwei, Total=${gasData.totalFee} gwei`);
-         
+         };     
          results.push(chainResult);
          
          // Add delay between requests to avoid rate limiting
@@ -1050,8 +1081,6 @@ export class GasAnalyzerService {
          this.logger.error(`Failed to fetch data for chain ${chainId}:`, error);
        }
      }
-     
-     this.logger.log(`Multi-chain gas data fetch completed. Successfully fetched ${results.length}/${chainIds.length} chains`);
      return results;
    }
 
@@ -1070,7 +1099,7 @@ export class GasAnalyzerService {
      // Map chain IDs to CoinGecko IDs and symbols
      const chainConfigs = {
        'ethereum': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
-       'polygon': { coingeckoId: 'pol', coingeckoSymbol: 'POL' },
+       'polygon': { coingeckoId: 'polygon-ecosystem-token', coingeckoSymbol: 'pol' },
        'arbitrum': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'optimism': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'base': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
