@@ -454,5 +454,22 @@ export class GasAnalyzerController {
     }
   }
 
+  @Get('ethereum-block-prices')
+  async getEthereumBlockPrices() {
+    try {
+      const blockPrices = await this.gasAnalyzerService.getEthereumBlockPrices();
+      return {
+        success: true,
+        data: blockPrices,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to fetch Ethereum block prices: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   // Compilation error extraction moved to shared/validation-utils.ts
 }

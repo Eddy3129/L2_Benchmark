@@ -1151,7 +1151,7 @@ export class GasAnalyzerService {
          
          // Add delay between requests to avoid rate limiting
          if (results.length < chainIds.length) {
-           await new Promise(resolve => setTimeout(resolve, 200));
+           await new Promise(resolve => setTimeout(resolve, 2000));
          }
        } catch (error) {
          this.logger.error(`Failed to fetch data for chain ${chainId}:`, error);
@@ -1222,6 +1222,19 @@ export class GasAnalyzerService {
      } catch (error) {
        this.logger.error('Failed to fetch token prices from CoinGecko:', error);
        throw new Error('Failed to fetch token prices');
+     }
+   }
+
+   async getEthereumBlockPrices(): Promise<any> {
+     try {
+       const blockPrices = await this.blocknativeApi.getEthereumBlockPrices();
+       if (!blockPrices) {
+         throw new Error('Failed to fetch Ethereum block prices from Blocknative API');
+       }
+       return blockPrices;
+     } catch (error) {
+       this.logger.error('Failed to fetch Ethereum block prices:', error);
+       throw new Error('Failed to fetch Ethereum block prices');
      }
    }
  }
