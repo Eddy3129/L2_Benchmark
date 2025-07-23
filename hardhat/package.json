@@ -1,0 +1,28 @@
+{
+  "name": "hardhat-forking",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "test:basic-token": "hardhat test test/BasicToken.ts",
+    "test:advanced-token": "hardhat test test/AdvancedToken.ts",
+    "test:multi-sig-wallet": "hardhat test test/MultiSigWallet.ts",
+    "test:simple-auction": "hardhat test test/SimpleAuction.ts",
+    "test:simple-staking": "hardhat test test/SimpleStaking.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "hardhat": "^2.26.1",
+    "hardhat-gas-reporter": "^2.3.0"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^4.1.0",
+    "@nomicfoundation/hardhat-viem": "^2.1.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "viem": "^2.33.0"
+  }
+}

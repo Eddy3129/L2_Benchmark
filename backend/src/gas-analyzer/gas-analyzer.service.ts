@@ -42,7 +42,7 @@ const execAsync = promisify(exec);
 @Injectable()
 export class GasAnalyzerService {
   private readonly logger = new Logger(GasAnalyzerService.name);
-  private readonly hardhatProjectRoot = path.join(process.cwd(), '..');
+  private readonly hardhatProjectRoot = path.join(process.cwd(), '../hardhat');
   private readonly tempContractsDir = path.join(this.hardhatProjectRoot, 'contracts', 'temp');
 
   constructor(
