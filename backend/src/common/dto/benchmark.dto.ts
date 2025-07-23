@@ -18,8 +18,6 @@ import { PaginationQueryDto, DateRangeQueryDto } from './base.dto';
 
 // Enums
 export enum BenchmarkType {
-  SEQUENCER_PERFORMANCE = 'sequencer_performance',
-  L1_FINALITY = 'l1_finality',
   NETWORK_LATENCY = 'network_latency',
   THROUGHPUT = 'throughput',
   COST_EFFICIENCY = 'cost_efficiency',
@@ -388,88 +386,7 @@ export class BenchmarkSessionDto {
   };
 }
 
-export class SequencerPerformanceResultDto {
-  @ApiProperty({ description: 'Test ID' })
-  id: string;
 
-  @ApiProperty({ description: 'Network name' })
-  network: string;
-
-  @ApiProperty({ description: 'Sequencer endpoint' })
-  sequencerEndpoint: string;
-
-  @ApiProperty({ description: 'Test configuration' })
-  testConfig: {
-    duration: number;
-    concurrency: number;
-    requestRate: number;
-  };
-
-  @ApiProperty({ description: 'Performance metrics' })
-  metrics: {
-    averageLatency: number;
-    p95Latency: number;
-    p99Latency: number;
-    throughput: number;
-    successRate: number;
-    errorRate: number;
-    totalRequests: number;
-    successfulRequests: number;
-    failedRequests: number;
-  };
-
-  @ApiProperty({ description: 'Test timestamps' })
-  timestamps: {
-    started: string;
-    completed: string;
-    duration: number;
-  };
-
-  @ApiPropertyOptional({ description: 'Detailed results' })
-  detailedResults?: {
-    latencyPercentiles: Record<string, number>;
-    throughputOverTime: Array<{ timestamp: string; value: number }>;
-    errorBreakdown: Record<string, number>;
-  };
-}
-
-export class L1FinalityResultDto {
-  @ApiProperty({ description: 'Test ID' })
-  id: string;
-
-  @ApiProperty({ description: 'L2 network name' })
-  l2Network: string;
-
-  @ApiProperty({ description: 'L1 network name' })
-  l1Network: string;
-
-  @ApiProperty({ description: 'Finality metrics' })
-  metrics: {
-    averageFinalityTime: number;
-    minFinalityTime: number;
-    maxFinalityTime: number;
-    p95FinalityTime: number;
-    p99FinalityTime: number;
-    finalityRate: number;
-    totalTransactions: number;
-    finalizedTransactions: number;
-    pendingTransactions: number;
-  };
-
-  @ApiProperty({ description: 'Test period' })
-  testPeriod: {
-    startTime: string;
-    endTime: string;
-    duration: number;
-  };
-
-  @ApiPropertyOptional({ description: 'Detailed finality data' })
-  detailedData?: {
-    finalityTimeDistribution: Array<{ bucket: string; count: number }>;
-    finalityOverTime: Array<{ timestamp: string; finalityTime: number }>;
-    batchSubmissionTimes: Array<{ timestamp: string; batchSize: number; submissionTime: number }>;
-  };
-}
 
 export class BenchmarkStatsDto {
   @ApiProperty({ description: 'Total benchmark sessions' })

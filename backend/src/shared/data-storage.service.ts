@@ -9,8 +9,7 @@ export class DataStorageService {
   private reportSections: Map<string, any> = new Map();
   private networkResults: Map<string, any> = new Map();
   private compilationResults: Map<string, any> = new Map();
-  private sequencerPerformanceTests: Map<string, any> = new Map();
-  private l1FinalityTracking: Map<string, any> = new Map();
+
 
   /**
    * Generic methods for data operations
@@ -29,10 +28,7 @@ export class DataStorageService {
         return this.networkResults;
       case 'compilationResult':
         return this.compilationResults;
-      case 'sequencerPerformanceTest':
-        return this.sequencerPerformanceTests;
-      case 'l1FinalityTracking':
-        return this.l1FinalityTracking;
+
       default:
         throw new Error(`Unknown entity type: ${entityType}`);
     }
@@ -162,8 +158,7 @@ export class DataStorageService {
     this.reportSections.clear();
     this.networkResults.clear();
     this.compilationResults.clear();
-    this.sequencerPerformanceTests.clear();
-    this.l1FinalityTracking.clear();
+
   }
 
   /**
@@ -177,8 +172,7 @@ export class DataStorageService {
       reportSections: this.reportSections.size,
       networkResults: this.networkResults.size,
       compilationResults: this.compilationResults.size,
-      sequencerPerformanceTests: this.sequencerPerformanceTests.size,
-      l1FinalityTracking: this.l1FinalityTracking.size,
+
     };
   }
 }

@@ -127,19 +127,7 @@ export class CsvExportService {
     return this.exportToCsv(reportData, 'comparison_report');
   }
 
-  /**
-   * Export sequencer performance data to CSV
-   */
-  exportSequencerPerformance(performanceData: any[]): string {
-    return this.exportToCsv(performanceData, 'sequencer_performance');
-  }
 
-  /**
-   * Export L1 finality tracking data to CSV
-   */
-  exportL1FinalityTracking(finalityData: any[]): string {
-    return this.exportToCsv(finalityData, 'l1_finality_tracking');
-  }
 
   /**
    * Get export directory path

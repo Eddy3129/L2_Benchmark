@@ -4,8 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 import { GasAnalyzerController } from './gas-analyzer.controller';
 import { GasAnalyzerService } from './gas-analyzer.service';
 import { ComparisonReportService } from './comparison-report.service';
-import { SequencerPerformanceService } from './sequencer-performance.service';
-import { L1FinalityService } from './l1-finality.service';
+
 
 import { AdvancedAnalysisController } from './controllers/advanced-analysis.controller';
 import { BlockchainMonitorService } from './blockchain-monitor.service';
@@ -24,8 +23,7 @@ import { SharedModule } from '../shared/shared.module';
   providers: [
     GasAnalyzerService,
     ComparisonReportService,
-    SequencerPerformanceService,
-    L1FinalityService,
+
     BlockchainMonitorService,
     FinalityCalculatorService,
     PriceOracleService,
@@ -33,8 +31,7 @@ import { SharedModule } from '../shared/shared.module';
   exports: [
     GasAnalyzerService,
     ComparisonReportService,
-    SequencerPerformanceService,
-    L1FinalityService,
+
   ],
 })
 export class GasAnalyzerModule {}

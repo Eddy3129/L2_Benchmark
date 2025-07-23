@@ -38,18 +38,7 @@ export function Navigation() {
       icon: Zap,
       description: "Real-time testing suite",
     },
-    {
-      href: "/sequencer-analysis",
-      label: "Sequencer Analysis",
-      icon: Search,
-      description: "Censorship resistance testing",
-    },
-    {
-      href: "/l1-finality",
-      label: "L1 Finality",
-      icon: LinkIcon,
-      description: "Settlement tracking",
-    },
+
     {
       href: "/analysis",
       label: "Reports",
