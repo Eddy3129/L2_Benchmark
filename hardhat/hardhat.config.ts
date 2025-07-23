@@ -18,21 +18,21 @@ const config: HardhatUserConfig = {
       }
     }
   },
-  networks: {
-  hardhat: {
-    forking: {
-      url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    },
-  }
-},
+//   networks: {
+//   hardhat: {
+//     forking: {
+//       url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+//     },
+//   }
+// },
   gasReporter: {
     enabled: true,
     currency:"USD",
-    outputJSONFile: "output/json/gas-report-linea.json",
-    outputFile: "output/markdowns/gas-report-linea.md",
+    outputJSONFile: "output/json/gas-report-scroll.json",
+    outputFile: "output/markdowns/gas-report-scroll.md",
     outputJSON:true,
-    gasPrice:7e-9,
-    baseFee:0.7,
+    gasPrice:2.40E-06,
+    baseFee:0.0031,
     blobBaseFee:1e9,
     token:"ETH",
     tokenPrice:"3720",

@@ -27,8 +27,8 @@
   "showMethodSig": false,
   "showUncalledMethods": false,
   "outputFile": "output/markdowns/gas-report-scroll.md",
-  "gasPrice": 0.0025,
-  "baseFee": 0.7,
+  "gasPrice": 0.0000024,
+  "baseFee": 0.0031,
   "blobBaseFee": 1000000000,
   "token": "ETH",
   "tokenPrice": "3720",
@@ -244,7 +244,7 @@
     "numberOfCalls": 47,
     "executionGasAverage": 47352,
     "calldataGasAverage": 0,
-    "cost": "0.00044037",
+    "cost": "0.00000042",
     "min": 47341,
     "max": 47353
    },
@@ -481,7 +481,7 @@
     "numberOfCalls": 47,
     "executionGasAverage": 27743,
     "calldataGasAverage": 0,
-    "cost": "0.00025801",
+    "cost": "0.00000025",
     "min": 27743,
     "max": 27743
    },
@@ -715,7 +715,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 25426,
     "calldataGasAverage": 0,
-    "cost": "0.00023646",
+    "cost": "0.00000023",
     "min": 25415,
     "max": 25427
    },
@@ -872,7 +872,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 27721,
     "calldataGasAverage": 0,
-    "cost": "0.00025781",
+    "cost": "0.00000025",
     "min": 27721,
     "max": 27721
    },
@@ -1051,7 +1051,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 34786,
     "calldataGasAverage": 0,
-    "cost": "0.00032351",
+    "cost": "0.00000031",
     "min": 26506,
     "max": 46406
    },
@@ -1219,7 +1219,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 33809,
     "calldataGasAverage": 0,
-    "cost": "0.00031442",
+    "cost": "0.00000030",
     "min": 33808,
     "max": 33832
    },
@@ -1528,7 +1528,7 @@
     "numberOfCalls": 93,
     "executionGasAverage": 40750,
     "calldataGasAverage": 0,
-    "cost": "0.00037898",
+    "cost": "0.00000036",
     "min": 36693,
     "max": 53817
    },
@@ -1740,7 +1740,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 35230,
     "calldataGasAverage": 0,
-    "cost": "0.00032764",
+    "cost": "0.00000031",
     "min": 34486,
     "max": 51610
    },
@@ -2198,7 +2198,7 @@
     "numberOfCalls": 139,
     "executionGasAverage": 63417,
     "calldataGasAverage": 0,
-    "cost": "0.00058978",
+    "cost": "0.00000057",
     "min": 57501,
     "max": 74613
    },
@@ -2355,7 +2355,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 70286,
     "calldataGasAverage": 0,
-    "cost": "0.00065366",
+    "cost": "0.00000063",
     "min": 70275,
     "max": 70287
    },
@@ -2589,7 +2589,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 35509,
     "calldataGasAverage": 0,
-    "cost": "0.00033023",
+    "cost": "0.00000032",
     "min": 32296,
     "max": 35581
    },
@@ -2752,7 +2752,7 @@
     "numberOfCalls": 48,
     "executionGasAverage": 85260,
     "calldataGasAverage": 0,
-    "cost": "0.00079292",
+    "cost": "0.00000076",
     "min": 81380,
     "max": 101352
    },
@@ -2920,7 +2920,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 48678,
     "calldataGasAverage": 0,
-    "cost": "0.00045271",
+    "cost": "0.00000043",
     "min": 48655,
     "max": 48679
    },
@@ -2953,7 +2953,7 @@
     "numberOfCalls": 1,
     "executionGasAverage": 199119,
     "calldataGasAverage": 0,
-    "cost": "0.00185181",
+    "cost": "0.00000178",
     "min": 199119,
     "max": 199119
    },
@@ -3317,7 +3317,7 @@
     "numberOfCalls": 93,
     "executionGasAverage": 71491,
     "calldataGasAverage": 0,
-    "cost": "0.00066487",
+    "cost": "0.00000064",
     "min": 61562,
     "max": 95762
    },
@@ -3543,7 +3543,7 @@
     "numberOfCalls": 47,
     "executionGasAverage": 39507,
     "calldataGasAverage": 0,
-    "cost": "0.00036742",
+    "cost": "0.00000035",
     "min": 38426,
     "max": 55526
    },
@@ -3579,7 +3579,7 @@
     "numberOfCalls": 2,
     "executionGasAverage": 62830,
     "calldataGasAverage": 0,
-    "cost": "0.00058432",
+    "cost": "0.00000056",
     "min": 62830,
     "max": 62830
    },
@@ -3905,7 +3905,7 @@
     "numberOfCalls": 95,
     "executionGasAverage": 48623,
     "calldataGasAverage": 0,
-    "cost": "0.00045219",
+    "cost": "0.00000043",
     "min": 40267,
     "max": 69074
    },
@@ -4125,7 +4125,7 @@
     "numberOfCalls": 45,
     "executionGasAverage": 25642,
     "calldataGasAverage": 0,
-    "cost": "0.00023847",
+    "cost": "0.00000023",
     "min": 23509,
     "max": 28560
    },
@@ -4169,7 +4169,7 @@
     "numberOfCalls": 1,
     "executionGasAverage": 153355,
     "calldataGasAverage": 0,
-    "cost": "0.00142620",
+    "cost": "0.00000137",
     "min": 153355,
     "max": 153355
    },
@@ -4326,7 +4326,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 77424,
     "calldataGasAverage": 0,
-    "cost": "0.00072004",
+    "cost": "0.00000069",
     "min": 67287,
     "max": 120587
    },
@@ -4577,7 +4577,7 @@
     "numberOfCalls": 48,
     "executionGasAverage": 133372,
     "calldataGasAverage": 0,
-    "cost": "0.00124036",
+    "cost": "0.00000119",
     "min": 126368,
     "max": 143468
    },
@@ -4778,7 +4778,7 @@
     "numberOfCalls": 46,
     "executionGasAverage": 80985,
     "calldataGasAverage": 0,
-    "cost": "0.00075316",
+    "cost": "0.00000072",
     "min": 72768,
     "max": 81168
    }
@@ -4796,7 +4796,7 @@
     ],
     "executionGasAverage": 973081,
     "calldataGasAverage": 0,
-    "cost": "0.00904965",
+    "cost": "0.00000869",
     "min": 973081,
     "max": 973081,
     "percent": 3.2
@@ -4821,7 +4821,7 @@
     ],
     "executionGasAverage": 768883,
     "calldataGasAverage": 0,
-    "cost": "0.00715061",
+    "cost": "0.00000686",
     "min": 768883,
     "max": 768883,
     "percent": 2.6
@@ -4923,7 +4923,7 @@
     ],
     "executionGasAverage": 1262755,
     "calldataGasAverage": 0,
-    "cost": "0.01174362",
+    "cost": "0.00001127",
     "min": 1262755,
     "max": 1262755,
     "percent": 4.2
@@ -4931,18 +4931,18 @@
    {
     "name": "MyNFT",
     "gasData": [
-     1186392,
-     1186392
+     1186380,
+     1186380
     ],
     "callData": [
      0,
      0
     ],
-    "executionGasAverage": 1186392,
+    "executionGasAverage": 1186380,
     "calldataGasAverage": 0,
-    "cost": "0.01103345",
-    "min": 1186392,
-    "max": 1186392,
+    "cost": "0.00001059",
+    "min": 1186380,
+    "max": 1186380,
     "percent": 4
    },
    {
@@ -4987,7 +4987,7 @@
     ],
     "executionGasAverage": 412278,
     "calldataGasAverage": 0,
-    "cost": "0.00383419",
+    "cost": "0.00000368",
     "min": 412278,
     "max": 412278,
     "percent": 1.4
@@ -5004,7 +5004,7 @@
     ],
     "executionGasAverage": 772065,
     "calldataGasAverage": 0,
-    "cost": "0.00718020",
+    "cost": "0.00000689",
     "min": 772065,
     "max": 772065,
     "percent": 2.6
