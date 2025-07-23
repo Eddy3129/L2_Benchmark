@@ -1,10 +1,5 @@
-// Update these addresses after deployment
-export const CONTRACT_ADDRESSES = {
-  BASIC_POOL: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Your deployed BasicPool address
-  TOKEN_A: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', // Your deployed TokenA address
-  TOKEN_B: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9', // Your deployed TokenB address
-  MY_NFT: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', // Your deployed MyNFT address
-} as const;
+// Contract addresses are now configured per network in the benchmarker
+// This file only contains ABIs for contract interaction
 
 // Complete ERC20 ABI for tokens (including mint function)
 export const ERC20_ABI = [

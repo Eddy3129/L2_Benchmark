@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { apiService, type BenchmarkSession, type GasAnalysis } from '../../lib/api';
+import { apiService, type BenchmarkSession, type GasAnalysis, type ComparisonReport, type ComparisonResult } from '../../lib/api';
+import ComparisonResults from '../../components/ComparisonResults';
 
 interface DetailedGasAnalysis extends GasAnalysis {
   expanded?: boolean;
@@ -18,11 +19,13 @@ interface GroupedGasAnalysis {
 }
 
 export default function AnalysisPage() {
-  const [activeTab, setActiveTab] = useState<'estimation' | 'benchmark'>('estimation');
+  const [activeTab, setActiveTab] = useState<'estimation' | 'benchmark' | 'comparison'>('estimation');
   const [gasAnalyses, setGasAnalyses] = useState<GroupedGasAnalysis[]>([]);
   const [benchmarkSessions, setBenchmarkSessions] = useState<BenchmarkSession[]>([]);
+  const [comparisonReports, setComparisonReports] = useState<ComparisonReport[]>([]);
   const [selectedAnalysis, setSelectedAnalysis] = useState<GroupedGasAnalysis | null>(null);
   const [selectedBenchmark, setSelectedBenchmark] = useState<BenchmarkSession | null>(null);
+  const [selectedComparison, setSelectedComparison] = useState<ComparisonReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -90,14 +93,17 @@ export default function AnalysisPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [gasData, benchmarkData] = await Promise.all([
+      const [gasData, benchmarkData, comparisonData] = await Promise.all([
         apiService.getGasAnalysisHistory(),
-        apiService.getBenchmarkSessions()
+        apiService.getBenchmarkSessions(),
+        apiService.getComparisonReports()
       ]);
       
       // Group gas analyses by contract and session
       const groupedGasAnalyses = groupGasAnalyses(gasData);
+      
       setGasAnalyses(groupedGasAnalyses);
+      setComparisonReports(comparisonData);
       setBenchmarkSessions(benchmarkData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -133,7 +139,127 @@ export default function AnalysisPage() {
     })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
 
-  const exportToCSV = (data: any[], filename: string, type: 'estimation' | 'benchmark') => {
+  // Transform ComparisonReport to ComparisonResult format
+  const transformComparisonReport = (report: ComparisonReport): ComparisonResult => {
+    const baselineNetwork = report.networks?.[0];
+    const otherNetworks = report.networks?.slice(1) || [];
+    
+    return {
+      contractName: report.contractName,
+      timestamp: report.createdAt,
+      local: {
+        network: 'sepolia',
+        networkName: 'Sepolia',
+        deployment: {
+          gasUsed: baselineNetwork?.deploymentGas || '0',
+          costETH: baselineNetwork?.deploymentFee || '0',
+          costUSD: parseFloat(baselineNetwork?.deploymentFee || '0') * 2000 // Approximate ETH price
+        },
+        functions: baselineNetwork?.functions?.map(func => ({
+          functionName: func.signature,
+          gasUsed: func.gasUsed,
+          estimatedCostETH: func.estimatedFee,
+          estimatedCostUSD: parseFloat(func.estimatedFee) * 2000
+        })) || [],
+        gasPrice: '20 gwei',
+        ethPriceUSD: 2000,
+        gasPriceBreakdown: {
+          baseFee: 15,
+          priorityFee: 5,
+          totalFee: 20,
+          confidence: 95,
+          source: 'etherscan'
+        }
+      },
+      comparisons: otherNetworks.map(network => ({
+        network: network.name?.toLowerCase() || 'unknown',
+        gasPrice: '0.1 gwei',
+        gasPriceBreakdown: {
+          totalFee: 0.1,
+          source: 'rpc',
+          confidence: 90
+        },
+        deployment: {
+          local: {
+            gasUsed: baselineNetwork?.deploymentGas || '0',
+            costETH: baselineNetwork?.deploymentFee || '0',
+            costUSD: parseFloat(baselineNetwork?.deploymentFee || '0') * 2000
+          },
+          l2: {
+            gasUsed: network.deploymentGas || '0',
+            costETH: network.deploymentFee || '0',
+            costUSD: parseFloat(network.deploymentFee || '0') * 2000
+          },
+          savings: {
+            gasReduction: parseInt(baselineNetwork?.deploymentGas || '0') - parseInt(network.deploymentGas || '0'),
+            costSavingsETH: parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(network.deploymentFee || '0'),
+            costSavingsUSD: (parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(network.deploymentFee || '0')) * 2000,
+            percentageSaving: report.savingsPercentage || 0
+          }
+        },
+        functions: network.functions?.map(func => {
+          const baselineFunc = baselineNetwork?.functions?.find(f => f.signature === func.signature);
+          return {
+            functionName: func.signature,
+            local: {
+              gasUsed: baselineFunc?.gasUsed || '0',
+              costETH: baselineFunc?.estimatedFee || '0',
+              costUSD: parseFloat(baselineFunc?.estimatedFee || '0') * 2000
+            },
+            l2: {
+              gasUsed: func.gasUsed || '0',
+              costETH: func.estimatedFee || '0',
+              costUSD: parseFloat(func.estimatedFee || '0') * 2000
+            },
+            savings: {
+              gasReduction: parseInt(baselineFunc?.gasUsed || '0') - parseInt(func.gasUsed || '0'),
+              costSavingsETH: parseFloat(baselineFunc?.estimatedFee || '0') - parseFloat(func.estimatedFee || '0'),
+              costSavingsUSD: (parseFloat(baselineFunc?.estimatedFee || '0') - parseFloat(func.estimatedFee || '0')) * 2000,
+              percentageSaving: ((parseFloat(baselineFunc?.estimatedFee || '0') - parseFloat(func.estimatedFee || '0')) / parseFloat(baselineFunc?.estimatedFee || '1')) * 100
+            }
+          };
+        }) || [],
+        summary: {
+          totalLocalCost: parseFloat(baselineNetwork?.deploymentFee || '0') * 2000,
+          totalL2Cost: parseFloat(network.deploymentFee || '0') * 2000,
+          totalSavings: (parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(network.deploymentFee || '0')) * 2000
+        }
+      })),
+      overallSummary: {
+        bestNetwork: otherNetworks.length > 0 ? {
+          network: otherNetworks[0].name?.toLowerCase() || 'unknown',
+          gasPrice: '0.1 gwei',
+          deployment: {
+            local: {
+              gasUsed: baselineNetwork?.deploymentGas || '0',
+              costETH: baselineNetwork?.deploymentFee || '0',
+              costUSD: parseFloat(baselineNetwork?.deploymentFee || '0') * 2000
+            },
+            l2: {
+              gasUsed: otherNetworks[0].deploymentGas,
+              costETH: otherNetworks[0].deploymentFee,
+              costUSD: parseFloat(otherNetworks[0].deploymentFee) * 2000
+            },
+            savings: {
+              gasReduction: parseInt(baselineNetwork?.deploymentGas || '0') - parseInt(otherNetworks[0].deploymentGas),
+              costSavingsETH: parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(otherNetworks[0].deploymentFee),
+              costSavingsUSD: (parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(otherNetworks[0].deploymentFee)) * 2000,
+              percentageSaving: report.savingsPercentage || 0
+            }
+          },
+          functions: [],
+          summary: {
+            totalLocalCost: parseFloat(baselineNetwork?.deploymentFee || '0') * 2000,
+            totalL2Cost: parseFloat(otherNetworks[0].deploymentFee) * 2000,
+            totalSavings: (parseFloat(baselineNetwork?.deploymentFee || '0') - parseFloat(otherNetworks[0].deploymentFee)) * 2000
+          }
+        } : {} as any,
+        averageSavings: report.savingsPercentage || 0
+      }
+    };
+  };
+
+  const exportToCSV = (data: any[], filename: string, type: 'estimation' | 'benchmark' | 'comparison') => {
     let csvContent = '';
     
     if (type === 'estimation') {
@@ -143,13 +269,19 @@ export default function AnalysisPage() {
           csvContent += `"${analysis.contractName}","${analysis.functionSignature}","${analysis.l2Network}",${analysis.gasUsed},${analysis.estimatedL2Fee},${analysis.estimatedL1Fee},${analysis.totalEstimatedFeeUSD},"${analysis.createdAt}"\n`;
         });
       });
+    } else if (type === 'comparison') {
+      csvContent = 'Contract Name,Networks,Gas Difference,Savings %,Created At\n';
+      data.forEach((report: ComparisonReport) => {
+        const networks = report.networks?.map(n => n.name).join(' vs ') || 'N/A';
+        csvContent += `"${report.contractName}","${networks}",${report.totalGasDifference},${report.savingsPercentage},"${report.createdAt}"\n`;
+      });
     } else {
       csvContent = 'Session Name,Total Operations,Avg Gas Used,Avg Execution Time,Success Rate,Total Gas Used,Total Fees,Created At\n';
       data.forEach((session: BenchmarkSession) => {
         const successRate = session.results.transactions.totalTransactions > 0 
           ? (Number(session.results.transactions.successfulTransactions) || 0) / (Number(session.results.transactions.totalTransactions) || 1) * 100
           : 0;
-        csvContent += `"${session.sessionName}",${session.totalOperations || 0},${session.avgGasUsed || 0},${Number(session.avgExecutionTime) || 0},${successRate.toFixed(2)}%,${session.results.transactions.totalGasUsed || 0},${session.results.transactions.totalFees || 0},"${session.createdAt}"\n`;
+        csvContent += `"${session.sessionName}",${session.totalOperations || 0},${session.avgGasUsed || 0},${session.avgExecutionTime ? ((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2) : 0},${successRate.toFixed(2)}%,${session.results.transactions.totalGasUsed || 0},${session.results.transactions.totalFees || 0},"${session.createdAt}"\n`;
       });
     }
 
@@ -191,11 +323,12 @@ export default function AnalysisPage() {
             </div>
             <div className="flex space-x-3">
               <button
-                onClick={() => exportToCSV(
-                  activeTab === 'estimation' ? gasAnalyses : benchmarkSessions,
-                  `${activeTab}-report-${new Date().toISOString().split('T')[0]}.csv`,
-                  activeTab
-                )}
+              onClick={() => exportToCSV(
+                activeTab === 'estimation' ? gasAnalyses : 
+                activeTab === 'comparison' ? comparisonReports : benchmarkSessions,
+                `${activeTab}-report-${new Date().toISOString().split('T')[0]}.csv`,
+                activeTab as 'estimation' | 'benchmark' | 'comparison'
+              )}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -254,6 +387,24 @@ export default function AnalysisPage() {
                 <span>Benchmark Test Reports</span>
                 <span className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
                   {benchmarkSessions.length}
+                </span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('comparison')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'comparison'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span>Comparison Reports</span>
+                <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                  {comparisonReports.length}
                 </span>
               </div>
             </button>
@@ -561,9 +712,9 @@ export default function AnalysisPage() {
                     <p className="text-sm font-medium text-gray-400">Avg Execution Time</p>
                     <p className="text-xl font-bold text-white">
                       {benchmarkSessions.length > 0 
-                        ? (benchmarkSessions.reduce((sum, s) => sum + (Number(s.avgExecutionTime) || 0), 0) / benchmarkSessions.length).toFixed(2)
+                        ? (benchmarkSessions.reduce((sum, s) => sum + (Number(s.avgExecutionTime) || 0), 0) / benchmarkSessions.length / 1000).toFixed(2)
                         : '0.00'
-                      }ms
+                      }s
                     </p>
                   </div>
                   <div className="p-3 bg-yellow-500/20 rounded-lg">
@@ -635,7 +786,7 @@ export default function AnalysisPage() {
                               {(Number(session.avgGasUsed) || 0).toLocaleString()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                              {(Number(session.avgExecutionTime) || 0).toFixed(2)}ms
+                              {((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2)}s
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -705,7 +856,7 @@ export default function AnalysisPage() {
                                       <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
                                           <span className="text-gray-400">Avg Execution Time:</span>
-                                          <span className="text-white font-mono">{(Number(session.avgExecutionTime) || 0).toFixed(2)}ms</span>
+                                          <span className="text-white font-mono">{((Number(session.avgExecutionTime) || 0) / 1000).toFixed(2)}s</span>
                                         </div>
                                         <div className="flex justify-between">
                                           <span className="text-gray-400">Total Operations:</span>
@@ -734,6 +885,90 @@ export default function AnalysisPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Comparison Reports Tab */}
+        {activeTab === 'comparison' && (
+          <div className="space-y-6">
+            {/* Comparison Reports Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-400">Total Comparisons</p>
+                    <p className="text-xl font-bold text-white">{comparisonReports.length}</p>
+                  </div>
+                  <div className="p-3 bg-purple-500/20 rounded-lg">
+                    <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-400">Avg Gas Difference</p>
+                    <p className="text-xl font-bold text-white">
+                      {comparisonReports.length > 0 
+                        ? Math.round(comparisonReports.reduce((sum, report) => {
+                            return sum + Math.abs(parseInt(report.totalGasDifference) || 0);
+                          }, 0) / comparisonReports.length).toLocaleString()
+                        : '0'
+                      }
+                    </p>
+                  </div>
+                  <div className="p-3 bg-orange-500/20 rounded-lg">
+                    <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-400">Latest Comparison</p>
+                    <p className="text-xl font-bold text-white">
+                      {comparisonReports.length > 0 
+                        ? new Date(comparisonReports[0].createdAt).toLocaleDateString()
+                        : 'N/A'
+                      }
+                    </p>
+                  </div>
+                  <div className="p-3 bg-cyan-500/20 rounded-lg">
+                    <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Comparison Reports */}
+            <div className="space-y-6">
+              {comparisonReports.length === 0 ? (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+                  <div className="text-gray-400 mb-2">
+                    <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-white mb-2">No Comparison Reports</h3>
+                  <p className="text-gray-400">Run a gas comparison analysis to see results here.</p>
+                </div>
+              ) : (
+                comparisonReports.map((report, index) => (
+                  <ComparisonResults 
+                    key={`${report.contractName}-${report.createdAt}-${index}`}
+                    result={transformComparisonReport(report)}
+                  />
+                ))
+              )}
             </div>
           </div>
         )}

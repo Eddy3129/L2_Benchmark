@@ -31,44 +31,13 @@ interface AnalysisResult {
   timestamp: string;
 }
 
-interface NetworkResult {
-  network: string;
-  networkName: string;
-  deployment: {
-    gasUsed: string;
-    costETH: string;
-    costUSD: number;
-  };
-  functions: GasEstimate[];
-  gasPrice: string;
-  ethPriceUSD: number;
-  gasPriceBreakdown: {
-    baseFee: number;
-    priorityFee: number;
-    totalFee: number;
-    confidence: number;
-    source: string;
-  };
-}
+// Import shared types and utilities
+import { NetworkResult, GasEstimate } from '@/types/shared';
+import { NETWORK_CONFIGS, getNetworkColor, CHART_COLORS } from '@/utils/networkConfig';
+import { formatCurrency, formatGasUsed } from '@/utils/gasUtils';
+import { createMultiDatasetChart, getLineChartOptions, getBarChartOptions } from '@/utils/chartConfig';
 
-interface GasEstimate {
-  functionName: string;
-  gasUsed: string;
-  estimatedCostETH: string;
-  estimatedCostUSD: number;
-}
-
-const NETWORK_CONFIG: { [key: string]: { name: string; color: string; symbol: string } } = {
-  arbitrumSepolia: { name: 'Arbitrum Sepolia', color: '#2563eb', symbol: 'ETH' },
-  optimismSepolia: { name: 'Optimism Sepolia', color: '#dc2626', symbol: 'ETH' },
-  baseSepolia: { name: 'Base Sepolia', color: '#1d4ed8', symbol: 'ETH' },
-  polygonAmoy: { name: 'Polygon Amoy', color: '#7c3aed', symbol: 'POL' },
-};
-
-const CHART_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
-  '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
-];
+// Use centralized network configuration (imported above)
 
 // Utility function to format small numbers with scientific notation
 const formatNumber = (value: number, decimals: number = 4): string => {
@@ -79,14 +48,7 @@ const formatNumber = (value: number, decimals: number = 4): string => {
   return value.toFixed(decimals);
 };
 
-// Utility function to format currency with scientific notation
-const formatCurrency = (value: number): string => {
-  if (value === 0) return '$0';
-  if (Math.abs(value) < 0.001) {
-    return `$${value.toExponential(2)}`;
-  }
-  return `$${value.toFixed(4)}`;
-};
+// Remove duplicate formatCurrency function since it's imported from utils
 
 interface GasAnalysisResultsProps {
   result: AnalysisResult;
@@ -96,7 +58,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
   // Function cost comparison data (line chart for better small number visualization)
   const functionCostLineData = useMemo(() => {
     const functionCosts: { [key: string]: number[] } = {};
-    const networkNames = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networkNames = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     
     // Collect all unique function names
     const allFunctions = new Set<string>();
@@ -136,7 +98,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
   // Network cost comparison data (line chart)
   const networkCostLineData = useMemo(() => {
-    const networks = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networks = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     const deploymentCosts = result.results.map(r => r.deployment.costUSD);
     const totalFunctionCosts = result.results.map(r => 
       r.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0)
@@ -173,7 +135,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
   // Gas usage comparison (line chart)
   const gasUsageLineData = useMemo(() => {
-    const networks = result.results.map(r => NETWORK_CONFIG[r.network]?.name || r.networkName);
+    const networks = result.results.map(r => NETWORK_CONFIGS[r.network]?.name || r.networkName);
     const gasUsage = result.results.map(r => parseInt(r.deployment.gasUsed) / 1000); // Convert to K gas
 
     return {
@@ -373,7 +335,8 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Network</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Gas</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Deploy Cost</th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price</th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price (Used)</th>
+                <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price (Source)</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Token Price</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Functions</th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Total Function Cost</th>
@@ -381,7 +344,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
               {result.results.map((networkResult, index) => {
-                const config = NETWORK_CONFIG[networkResult.network];
+                const config = NETWORK_CONFIGS[networkResult.network];
                 const totalFunctionCost = networkResult.functions.reduce((sum, f) => sum + (f.estimatedCostUSD || 0), 0);
                 return (
                   <tr key={networkResult.network} className="hover:bg-gray-750 transition-colors">
@@ -401,7 +364,10 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                       {formatCurrency(networkResult.deployment.costUSD)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-blue-400 font-mono">
-                      {parseFloat(networkResult.gasPrice).toFixed(1)} Gwei
+                      {networkResult.gasPriceBreakdown?.totalFee ? `${networkResult.gasPriceBreakdown.totalFee.toFixed(4)} Gwei` : `${parseFloat(networkResult.gasPrice).toFixed(1)} Gwei`}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-400 font-mono text-xs">
+                      {networkResult.gasPriceBreakdown?.source || 'mainnet'} (conf: {networkResult.gasPriceBreakdown?.confidence || 70}%)
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-yellow-400 font-mono">
                       ${networkResult.ethPriceUSD.toFixed(2)}
@@ -422,7 +388,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
 
       {/* Function Details by Network */}
       {result.results.map((networkResult) => {
-        const config = NETWORK_CONFIG[networkResult.network];
+        const config = NETWORK_CONFIGS[networkResult.network];
         return (
           <div key={networkResult.network} className="bg-gray-800 rounded-lg border border-gray-700">
             <div className="p-4 border-b border-gray-700">
@@ -443,6 +409,7 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Function</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Used</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gas Price</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost ({config?.symbol || 'ETH'})</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost (USD)</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">% of Total</th>
@@ -459,6 +426,9 @@ export function GasAnalysisResults({ result }: GasAnalysisResultsProps) {
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-gray-300 font-mono">
                           {func.gasUsed !== 'N/A' ? parseInt(func.gasUsed).toLocaleString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-orange-400 font-mono">
+                          {networkResult.gasPriceBreakdown?.totalFee ? `${networkResult.gasPriceBreakdown.totalFee.toFixed(4)} Gwei` : `${parseFloat(networkResult.gasPrice).toFixed(1)} Gwei`}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-right text-sm text-blue-400 font-mono">
                           {func.estimatedCostETH !== 'N/A' ? formatNumber(parseFloat(func.estimatedCostETH), 6) : 'N/A'}

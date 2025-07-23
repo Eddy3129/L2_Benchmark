@@ -151,7 +151,7 @@ export function ExportButton({ sessions, analysisResult }: ExportButtonProps) {
           session.createdAt ? new Date(session.createdAt).toISOString() : '',
           session.totalOperations || 0,
           session.avgGasUsed || 0,
-          session.avgExecutionTime || 0,
+          session.avgExecutionTime ? (session.avgExecutionTime / 1000).toFixed(2) : 0,
           session.results?.transactions?.totalTransactions || 0,
           session.results?.transactions?.successfulTransactions || 0,
           session.results?.transactions?.failedTransactions || 0,

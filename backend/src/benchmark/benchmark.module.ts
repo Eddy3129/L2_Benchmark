@@ -1,13 +1,26 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BenchmarkController } from './benchmark.controller';
 import { BenchmarkService } from './benchmark.service';
-import { BenchmarkSession } from './benchmark.entity';
+import { BlockchainExecutorService } from './blockchain-executor.service';
+import { WalletBenchmarkService } from './wallet-benchmark.service';
+import { DataStorageService } from '../shared/data-storage.service';
+import { CsvExportService } from '../shared/csv-export.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([BenchmarkSession])],
   controllers: [BenchmarkController],
-  providers: [BenchmarkService],
-  exports: [BenchmarkService],
+  providers: [
+    BenchmarkService, 
+    BlockchainExecutorService, 
+    WalletBenchmarkService,
+    DataStorageService,
+    CsvExportService
+  ],
+  exports: [
+    BenchmarkService, 
+    BlockchainExecutorService, 
+    WalletBenchmarkService,
+    DataStorageService,
+    CsvExportService
+  ],
 })
 export class BenchmarkModule {}

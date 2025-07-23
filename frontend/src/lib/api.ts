@@ -1,3 +1,6 @@
+// Import shared types
+import { NetworkResult, GasEstimate, NetworkComparison, FunctionComparison } from '@/types/shared';
+
 export interface GasAnalysis {
   id: string;
   contractName: string;
@@ -15,6 +18,7 @@ export interface GasAnalysis {
 
 export interface BenchmarkSession {
     id?: number;
+    sessionName?: string;
     results: {
       transactions: {
         totalTransactions: number;
@@ -29,6 +33,42 @@ export interface BenchmarkSession {
     avgExecutionTime: number;
     createdAt?: string;
   }
+
+export interface ComparisonReport {
+  id: number;
+  contractName: string;
+  networks: {
+    name: string;
+    deploymentGas: string;
+    deploymentFee: string;
+    functions: {
+      signature: string;
+      gasUsed: string;
+      estimatedFee: string;
+    }[];
+  }[];
+  solidityCode: string;
+  compilationArtifacts: any;
+  totalGasDifference: string;
+  savingsPercentage: number;
+  createdAt: string;
+  timestamp: string;
+}
+
+export interface ComparisonResult {
+  contractName: string;
+  timestamp: string;
+  local: NetworkResult;
+  comparisons: NetworkComparison[];
+  overallSummary: {
+    bestNetwork: NetworkComparison;
+    averageSavings: number;
+  };
+}
+
+// NetworkComparison and FunctionComparison are now imported from shared types
+
+// NetworkResult is now imported from shared types
   
   class ApiService {
     private baseUrl = 'http://localhost:3001/api';
@@ -43,7 +83,8 @@ export interface BenchmarkSession {
       });
   
       if (!response.ok) {
-        throw new Error(`Failed to create benchmark session: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to create benchmark session: ${response.statusText}`);
       }
   
       return response.json();
@@ -53,7 +94,8 @@ export interface BenchmarkSession {
       const response = await fetch(`${this.baseUrl}/benchmark/sessions`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch benchmark sessions: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch benchmark sessions: ${response.statusText}`);
       }
   
       return response.json();
@@ -63,7 +105,8 @@ export interface BenchmarkSession {
       const response = await fetch(`${this.baseUrl}/benchmark/sessions/${id}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch benchmark session: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch benchmark session: ${response.statusText}`);
       }
   
       return response.json();
@@ -75,6 +118,7 @@ export interface BenchmarkSession {
     networks: string[];
     contractName: string;
     saveToDatabase?: boolean;
+    confidenceLevel?: number;
   }) {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/analyze`, {
       method: 'POST',
@@ -85,7 +129,57 @@ export interface BenchmarkSession {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to analyze contract: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to analyze contract: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // New method for sequential network analysis with forking
+  async analyzeNetworkSequentially(data: {
+    code: string;
+    network: string;
+    contractName: string;
+    confidenceLevel?: number;
+  }) {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/analyze-network`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to analyze network ${data.network}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Note: Progress tracking is handled on the frontend side
+  // No backend endpoint needed for progress updates
+
+  async compareLocalVsL2(request: {
+    code: string;
+    contractName: string;
+    l2Networks: string[];
+    saveToDatabase: boolean;
+    confidenceLevel?: number;
+  }): Promise<ComparisonResult> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/compare`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Comparison analysis failed');
     }
 
     return response.json();
@@ -96,7 +190,8 @@ export interface BenchmarkSession {
     const response = await fetch(url);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis history: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis history: ${response.statusText}`);
     }
 
     return response.json();
@@ -106,7 +201,8 @@ export interface BenchmarkSession {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/contract/${contractName}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis for contract: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis for contract: ${response.statusText}`);
     }
 
     return response.json();
@@ -116,10 +212,92 @@ export interface BenchmarkSession {
     const response = await fetch(`${this.baseUrl}/gas-analyzer/analysis/${id}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch gas analysis: ${response.statusText}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch gas analysis: ${response.statusText}`);
     }
 
     return response.json();
+  }
+
+  // Comparison Reports methods
+  async getComparisonReports(limit?: number): Promise<ComparisonReport[]> {
+    const url = limit ? `${this.baseUrl}/gas-analyzer/comparison-reports?limit=${limit}` : `${this.baseUrl}/gas-analyzer/comparison-reports`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison reports: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async compareBlobCosts(request: {
+    l2Networks: string[];
+    blobDataSize?: number;
+    confidenceLevel?: number;
+    saveToDatabase?: boolean;
+  }) {
+    // Send l2Networks directly to match backend expectation
+    const backendRequest = {
+      l2Networks: request.l2Networks,
+      blobDataSize: request.blobDataSize,
+      confidenceLevel: request.confidenceLevel,
+      saveToDatabase: request.saveToDatabase
+    };
+    
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/blob-cost-comparison`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(backendRequest),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Blob cost analysis failed');
+    }
+
+    return response.json();
+  }
+
+  async getComparisonReportById(id: number): Promise<ComparisonReport> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison report: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getComparisonReportsStats(): Promise<{
+    totalReports: number;
+    avgGasDifference: string;
+    avgSavingsPercentage: number;
+    latestReport?: ComparisonReport;
+  }> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/stats`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch comparison reports stats: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteComparisonReport(id: number): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/gas-analyzer/comparison-reports/${id}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to delete comparison report: ${response.statusText}`);
+    }
   }
   }
   

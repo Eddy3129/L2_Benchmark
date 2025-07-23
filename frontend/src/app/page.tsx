@@ -1,4 +1,5 @@
 import { GasDashboard } from '@/components/GasDashboard';
+
 import Link from 'next/link';
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
       gradient: 'from-green-500 to-emerald-500',
       stats: 'Live testing'
     },
+
     {
       title: 'Reports & Analytics',
       description: 'Historical insights & trends',
@@ -26,6 +28,30 @@ export default function Home() {
       href: '/analysis',
       gradient: 'from-orange-500 to-red-500',
       stats: 'Data insights'
+    },
+    {
+      title: 'Professional Benchmark',
+      description: 'Advanced benchmarking with real-time analytics',
+      icon: '⚡',
+      href: '/professional-benchmark',
+      gradient: 'from-purple-500 to-pink-500',
+      stats: 'Real-time monitoring'
+    },
+    {
+      title: 'Live Gas Tracker',
+      description: 'Real-time gas consumption tracking with Wagmi',
+      icon: '🔥',
+      href: '/gas-tracker',
+      gradient: 'from-orange-500 to-red-500',
+      stats: 'Wagmi hooks'
+    },
+    {
+      title: 'Private Key Benchmark',
+      description: 'Backend-driven contract execution with detailed metrics',
+      icon: '🔐',
+      href: '/private-benchmark',
+      gradient: 'from-blue-500 to-cyan-500',
+      stats: 'No wallet required'
     },
   ];
 
@@ -40,7 +66,7 @@ export default function Home() {
                 Quick Actions
               </span>
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {quickActions.map((action, index) => (
                 <Link
                   key={index}
@@ -58,9 +84,11 @@ export default function Home() {
               ))}
             </div>
           </div> */}
-        <div className="mb-12">
+        <div className="mb-8">
           <GasDashboard />
         </div>
+        
+
       </div>
     </div>
   );

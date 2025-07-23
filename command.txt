@@ -3,3 +3,18 @@ set REPORT_GAS=true && npx hardhat test
 npx hardhat ignition deploy ignition/modules/FullDeploy.ts --network localhost
 
 change address in contract.ts
+
+Polygon zkEVM Testnet
+0x4031aC9C0750E9f748de6f5Ffa98684d54D94712
+
+Arbitrum Sepolia
+0x10025Ae0c53473E68Ff7DaeD5236436CaE604e56
+
+Base Sepolia
+0xd09Ed0302670c7be274e608113103F453d14682c
+
+Optimism Sepolia
+0xFcfBa41e465843c6f80Ae640f95aa32d169525f9
+
+zkSync Era Sepolia
+0xA75574cc39507A2fFB1E347a263C40cc38b5FB05
