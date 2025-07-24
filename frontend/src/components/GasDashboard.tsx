@@ -46,8 +46,31 @@ export function GasDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [ethereumBlockPrices, setEthereumBlockPrices] = useState<any>(null);
 
   // --- Data Fetching ---
+  const fetchEthereumBlockPrices = async () => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/gas-analyzer/ethereum-block-prices`);
+      
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setEthereumBlockPrices(result.data);
+      } else {
+        throw new Error('Invalid response format from backend');
+      }
+    } catch (blockPriceError) {
+      console.error('Could not fetch Ethereum block prices from backend:', blockPriceError);
+      setEthereumBlockPrices(null);
+    }
+  };
+
   const fetchTokenPrices = async () => {
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -84,6 +107,7 @@ export function GasDashboard() {
           setMultiChainData(validData);
         })(),
         fetchTokenPrices(),
+        fetchEthereumBlockPrices(),
       ]);
       setLastUpdate(new Date());
     } catch (err) {
@@ -361,17 +385,26 @@ export function GasDashboard() {
               Multi-Chain Gas Analytics
             </h1>
             <p className="text-gray-400 text-sm mt-1">Real-time gas price analysis across blockchain networks</p>
+            <div className="flex items-center space-x-3 mt-2">
+              {loading && (
+                <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              )}
+              <div className="text-xs text-gray-300 font-mono bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
+                {loading ? 'Updating...' : `Updated: ${lastUpdate.toLocaleTimeString()}`}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
-            {loading && (
-              <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          <div className="flex flex-col items-end space-y-2">
+            {ethereumBlockPrices && ethereumBlockPrices.blockPrices && ethereumBlockPrices.blockPrices[0] && (
+              <>
+                <div className="text-xs text-gray-300 bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
+                  ETH Base Fee: {ethereumBlockPrices.blockPrices[0].baseFeePerGas ? `${ethereumBlockPrices.blockPrices[0].baseFeePerGas.toFixed(2)} Gwei` : 'N/A'}
+                </div>
+                <div className="text-xs text-gray-300 bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
+                  ETH Blob Fee: {ethereumBlockPrices.blockPrices[0].blobBaseFeePerGas ? `${(ethereumBlockPrices.blockPrices[0].blobBaseFeePerGas).toExponential(2)} Gwei` : 'N/A'}
+                </div>
+              </>
             )}
-            <div className="text-xs text-gray-300 font-mono bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
-              {loading ? 'Updating...' : `Updated: ${lastUpdate.toLocaleTimeString()}`}
-            </div>
-            <div className="text-xs text-gray-300 bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
-              {allChains.length} Networks
-            </div>
           </div>
         </div>
       </div>

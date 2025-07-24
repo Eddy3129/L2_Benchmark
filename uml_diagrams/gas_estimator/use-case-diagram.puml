@@ -1,0 +1,70 @@
+@startuml
+!theme plain
+title Gas Estimator - Core Use Cases
+
+' Skin parameters for a clean look
+skinparam defaultFontSize 14
+skinparam usecase {
+    BackgroundColor #F3F3F3
+    BorderColor #555555
+    ArrowColor #333333
+}
+skinparam actor {
+    BorderColor #555555
+}
+
+' Direction for a taller, vertical layout
+top to bottom direction
+
+' Primary actor at the top
+actor "Developer/User" as User
+
+' System boundary with a balanced level of detail
+rectangle "Gas Estimator System" {
+  usecase "Use Estimator IDE" as UC_IDE
+  usecase "Write/Edit Contract" as UC_Write
+  usecase "Select Template" as UC_Template
+  usecase "Configure Analysis" as UC_Configure
+  usecase "Analyze Gas Costs" as UC_Analyze
+  usecase "View Analysis Results" as UC_View
+  usecase "Export/Save Results" as UC_Export
+
+  package "Backend Services" {
+    usecase "Fetch Real-time Gas Prices" as UC_Fetch
+    usecase "Calculate L2 Costs" as UC_L2_Cost
+    usecase "Compile & Estimate Gas" as UC_Compile
+  }
+}
+
+' Supporting actors at the bottom
+actor "Blocknative API" as BlocknativeAPI
+actor "Blockchain Networks" as Blockchain
+
+' --- Relationships ---
+
+' User interacts with the IDE
+User --> UC_IDE
+
+' IDE functionalities are included when using it
+UC_IDE ..> UC_Write : <<include>>
+UC_IDE ..> UC_Template : <<include>>
+
+' User configures and initiates the analysis
+User --> UC_Configure
+User --> UC_Analyze
+
+' Analysis includes several backend steps
+UC_Analyze ..> UC_Compile : <<include>>
+UC_Analyze ..> UC_Fetch : <<include>>
+UC_Analyze <.. UC_L2_Cost : <<extend>>
+
+' User views the results
+User --> UC_View
+UC_View <.. UC_Export : <<extend>>
+
+' System interactions with external actors
+UC_Fetch --> BlocknativeAPI
+UC_Compile --> Blockchain
+UC_L2_Cost --> Blockchain
+
+@enduml

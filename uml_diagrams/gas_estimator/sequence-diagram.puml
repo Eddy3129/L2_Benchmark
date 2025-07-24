@@ -1,0 +1,96 @@
+@startuml
+!theme plain
+title Gas Estimator - Core Analysis Sequence
+
+' Skin parameters for a clean, vertical look
+skinparam titleFontSize 18
+skinparam defaultFontSize 14
+skinparam sequenceParticipantFontSize 14
+skinparam sequenceArrowFontSize 13
+skinparam noteFontSize 13
+
+' Participants aligned with the updated Use Case Diagram
+participant "User" as User
+participant "Estimator IDE\n(Frontend)" as Frontend
+participant "Backend Services" as Backend
+participant "Blocknative API" as BlocknativeAPI
+participant "Blockchain Networks" as Blockchain
+
+autonumber
+
+== User Prepares for Analysis ==
+User -> Frontend: Accesses IDE & prepares contract code
+activate Frontend
+note right: Corresponds to UC_IDE, UC_Write, UC_Template
+User -> Frontend: Configures networks & settings
+note right: Corresponds to UC_Configure
+deactivate Frontend
+
+== Contract Analysis Execution ==
+User -> Frontend: Clicks "Analyze Gas Costs"
+activate Frontend
+
+Frontend -> Backend: POST /api/analyze\n(sourceCode, settings)
+activate Backend
+note right: Triggers UC_Analyze
+
+Backend -> Backend: **Compile & Estimate Gas**
+note right: <<include>> UC_Compile
+Backend -> Blockchain: Simulate compilation & get ABI/Bytecode
+activate Blockchain
+Blockchain --> Backend: Compilation results
+deactivate Blockchain
+
+alt Compilation Failed
+    Backend --> Frontend: HTTP 400 - Compilation Error
+    Frontend -> User: Display compilation errors
+else Compilation Successful
+
+    loop For each selected network
+
+        Backend -> Backend: **Fetch Real-time Gas Prices**
+        note right: <<include>> UC_Fetch
+        Backend -> BlocknativeAPI: GET /gasprices
+        activate BlocknativeAPI
+        BlocknativeAPI --> Backend: Gas price data
+        deactivate BlocknativeAPI
+
+        Backend -> Backend: **Estimate Gas for Deployment & Functions**
+        Backend -> Blockchain: Simulate transactions
+        activate Blockchain
+        Blockchain --> Backend: Gas estimates
+        deactivate Blockchain
+
+        alt If network is L2
+            Backend -> Backend: **Calculate L2 Costs**
+            note right: <<extend>> UC_L2_Cost
+            Backend -> Blockchain: Get L1 data cost components
+            activate Blockchain
+            Blockchain --> Backend: L1 data costs
+            deactivate Blockchain
+        end
+    end
+
+    Backend -> Backend: Aggregate all analysis results
+
+    alt If "Save Results" is enabled
+        Backend -> Backend: Save analysis to database
+        note right: Part of UC_Export/Save
+    end
+
+    Backend --> Frontend: HTTP 200 - Analysis Results
+    deactivate Backend
+
+    Frontend -> Frontend: **View Analysis Results**
+    note right: Corresponds to UC_View
+    Frontend -> User: Display charts & cost breakdown
+
+    alt User chooses to export
+        User -> Frontend: Clicks "Export"
+        note right: <<extend>> UC_Export/Save
+        Frontend -> User: Download analysis report
+    end
+end
+deactivate Frontend
+
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+!theme plain
+title Gas Monitoring Dashboard - Core Data Flow
+
+' Skin parameters for a clean, vertical look
+skinparam titleFontSize 18
+skinparam defaultFontSize 14
+skinparam sequenceParticipantFontSize 14
+skinparam sequenceArrowFontSize 13
+skinparam noteFontSize 13
+
+' Simplified Participants
+participant "User Browser" as Browser
+participant "Dashboard UI\n(Frontend)" as Frontend
+participant "Backend Services" as Backend
+participant "Blocknative API" as BlocknativeAPI
+participant "CoinGecko API" as CoinGeckoAPI
+
+autonumber
+
+== Initial Page Load & Data Fetch ==
+Browser -> Frontend: Load Dashboard Page
+activate Frontend
+
+Frontend -> Frontend: useEffect() -> fetchAllData()
+
+group Parallel Data Fetching
+    Frontend -> Backend: GET /multi-chain-gas
+    activate Backend
+    
+    Frontend -> Backend: GET /token-prices
+    
+    Frontend -> Backend: GET /ethereum-block-prices
+end
+
+Backend -> BlocknativeAPI: Get gas & block prices
+activate BlocknativeAPI
+BlocknativeAPI --> Backend: Price data
+deactivate BlocknativeAPI
+
+Backend -> CoinGeckoAPI: Get token market prices
+activate CoinGeckoAPI
+CoinGeckoAPI --> Backend: Token prices
+deactivate CoinGeckoAPI
+
+Backend -> Backend: Process & aggregate all data
+
+group Parallel Data Response
+    Backend --> Frontend: Multi-chain gas data
+    
+    Backend --> Frontend: Token price data
+    
+    Backend --> Frontend: Ethereum block price data
+end
+deactivate Backend
+
+== UI Update & Auto-Refresh ==
+Frontend -> Frontend: Update component state with new data
+Frontend -> Browser: Render dashboard with charts & tables
+deactivate Frontend
+
+group Auto-Refresh Cycle
+    note over Frontend: setInterval(fetchAllData, 30000)
+    Frontend -> Frontend: Periodic Update: fetchAllData()
+    note over Frontend, CoinGeckoAPI: Repeats the data fetching sequence
+end
+
+@enduml

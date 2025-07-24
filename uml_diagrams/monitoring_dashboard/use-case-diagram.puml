@@ -1,0 +1,102 @@
+@startuml Gas Monitoring Dashboard - Use Case Diagram
+!theme plain
+title Gas Monitoring Dashboard - Use Case Diagram
+
+' Actors
+actor "Developer/User" as User
+actor "System Administrator" as Admin
+actor "Blocknative API" as BlocknativeAPI
+actor "CoinGecko API" as CoinGeckoAPI
+
+' System boundary
+rectangle "Gas Monitoring Dashboard System" {
+  
+  ' Frontend Use Cases
+  package "Frontend (Next.js)" {
+    usecase "View Gas Dashboard" as UC1
+    usecase "Monitor Real-time Gas Prices" as UC2
+    usecase "View Multi-chain Analytics" as UC3
+    usecase "View Gas Price Charts" as UC4
+    usecase "View Transaction Costs" as UC5
+    usecase "View Ethereum Block Prices" as UC6
+    usecase "Auto-refresh Data" as UC7
+  }
+  
+  ' Backend Use Cases
+  package "Backend (NestJS)" {
+    usecase "Fetch Multi-chain Gas Data" as UC8
+    usecase "Analyze Gas Prices" as UC9
+    usecase "Get Token Prices" as UC10
+    usecase "Get Ethereum Block Prices" as UC11
+    usecase "Process Gas Distribution" as UC12
+    usecase "Cache Gas Data" as UC13
+    usecase "Validate Network Configs" as UC14
+  }
+  
+  ' External API Use Cases
+  package "External APIs" {
+    usecase "Fetch Blocknative Gas Prices" as UC15
+    usecase "Fetch Token Market Data" as UC16
+    usecase "Get Block Price Information" as UC17
+  }
+}
+
+' User interactions
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC6
+
+' Admin interactions
+Admin --> UC13
+Admin --> UC14
+
+' Frontend to Backend relationships
+UC1 --> UC8
+UC2 --> UC9
+UC3 --> UC8
+UC4 --> UC9
+UC5 --> UC10
+UC6 --> UC11
+UC7 --> UC8
+
+' Backend to External API relationships
+UC8 --> UC15
+UC9 --> UC15
+UC10 --> UC16
+UC11 --> UC17
+UC12 --> UC15
+
+' External API relationships
+BlocknativeAPI --> UC15
+BlocknativeAPI --> UC17
+CoinGeckoAPI --> UC16
+
+' Include relationships
+UC8 ..> UC12 : <<include>>
+UC9 ..> UC13 : <<include>>
+UC11 ..> UC13 : <<include>>
+
+' Extend relationships
+UC2 ..> UC7 : <<extend>>
+UC3 ..> UC4 : <<extend>>
+UC5 ..> UC10 : <<extend>>
+
+note right of UC1
+  Main dashboard entry point
+  Displays comprehensive gas analytics
+end note
+
+note right of UC15
+  Primary source for real-time
+  gas price data across chains
+end note
+
+note right of UC13
+  Improves performance and
+  reduces API call frequency
+end note
+
+@enduml
