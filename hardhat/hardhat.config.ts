@@ -8,6 +8,23 @@ const ALCHEMY_API_KEY = vars.get("ALCHEMY_API_KEY");
 const ETHERSCAN_API_KEY = vars.get("ETHERSCAN_API_KEY");
 const COINMARKETCAP_API_KEY = vars.get("COINMARKETCAP_API_KEY");
 
+// Dynamic forking configuration - will be set by the live benchmarker service
+const getForkingConfig = () => {
+  const forkUrl = process.env.FORK_URL;
+  const forkBlockNumber = process.env.FORK_BLOCK_NUMBER;
+  
+  if (!forkUrl) {
+    return undefined;
+  }
+  
+  const config: any = { url: forkUrl };
+  if (forkBlockNumber && forkBlockNumber !== 'latest') {
+    config.blockNumber = parseInt(forkBlockNumber, 10);
+  }
+  
+  return config;
+};
+
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.28",
@@ -18,13 +35,23 @@ const config: HardhatUserConfig = {
       }
     }
   },
-//   networks: {
-//   hardhat: {
-//     forking: {
-//       url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-//     },
-//   }
-// },
+  networks: {
+    hardhat: {
+      forking: getForkingConfig(),
+      accounts: {
+        count: 20,
+        accountsBalance: "10000000000000000000000" // 10,000 ETH per account
+      },
+      mining: {
+        auto: true,
+        interval: 0
+      }
+    },
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      accounts: "remote"
+    }
+  },
   gasReporter: {
     enabled: true,
     currency:"USD",

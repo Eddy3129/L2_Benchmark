@@ -37,7 +37,7 @@ interface SimulationResult {
 @Injectable()
 export class ForkingService extends BaseService<any> {
   private readonly activeForks = new Map<string, ForkingConfig>();
-  private readonly hardhatProjectRoot = path.join(process.cwd(), '..');
+  private readonly hardhatProjectRoot = path.join(process.cwd(), '..', 'hardhat');
   private readonly basePort = 8545;
   private portCounter = 0;
 

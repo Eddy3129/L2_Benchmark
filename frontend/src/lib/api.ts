@@ -300,6 +300,76 @@ export interface ComparisonResult {
     }
   }
   }
-  
-  export const apiService = new ApiService();
-  // export type { BenchmarkSession, GasAnalysis };
+
+// Live Benchmarker API
+class LiveBenchmarkerApi {
+  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+  async getActiveBenchmarks() {
+    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/active`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to fetch active benchmarks: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async runLiveBenchmark(data: {
+    networkName: string;
+    contractCode: string;
+    constructorArgs?: any[];
+    functionCalls?: Array<{
+      functionName: string;
+      parameters: any[];
+    }>;
+    blockNumber?: number;
+    solidityVersion?: string;
+  }) {
+    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to run live benchmark: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async cleanupBenchmark(benchmarkId: string) {
+    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/${benchmarkId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to cleanup benchmark: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async cleanupAllBenchmarks() {
+    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/cleanup-all`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to cleanup all benchmarks: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+}
+
+export const apiService = new ApiService();
+export const liveBenchmarkerApi = new LiveBenchmarkerApi();
+// export type { BenchmarkSession, GasAnalysis };

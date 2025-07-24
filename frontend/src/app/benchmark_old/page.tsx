@@ -1,8 +1,8 @@
 'use client';
 
-import LiveBenchmarkerIDE from '@/components/LiveBenchmarkerIDE';
+import BenchmarkIDE from '@/components/BenchmarkIDE';
 
-export default function LiveBenchmarkerPage() {
+export default function BenchmarkPage() {
   return (
     <div className="min-h-screen bg-gray-900">
       <div className="bg-gray-800 border-b border-gray-700">
@@ -13,18 +13,18 @@ export default function LiveBenchmarkerPage() {
                 Live Benchmarker
               </h1>
               <p className="text-gray-400 text-sm">
-                Empirical gas analysis using forked mainnet environments with real-time gas prices for academic-grade accuracy.
+                Deployed Smart Contract Analysis across Layer 2 networks
               </p>
             </div>
             <div className="text-right">
               <div className="text-xs text-gray-500">Powered by</div>
-              <div className="text-sm font-semibold text-green-400">Hardhat Forking & Alchemy RPC</div>
+              <div className="text-sm font-semibold text-blue-400">Hardahat & Ethers.js</div>
             </div>
           </div>
         </div>
       </div>
-      
-      <LiveBenchmarkerIDE />
-    </div>
+    
+    <BenchmarkIDE />
+     </div>
   );
 }
