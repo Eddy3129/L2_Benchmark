@@ -186,6 +186,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
         // Use existing contract, skip deployment
         contractAddress = existingContractAddress;
         deploymentResult = {
+          contractAddress: existingContractAddress,
           gasUsed: 0,
           gasPrice: 0n,
           totalCostWei: 0n,
@@ -301,7 +302,10 @@ export class LiveBenchmarkerService extends BaseService<any> {
     const totalCostEth = ethers.formatEther(totalCostWei);
     const totalCostUsd = parseFloat(totalCostEth) * this.ethPriceUsd;
 
+    const contractAddress = await contract.getAddress();
+
     return {
+      contractAddress,
       gasUsed,
       gasPrice: effectiveGasPrice,
       totalCostWei,
