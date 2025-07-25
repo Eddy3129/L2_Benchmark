@@ -320,10 +320,10 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                     </HeroTooltip>
                   </th>
                   <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
-                    <HeroTooltip content="ESTIMATED: L1 data posting cost using simplified formula (gasUsed * 16 * L1_gas_price). This is a rough heuristic which is less inaccurate.">
+                    <HeroTooltip content="ESTIMATED: L1 blob data cost using EIP-4844 blob transactions with standard 1 wei blob base fee. More accurate than legacy calldata calculations.">
                       <div className="flex items-center justify-end gap-1 cursor-help">
-                        <span className="text-orange-300">Est. L1 Data Cost</span>
-                        <Info className="w-3 h-3 text-orange-400" />
+                        <span className="text-blue-300">Est. L1 Blob Cost</span>
+                        <Info className="w-3 h-3 text-blue-400" />
                       </div>
                     </HeroTooltip>
                   </th>
@@ -379,8 +379,7 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                         {networkResult.deployment.l2ExecutionCost && <div className="text-xs text-yellow-500 mt-0.5"></div>}
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
-                        <span className="text-orange-300">{networkResult.deployment.l1DataCost ? formatCurrency(networkResult.deployment.l1DataCost) : '— (Layer 1)'}</span>
-                        {networkResult.deployment.l1DataCost && <div className="text-xs text-orange-500 mt-0.5"></div>}
+                        ~<span className="text-blue-300">{networkResult.deployment.l1DataCost}</span>
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400">
                         {networkResult.gasPriceBreakdown?.confidence !== undefined ? (

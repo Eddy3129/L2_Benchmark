@@ -37,6 +37,7 @@ import {
 
 // Services
 import { GasAnalysisService } from '../services/gas-analysis.service';
+import { ContractCompilationService } from '../services/contract-compilation.service';
 
 // Constants
 import { SUCCESS_MESSAGES, API_CONSTANTS } from '../../../common/constants';
@@ -46,7 +47,10 @@ import { SUCCESS_MESSAGES, API_CONSTANTS } from '../../../common/constants';
 @UseFilters(GlobalExceptionFilter)
 @UsePipes(ValidationPipe)
 export class GasAnalysisController extends BaseController {
-  constructor(private readonly gasAnalysisService: GasAnalysisService) {
+  constructor(
+    private readonly gasAnalysisService: GasAnalysisService,
+    private readonly compilationService: ContractCompilationService
+  ) {
     super();
   }
 
@@ -98,6 +102,55 @@ export class GasAnalysisController extends BaseController {
       );
     } catch (error) {
       this.handleError(error, 'Failed to analyze contract');
+    }
+  }
+
+  @Post('compile')
+  @ApiOperation({
+    summary: 'Compile Solidity contract',
+    description: 'Compiles Solidity contract code and returns ABI and bytecode',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Contract compiled successfully',
+    type: SuccessResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request parameters',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    description: 'Contract compilation failed',
+  })
+  async compileContract(
+    @Body() request: {
+      contractName: string;
+      sourceCode: string;
+      solidityVersion?: string;
+      optimizationLevel?: string;
+      optimizationRuns?: number;
+    },
+  ): Promise<SuccessResponseDto<any>> {
+    try {
+      const result = await this.compilationService.compileContract({
+        contractName: request.contractName,
+        sourceCode: request.sourceCode,
+        solidityVersion: request.solidityVersion || '0.8.19',
+        optimizationLevel: (request.optimizationLevel as any) || 'STANDARD',
+        optimizationRuns: request.optimizationRuns || 200,
+      });
+      
+      return this.createSuccessResponse(
+        {
+          abi: result.abi,
+          bytecode: result.bytecode,
+          contractName: request.contractName,
+        },
+        'Contract compiled successfully'
+      );
+    } catch (error) {
+      this.handleError(error, 'Failed to compile contract');
     }
   }
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Zap } from 'lucide-react';
+import { BenchmarkFunction } from '@/config/contracts';
 
 interface FunctionCall {
   functionName: string;
@@ -14,12 +15,14 @@ interface FunctionCall {
 interface FunctionCallsEditorProps {
   functionCalls: FunctionCall[];
   onFunctionCallsChange: (functionCalls: FunctionCall[]) => void;
+  availableFunctions?: BenchmarkFunction[];
   className?: string;
 }
 
 export default function FunctionCallsEditor({
   functionCalls,
   onFunctionCallsChange,
+  availableFunctions = [],
   className = ''
 }: FunctionCallsEditorProps) {
   const addFunctionCall = () => {
@@ -86,12 +89,27 @@ export default function FunctionCallsEditor({
                   <label className="block text-sm font-medium text-gray-300 mb-1">
                     Function Name
                   </label>
-                  <Input
-                    value={functionCall.functionName}
-                    onChange={(e) => updateFunctionCall(index, 'functionName', e.target.value)}
-                    placeholder="e.g., setValue, transfer, mint"
-                    className="bg-gray-900 border-gray-600 text-gray-100"
-                  />
+                  {availableFunctions.length > 0 ? (
+                    <select
+                      value={functionCall.functionName}
+                      onChange={(e) => updateFunctionCall(index, 'functionName', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a function...</option>
+                      {availableFunctions.map((func) => (
+                        <option key={func.name} value={func.name}>
+                          {func.name}({func.inputs.map(input => input.type).join(', ')})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      value={functionCall.functionName}
+                      onChange={(e) => updateFunctionCall(index, 'functionName', e.target.value)}
+                      placeholder="e.g., setValue, transfer, mint"
+                      className="bg-gray-900 border-gray-600 text-gray-100"
+                    />
+                  )}
                 </div>
                 
                 <div>

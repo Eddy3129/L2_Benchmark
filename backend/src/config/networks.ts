@@ -16,7 +16,7 @@ export interface NetworkConfig {
     decimals: number;
   };
   type: 'mainnet' | 'testnet' | 'l2';
-  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync';
+  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync-era';
   color: string;
   blockTime: number; // Average block time in seconds
   gasLimit: number; // Block gas limit

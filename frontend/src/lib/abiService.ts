@@ -253,6 +253,8 @@ class AbiService {
     return [...AbiService.supportedChainIds];
   }
 
+
+
   /**
    * Generate default arguments for function inputs
    */
@@ -318,6 +320,54 @@ class AbiService {
       readableFunctions
     };
   }
+
+  /**
+   * Compile Solidity contract code
+   */
+  async compileContract(sourceCode: string, contractName: string): Promise<{ abi: any[], bytecode: string }> {
+    const url = `${this.baseUrl}/api/gas-analysis/compile`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractName,
+          sourceCode,
+          solidityVersion: '0.8.19',
+          optimizationLevel: 'STANDARD',
+          optimizationRuns: 200
+        }),
+        signal: AbortSignal.timeout(this.timeout),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Compilation failed');
+      }
+
+      return {
+        abi: data.data.abi,
+        bytecode: data.data.bytecode
+      };
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error(`Compilation timeout after ${this.timeout}ms`);
+      }
+      
+      console.error('❌ Contract compilation failed:', error.message);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
@@ -334,3 +384,7 @@ export function getAbiService() {
   console.log('🔄 Using ABI service via backend');
   return Promise.resolve(abiServiceInstance);
 }
+
+// Export compile function for convenience
+export const compileContract = (sourceCode: string, contractName: string) => 
+  abiServiceInstance.compileContract(sourceCode, contractName);

@@ -56,7 +56,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Layers,
     color: 'bg-blue-500',
     chainId: 1,
-    rpcUrl: 'https://eth.llamarpc.com',
+    rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://etherscan.io',
     description: 'Ethereum Mainnet - The original smart contract platform'
   },
@@ -66,7 +66,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Shield,
     color: 'bg-cyan-500',
     chainId: 42161,
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    rpcUrl: 'https://arb-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://arbiscan.io',
     description: 'Arbitrum One - Optimistic rollup with fraud proofs'
   },
@@ -76,7 +76,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Zap,
     color: 'bg-red-500',
     chainId: 10,
-    rpcUrl: 'https://mainnet.optimism.io',
+    rpcUrl: 'https://opt-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://optimistic.etherscan.io',
     description: 'Optimism - Fast, stable, and scalable L2 blockchain'
   },
@@ -86,9 +86,19 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Layers,
     color: 'bg-blue-600',
     chainId: 8453,
-    rpcUrl: 'https://mainnet.base.org',
+    rpcUrl: 'https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://basescan.org',
     description: 'Base - Coinbase L2 built on Optimism stack'
+  },
+  {
+    id: 'zksync-era',
+    name: 'ZkSync Era',
+    icon: Zap,
+    color: 'bg-black',
+    chainId: 324,
+    rpcUrl: 'https://zksync-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
+    explorerUrl: 'https://explorer.zksync.io',
+    description: 'ZkSync Era - Scalable zkRollup for Ethereum'
   },
   {
     id: 'polygon',
@@ -96,7 +106,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Globe,
     color: 'bg-purple-500',
     chainId: 137,
-    rpcUrl: 'https://polygon-rpc.com',
+    rpcUrl: 'https://polygon-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://polygonscan.com',
     description: 'Polygon PoS - Multi-chain scaling solution'
   },
@@ -106,7 +116,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Layers,
     color: 'bg-gray-800',
     chainId: 59144,
-    rpcUrl: 'https://rpc.linea.build',
+    rpcUrl: 'https://linea-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://lineascan.build',
     description: 'Linea - ConsenSys zkEVM rollup for Ethereum'
   },
@@ -116,7 +126,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Shield,
     color: 'bg-orange-500',
     chainId: 534352,
-    rpcUrl: 'https://rpc.scroll.io',
+    rpcUrl: 'https://scroll-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://scrollscan.com',
     description: 'Scroll - Native zkEVM Layer 2 for Ethereum'
   },
@@ -126,7 +136,7 @@ const defaultNetworks: NetworkConfig[] = [
     icon: Zap,
     color: 'bg-black',
     chainId: 57073,
-    rpcUrl: 'https://rpc-gel.inkonchain.com',
+    rpcUrl: 'https://ink-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}',
     explorerUrl: 'https://explorer.inkonchain.com',
     description: 'Ink - Kraken L2 built on Optimism stack'
   }

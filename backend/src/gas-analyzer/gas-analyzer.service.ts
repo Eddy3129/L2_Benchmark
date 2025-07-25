@@ -74,13 +74,13 @@ export class GasAnalyzerService {
           const l2CostETH = GasUtils.calculateCostETH(measuredGas, l2GasPrice.totalFee);
           l2ExecutionCost = GasUtils.calculateCostUSD(l2CostETH, tokenPriceUSD);
   
-          // Simplified L1 cost for functions (smaller data footprint)
-          const l1DataGas = GasUtils.estimateCalldataGas(fragment);
-          const l1CostETH = GasUtils.calculateCostETH(l1DataGas, l1GasPrice.totalFee);
-          l1DataCost = GasUtils.calculateCostUSD(l1CostETH, tokenPriceUSD);
+          // Calculate L1 blob cost for functions using EIP-4844
+          const l1BlobGas = GasUtils.estimateBlobGas(fragment);
+          const l1BlobCostETH = GasUtils.calculateBlobCostETH(l1BlobGas);
+          l1DataCost = GasUtils.calculateCostUSD(l1BlobCostETH, tokenPriceUSD);
   
           estimatedCostUSD = l2ExecutionCost + l1DataCost;
-          estimatedCostETH = (parseFloat(l2CostETH) + parseFloat(l1CostETH)).toFixed(18);
+          estimatedCostETH = (parseFloat(l2CostETH) + parseFloat(l1BlobCostETH)).toFixed(18);
   
         } else { // For L1 or sidechains
           estimatedCostETH = GasUtils.calculateCostETH(measuredGas, l2GasPrice.totalFee);
@@ -365,21 +365,9 @@ export class GasAnalyzerService {
     // Blob gas costs (separate from regular gas)
     const totalBlobGas = blobsNeeded * BLOB_GAS_PER_BLOB;
     
-    // Get real-time blob gas price from Blocknative API
-    let estimatedBlobGasPrice: number;
-    try {
-      const blocknativeBlobBaseFee = await this.getBlocknativeBlobBaseFee(networkConfig, 99); // Use 70% confidence for blob pricing
-      if (blocknativeBlobBaseFee !== null) {
-        estimatedBlobGasPrice = blocknativeBlobBaseFee;
-        this.logger.log(`Using real-time blob base fee for ${networkKey}: ${estimatedBlobGasPrice} gwei`);
-      } else {
-        throw new Error('Blocknative blob base fee not available');
-      }
-    } catch (error) {
-      this.logger.warn('Failed to fetch real-time blob base fee, using fallback estimation:', error.message);
-      // Fallback to conservative estimation only if API fails
-      estimatedBlobGasPrice = Math.min(5, Math.max(1, gasPriceData.baseFee * 0.02));
-    }
+    // Use standard blob base fee of 1 wei (1e-9 gwei) for EIP-4844 blob transactions
+    const estimatedBlobGasPrice = 1e-9; // 1 wei in gwei
+    this.logger.log(`Using standard blob base fee for ${networkKey}: ${estimatedBlobGasPrice} gwei`);
     
     // Ensure gas prices are properly formatted (avoid scientific notation)
     const safeRegularGasPrice = Number(gasPriceData.totalFee.toFixed(9));
@@ -570,46 +558,48 @@ export class GasAnalyzerService {
     let l2ExecutionCostUSD: number | undefined;
 
     if (isL2) {
-      // --- CORRECTED CALCULATION LOGIC ---
-      // 1. Calculate L2 Execution Cost
-      const l2ExecutionCostETH = GasUtils.calculateCostETH(
-        measuredDeploymentGas,
-        l2GasPriceData.totalFee,
-      );
-      l2ExecutionCostUSD = GasUtils.calculateCostUSD(
-        l2ExecutionCostETH,
-        tokenPriceUSD,
-      );
+  // --- CORRECTED CALCULATION LOGIC ---
+  // 1. Calculate L2 Execution Cost (This section remains the same)
+  const l2ExecutionCostETH = GasUtils.calculateCostETH(
+    measuredDeploymentGas,
+    l2GasPriceData.totalFee,
+  );
+  l2ExecutionCostUSD = GasUtils.calculateCostUSD(
+    l2ExecutionCostETH,
+    tokenPriceUSD,
+  );
 
-      // 2. Calculate L1 Data Cost (more accurate heuristic based on bytecode size)
-      const bytecodeSizeBytes = compilation.bytecode.length / 2 - 1; // Hex string to bytes
-      // For deployment, calculate L1 data cost directly: 16 gas per non-zero byte, 4 gas per zero byte
-      // Assume 80% non-zero bytes for realistic estimate
-      const nonZeroBytes = Math.floor(bytecodeSizeBytes * 0.8);
-      const zeroBytes = bytecodeSizeBytes - nonZeroBytes;
-      const l1DataGas = (nonZeroBytes * 16) + (zeroBytes * 4);
-      const l1DataCostETH = GasUtils.calculateCostETH(
-        l1DataGas,
-        l1GasPriceData.totalFee,
-      );
-      l1DataCostUSD = GasUtils.calculateCostUSD(l1DataCostETH, tokenPriceUSD);
+  // 2. Calculate L1 Data Cost using EIP-4844 blobs only
+    const bytecodeSizeBytes = compilation.bytecode.length / 2 - 1; // Hex string to bytes
 
-      // 3. Sum them for the total cost
-      deploymentCostUSD = l2ExecutionCostUSD + l1DataCostUSD;
-      deploymentCostETH = (
-        parseFloat(l2ExecutionCostETH) + parseFloat(l1DataCostETH)
-      ).toFixed(18);
-    } else {
-      // For L1 or non-rollup sidechains, the cost is simpler
-      deploymentCostETH = GasUtils.calculateCostETH(
-        measuredDeploymentGas,
-        l1GasPriceData.totalFee, // Use L1 gas price for L1 networks
-      );
-      deploymentCostUSD = GasUtils.calculateCostUSD(
-        deploymentCostETH,
-        tokenPriceUSD,
-      );
-    }
+    // Use the new blob-based cost calculation from GasUtils
+    const blobCostData = GasUtils.estimateDeploymentBlobCost(bytecodeSizeBytes);
+    const l1DataCostETH = blobCostData.costETH;
+    l1DataCostUSD = GasUtils.calculateCostUSD(l1DataCostETH, tokenPriceUSD);
+
+    this.logger.log(
+      `${networkKey}: Blob cost calculation - Blobs needed: ${blobCostData.blobsNeeded}, ` +
+      `Total blob gas: ${blobCostData.totalBlobGas}, Cost: ${l1DataCostETH} ETH`
+    );
+
+
+    // 3. Sum them for the total cost (This section remains the same)
+    deploymentCostUSD = l2ExecutionCostUSD + l1DataCostUSD;
+    deploymentCostETH = (
+      parseFloat(l2ExecutionCostETH) + parseFloat(l1DataCostETH)
+    ).toFixed(18);
+
+  } else {
+    // For L1 or non-rollup sidechains, the cost is simpler (This remains the same)
+    deploymentCostETH = GasUtils.calculateCostETH(
+      measuredDeploymentGas,
+      l1GasPriceData.totalFee, // Use L1 gas price for L1 networks
+    );
+    deploymentCostUSD = GasUtils.calculateCostUSD(
+      deploymentCostETH,
+      tokenPriceUSD,
+    );
+  }
 
     // Analyze functions using the same logic
     const functions = this.analyzeFunctions(
@@ -725,98 +715,7 @@ export class GasAnalyzerService {
     }
   }
 
-  private async getBlocknativeBlobBaseFee(
-    networkConfig: NetworkConfig, // The config for the network selected by the user (e.g., Arbitrum)
-    confidence: number,
-  ): Promise<any> { // Tip: Replace 'any' with a more specific type like 'number' or a custom interface
-    let targetNetworkForApiCall = networkConfig;
-
-    // ======================= THE CORE FIX =======================
-    // If the requested network is an L2, the blob fee is determined by the L1 it posts to.
-    // We must override the network config to point to Ethereum Mainnet for the API call.
-    if (networkConfig?.type === 'l2') { // Check if it's an L2
-      this.logger.debug(`Original network is L2 (${networkConfig.name}). Redirecting to L1 for blob fee.`);
-
-      // Find your L1 configuration. This is a robust way to do it.
-      const l1Config = NetworkConfigService.getNetworkByChainId(1); // Use static method to get L1 config
-
-      if (!l1Config) {
-        this.logger.error('CRITICAL: L1 (Ethereum Mainnet) configuration not found. Cannot calculate blob fees for L2s.');
-        // Fallback to your estimation logic as a last resort
-        return this.getBlobFeeFromBasefeeEstimates(confidence);
-      }
-
-      // Set the L1 config as the target for our Blocknative API call
-      targetNetworkForApiCall = l1Config;
-    }
-    // ===================== END OF THE FIX =====================
-
-    try {
-      // ALWAYS use `targetNetworkForApiCall` from now on.
-      const baseFeeData = await this.blocknativeApi.getBaseFeeEstimates();
-      const nextBlockEstimates = baseFeeData?.estimatedBaseFees?.[0]?.['pending+1'];
-
-      if (!nextBlockEstimates) {
-        throw new Error('Estimated base fees not available in Blocknative response.');
-      }
-
-      // Find the fee based on the 'confidence' level, with a fallback to the closest match
-      let feeEstimate = nextBlockEstimates.find((p: any) => p.confidence === confidence);
-      if (!feeEstimate) {
-        this.logger.debug(`Confidence level ${confidence}% not found, finding closest match.`);
-        feeEstimate = nextBlockEstimates.reduce((closest: any, current: any) => 
-          Math.abs(current.confidence - confidence) < Math.abs(closest.confidence - confidence) ? current : closest
-        );
-      }
-
-      const blobBaseFee = feeEstimate?.blobBaseFee;
-
-      if (blobBaseFee === undefined) {
-        throw new Error(`Blob base fee not found for confidence level ${confidence}`);
-      }
-
-      return blobBaseFee;
-    } catch (error) {
-      this.logger.warn(
-        `Failed to fetch blob base fee from Blocknative for target network ${targetNetworkForApiCall.name}. Falling back to estimation.`,
-        error.message,
-      );
-      // Your existing fallback logic
-      return this.getBlobFeeFromBasefeeEstimates(confidence);
-    }
-  }
-
-  private async getBlobFeeFromBasefeeEstimates(confidenceLevel: number): Promise<number | null> {
-    const apiKey = process.env.BLOCKNATIVE_API_KEY;
-    if (!apiKey) {
-      this.logger.warn('BLOCKNATIVE_API_KEY not configured');
-      return null;
-    }
-    const url = 'https://api.blocknative.com/gasprices/basefee-estimates';
-    try {
-      const response = await fetch(url, {
-        headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' }
-      });
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
-      const data = await response.json();
-      if (data.blobBaseFeePerGas) return data.blobBaseFeePerGas;
-
-      const nextBlockEstimate = data.estimatedBaseFees?.[0]?.['pending+1'];
-      if (!nextBlockEstimate) throw new Error('No estimates available');
-
-      let selectedEstimate = nextBlockEstimate.find((e: any) => e.confidence === confidenceLevel);
-      if (!selectedEstimate) {
-        selectedEstimate = nextBlockEstimate.reduce((closest: any, current: any) => 
-          Math.abs(current.confidence - confidenceLevel) < Math.abs(closest.confidence - confidenceLevel) ? current : closest
-        );
-      }
-      if (!selectedEstimate?.blobBaseFee) throw new Error('No suitable blob fee estimate found');
-      return selectedEstimate.blobBaseFee;
-    } catch (error) {
-      this.logger.error('Failed to fetch from basefee-estimates:', error);
-      return null;
-    }
-  }
+  // Removed old blob fee calculation methods - now using standard 1 wei blob base fee
 
   private async getBlocknativeGasPrice(chainId: number, confidenceLevel: number = 99): Promise<GasPriceData | null> {
     const apiKey = process.env.BLOCKNATIVE_API_KEY;
@@ -953,9 +852,9 @@ export class GasAnalyzerService {
           2442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
           324: { id: 'ethereum', name: 'ETH' },         // zkSync Era Mainnet
           300: { id: 'ethereum', name: 'ETH' },          // zkSync Era Sepolia
-          59141: { id: 'ethereum', name: 'ETH' },       // Linea Sepolia
-          763373: { id: 'ethereum', name: 'ETH' },      // Ink Sepolia
-          534351: {id:'ethereum',name:'ETH'}
+          59144: { id: 'ethereum', name: 'ETH' },       // Linea Mainnet
+          57073: { id: 'ethereum', name: 'ETH' },      // Ink Mainnet
+          534352: {id:'ethereum',name:'ETH'} // Scroll Mainnet
       };
   
       const token = tokenMap[networkConfig.chainId] || { id: 'ethereum', name: 'ETH' };
@@ -1122,7 +1021,8 @@ export class GasAnalyzerService {
          // Get blob base fee for Ethereum mainnet only
          let blobBaseFee: number | null = null;
          if (numericChainId === 1) {
-           blobBaseFee = await this.getBlocknativeBlobBaseFee(networkConfig, confidenceLevel);
+           // Use standard blob base fee of 1 wei (1e-9 gwei) for EIP-4844 blob transactions
+        blobBaseFee = 1e-9; // 1 wei in gwei
          }
          
          // Format response to match frontend expectations
@@ -1205,6 +1105,7 @@ export class GasAnalyzerService {
        'base': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'polygon-zkevm': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'zksync-era': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
+       'zksync-sepolia': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'scroll': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'ink': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' },
        'linea': { coingeckoId: 'ethereum', coingeckoSymbol: 'eth' }

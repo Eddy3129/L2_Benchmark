@@ -189,9 +189,18 @@ export class GasUtils {
   }
 
   /**
-   * Estimate calldata gas cost for L1 data availability
+   * Legacy method - kept for backward compatibility
+   * @deprecated Use estimateBlobGas instead for EIP-4844 blob-based L1 costs
    */
   static estimateCalldataGas(fragment: FunctionFragment): number {
+    // This method is deprecated but kept for backward compatibility
+    return this.estimateBlobGas(fragment);
+  }
+
+  /**
+   * Estimate blob gas cost for L1 data availability using EIP-4844
+   */
+  static estimateBlobGas(fragment: FunctionFragment): number {
     // Base calldata for function selector (4 bytes)
     let calldataBytes = 4;
     
@@ -221,12 +230,50 @@ export class GasUtils {
       }
     });
     
-    // L1 data cost: 16 gas per non-zero byte, 4 gas per zero byte
-    // Assume 80% non-zero bytes for realistic estimate
-    const nonZeroBytes = Math.floor(calldataBytes * 0.8);
-    const zeroBytes = calldataBytes - nonZeroBytes;
+    // EIP-4844 blob constants
+    const BYTES_PER_BLOB = 131072; // 128 KiB per blob
+    const GAS_PER_BLOB = 131072;   // Gas units per blob
     
-    return (nonZeroBytes * 16) + (zeroBytes * 4);
+    // Calculate number of blobs needed for the function data
+    const blobsNeeded = Math.ceil(calldataBytes / BYTES_PER_BLOB);
+    
+    // Return total blob gas needed
+    return blobsNeeded * GAS_PER_BLOB;
+  }
+
+  /**
+   * Calculate blob cost in ETH using standard blob base fee
+   */
+  static calculateBlobCostETH(blobGas: number): string {
+    // Standard blob base fee per gas: 1 wei = 1e-9 gwei
+    const blobBaseFeeGwei = 1e-9;
+    return this.calculateCostETH(blobGas, blobBaseFeeGwei);
+  }
+
+  /**
+   * Estimate total L1 data cost for deployment using blobs
+   */
+  static estimateDeploymentBlobCost(bytecodeSize: number): {
+    blobsNeeded: number;
+    totalBlobGas: number;
+    costETH: string;
+  } {
+    // EIP-4844 blob constants
+    const BYTES_PER_BLOB = 131072; // 128 KiB per blob
+    const GAS_PER_BLOB = 131072;   // Gas units per blob
+    
+    // Calculate blobs needed for bytecode
+    const blobsNeeded = Math.ceil(bytecodeSize / BYTES_PER_BLOB);
+    const totalBlobGas = blobsNeeded * GAS_PER_BLOB;
+    
+    // Calculate cost using standard blob base fee
+    const costETH = this.calculateBlobCostETH(totalBlobGas);
+    
+    return {
+      blobsNeeded,
+      totalBlobGas,
+      costETH
+    };
   }
 
   /**

@@ -31,8 +31,13 @@ export class NetworkConfigService {
   }
 
   static getNetwork(name: string): NetworkConfig | undefined {
-    // Handle legacy 'mainnet' -> 'ethereum' mapping
-    const actualName = name === 'mainnet' ? 'ethereum' : name;
+    // Handle legacy mappings
+    let actualName = name;
+    if (name === 'mainnet') {
+      actualName = 'ethereum';
+    } else if (name === 'zksync') {
+      actualName = 'zksync-era';
+    }
     // Fallback to shared config if not initialized or not found
     const network = this.networks.get(actualName) || getNetworkConfig(actualName);
     return network;
@@ -115,7 +120,7 @@ export class NetworkConfigService {
       'optimism': 1,
       'base': 1,
       'polygon-zkevm': 1,
-      'zksync-era': 1,
+      'zksync': 1,
       'scroll': 1,
       'linea': 1,
       'ink': 1, // Ink uses ETH for pricing

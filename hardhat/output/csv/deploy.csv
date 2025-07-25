@@ -1,0 +1,185 @@
+Network,Contract,Function,Min,Max,L2 Avg (Exec),L1 Avg (Bytes),Calls,usd avg
+Arbitrum One,AdvancedToken,blacklist,47341,47353,47352,240,47,0.00176149
+Arbitrum One,AdvancedToken,pause,-,-,27743,216,47,0.00103204
+Arbitrum One,AdvancedToken,unblacklist,25415,25427,25426,239,46,0.00094585
+Arbitrum One,AdvancedToken,unpause,-,-,27721,215,46,0.00103122
+Arbitrum One,BasicToken,approve,26506,46406,34786,252,46,0.00129404
+Arbitrum One,BasicToken,burn,33808,33832,33809,222,46,0.00125769
+Arbitrum One,BasicToken,mint,36693,53817,40750,249,93,0.0015159
+Arbitrum One,BasicToken,transfer,34486,51610,35230,247,46,0.00131056
+Arbitrum One,MultiSigWallet,confirmTransaction,57501,74613,63417,216,139,0.00235911
+Arbitrum One,MultiSigWallet,executeTransaction,70275,70287,70286,215,46,0.00261464
+Arbitrum One,MultiSigWallet,revokeConfirmation,32296,35581,35509,215,46,0.00132093
+Arbitrum One,MultiSigWallet,submitTransaction,81380,101352,85260,252,48,0.00317167
+Arbitrum One,MyNFT,approve,48655,48679,48678,244,46,0.00181082
+Arbitrum One,MyNFT,batchMint,-,-,199119,242,1,0.00740723
+Arbitrum One,MyNFT,safeMint,61562,95762,71491,236,93,0.00265947
+Arbitrum One,MyNFT,transferFrom,38426,55526,39507,263,47,0.00146966
+Arbitrum One,SimpleAuction,auctionEnd,-,-,62830,217,2,0.00233728
+Arbitrum One,SimpleAuction,bid,40267,69074,48623,218,95,0.00180878
+Arbitrum One,SimpleAuction,withdraw,23509,28560,25642,217,45,0.00095388
+Arbitrum One,SimpleStaking,exit,-,-,153355,218,1,0.00570481
+Arbitrum One,SimpleStaking,getReward,67287,120587,77424,216,46,0.00288017
+Arbitrum One,SimpleStaking,stake,126368,143468,133372,228,48,0.00496144
+Arbitrum One,SimpleStaking,withdraw,72768,81168,80985,228,46,0.00301264
+Base,AdvancedToken,blacklist,47341,47353,47352,2154,47,0.00117679
+Base,AdvancedToken,pause,-,-,27743,1770,47,0.00069103
+Base,AdvancedToken,unblacklist,25415,25427,25426,2152,46,0.00063494
+Base,AdvancedToken,unpause,-,-,27721,1767,46,0.00069047
+Base,BasicToken,approve,26506,46406,34786,2421,46,0.00086707
+Base,BasicToken,burn,33808,33832,33809,1929,46,0.00084142
+Base,BasicToken,mint,36693,53817,40750,2382,93,0.00101434
+Base,BasicToken,transfer,34486,51610,35230,2301,46,0.00087768
+Base,MultiSigWallet,confirmTransaction,57501,74613,63417,1867,139,0.00157291
+Base,MultiSigWallet,executeTransaction,70275,70287,70286,1867,46,0.00174266
+Base,MultiSigWallet,revokeConfirmation,32296,35581,35509,1867,46,0.00088324
+Base,MultiSigWallet,submitTransaction,81380,101352,85260,2578,48,0.00211489
+Base,MyNFT,approve,48655,48679,48678,2251,46,0.00120985
+Base,MyNFT,batchMint,-,-,199119,2252,1,0.00492761
+Base,MyNFT,safeMint,61562,95762,71491,2096,93,0.00177314
+Base,MyNFT,transferFrom,38426,55526,39507,2607,47,0.00098431
+Base,SimpleAuction,auctionEnd,-,-,62830,1828,2,0.00155829
+Base,SimpleAuction,bid,40267,69074,48623,1801,95,0.00120711
+Base,SimpleAuction,withdraw,23509,28560,25642,1805,45,0.00063921
+Base,SimpleStaking,exit,-,-,153355,1828,1,0.00379537
+Base,SimpleStaking,getReward,67287,120587,77424,1809,46,0.00191888
+Base,SimpleStaking,stake,126368,143468,133372,2037,48,0.00330219
+Base,SimpleStaking,withdraw,72768,81168,80985,2037,46,0.00200758
+Ink,AdvancedToken,blacklist,47341,47353,47352,-,47,0.00000042
+Ink,AdvancedToken,pause,-,-,27743,-,47,0.00000025
+Ink,AdvancedToken,unblacklist,25415,25427,25426,-,46,0.00000023
+Ink,AdvancedToken,unpause,-,-,27721,-,46,0.00000025
+Ink,BasicToken,approve,26506,46406,34786,-,46,0.00000031
+Ink,BasicToken,burn,33808,33832,33809,-,46,0.00000030
+Ink,BasicToken,mint,36693,53817,40750,-,93,0.00000036
+Ink,BasicToken,transfer,34486,51610,35230,-,46,0.00000031
+Ink,MultiSigWallet,confirmTransaction,57501,74613,63417,-,139,0.00000057
+Ink,MultiSigWallet,executeTransaction,70275,70287,70286,-,46,0.00000063
+Ink,MultiSigWallet,revokeConfirmation,32296,35581,35509,-,46,0.00000032
+Ink,MultiSigWallet,submitTransaction,81380,101352,85260,-,48,0.00000076
+Ink,MyNFT,approve,48655,48679,48678,-,46,0.00000043
+Ink,MyNFT,batchMint,-,-,199119,-,1,0.00000178
+Ink,MyNFT,safeMint,61562,95762,71491,-,93,0.00000064
+Ink,MyNFT,transferFrom,38426,55526,39507,-,47,0.00000035
+Ink,SimpleAuction,auctionEnd,-,-,62830,-,2,0.00000056
+Ink,SimpleAuction,bid,40267,69074,48623,-,95,0.00000043
+Ink,SimpleAuction,withdraw,23509,28560,25642,-,45,0.00000023
+Ink,SimpleStaking,exit,-,-,153355,-,1,0.00000137
+Ink,SimpleStaking,getReward,67287,120587,77424,-,46,0.00000069
+Ink,SimpleStaking,stake,126368,143468,133372,-,48,0.00000119
+Ink,SimpleStaking,withdraw,72768,81168,80985,-,46,0.00000072
+Linea,AdvancedToken,blacklist,47341,47353,47352,-,47,0.00863132
+Linea,AdvancedToken,pause,-,-,27743,-,47,0.00505699
+Linea,AdvancedToken,unblacklist,25415,25427,25426,-,46,0.00463465
+Linea,AdvancedToken,unpause,-,-,27721,-,46,0.00505298
+Linea,BasicToken,approve,26506,46406,34786,-,46,0.00634079
+Linea,BasicToken,burn,33808,33832,33809,-,46,0.00616270
+Linea,BasicToken,mint,36693,53817,40750,-,93,0.00742791
+Linea,BasicToken,transfer,34486,51610,35230,-,46,0.00642172
+Linea,MultiSigWallet,confirmTransaction,57501,74613,63417,-,139,0.01155965
+Linea,MultiSigWallet,executeTransaction,70275,70287,70286,-,46,0.01281173
+Linea,MultiSigWallet,revokeConfirmation,32296,35581,35509,-,46,0.00647258
+Linea,MultiSigWallet,submitTransaction,81380,101352,85260,-,48,0.01554119
+Linea,MyNFT,approve,48655,48679,48678,-,46,0.00887303
+Linea,MyNFT,batchMint,-,-,199119,-,1,0.03629541
+Linea,MyNFT,safeMint,61562,95762,71491,-,93,0.01303138
+Linea,MyNFT,transferFrom,38426,55526,39507,-,47,0.00720134
+Linea,SimpleAuction,auctionEnd,-,-,62830,-,2,0.01145265
+Linea,SimpleAuction,bid,40267,69074,48623,-,95,0.00886300
+Linea,SimpleAuction,withdraw,23509,28560,25642,-,45,0.00467402
+Linea,SimpleStaking,exit,-,-,153355,-,1,0.02795355
+Linea,SimpleStaking,getReward,67287,120587,77424,-,46,0.01411285
+Linea,SimpleStaking,stake,126368,143468,133372,-,48,0.02431105
+Linea,SimpleStaking,withdraw,72768,81168,80985,-,46,0.01476195
+Optimism,AdvancedToken,blacklist,47341,47353,47352,2223,47,0.00018510
+Optimism,AdvancedToken,pause,-,-,27743,1840,47,0.00011040
+Optimism,AdvancedToken,unblacklist,25415,25427,25426,2223,46,0.00010313
+Optimism,AdvancedToken,unpause,-,-,27721,1840,46,0.00011032
+Optimism,BasicToken,approve,26506,46406,34786,2421,46,0.00013884
+Optimism,BasicToken,burn,33808,33832,33809,2057,46,0.00013387
+Optimism,BasicToken,mint,36693,53817,40750,2445,93,0.00016123
+Optimism,BasicToken,transfer,34486,51610,35230,2429,46,0.00014053
+Optimism,MultiSigWallet,confirmTransaction,57501,74613,63417,1995,139,0.00024433
+Optimism,MultiSigWallet,executeTransaction,70275,70287,70286,1995,46,0.00027002
+Optimism,MultiSigWallet,revokeConfirmation,32296,35581,35509,1995,46,0.00014000
+Optimism,MultiSigWallet,submitTransaction,81380,101352,85260,2706,48,0.00032858
+Optimism,MyNFT,approve,48655,48679,48678,2379,46,0.00019063
+Optimism,MyNFT,batchMint,-,-,199119,2380,1,0.00075307
+Optimism,MyNFT,safeMint,61562,95762,71491,2224,93,0.00027535
+Optimism,MyNFT,transferFrom,38426,55526,39507,2735,47,0.00015763
+Optimism,SimpleAuction,auctionEnd,-,-,62830,1828,2,0.00024153
+Optimism,SimpleAuction,bid,40267,69074,48623,1929,95,0.00018879
+Optimism,SimpleAuction,withdraw,23509,28560,25642,1808,45,0.00010243
+Optimism,SimpleStaking,exit,-,-,153355,1828,1,0.00057997
+Optimism,SimpleStaking,getReward,67287,120587,77424,1809,46,0.00029603
+Optimism,SimpleStaking,stake,126368,143468,133372,2037,48,0.00050602
+Optimism,SimpleStaking,withdraw,72768,81168,80985,2037,46,0.00031017
+Polygon,AdvancedToken,blacklist,47341,47353,47352,-,47,0.00031963
+Polygon,AdvancedToken,pause,-,-,27743,-,47,0.00018727
+Polygon,AdvancedToken,unblacklist,25415,25427,25426,-,46,0.00017163
+Polygon,AdvancedToken,unpause,-,-,27721,-,46,0.00018712
+Polygon,BasicToken,approve,26506,46406,34786,-,46,0.00023481
+Polygon,BasicToken,burn,33808,33832,33809,-,46,0.00022821
+Polygon,BasicToken,mint,36693,53817,40750,-,93,0.00027506
+Polygon,BasicToken,transfer,34486,51610,35230,-,46,0.00023780
+Polygon,MultiSigWallet,confirmTransaction,57501,74613,63417,-,139,0.00042806
+Polygon,MultiSigWallet,executeTransaction,70275,70287,70286,-,46,0.00047443
+Polygon,MultiSigWallet,revokeConfirmation,32296,35581,35509,-,46,0.00023969
+Polygon,MultiSigWallet,submitTransaction,81380,101352,85260,-,48,0.00057551
+Polygon,MyNFT,approve,48655,48679,48678,-,46,0.00032858
+Polygon,MyNFT,batchMint,-,-,199119,-,1,0.00134405
+Polygon,MyNFT,safeMint,61562,95762,71491,-,93,0.00048256
+Polygon,MyNFT,transferFrom,38426,55526,39507,-,47,0.00026667
+Polygon,SimpleAuction,auctionEnd,-,-,62830,-,2,0.00042410
+Polygon,SimpleAuction,bid,40267,69074,48623,-,95,0.00032821
+Polygon,SimpleAuction,withdraw,23509,28560,25642,-,45,0.00017308
+Polygon,SimpleStaking,exit,-,-,153355,-,1,0.00103515
+Polygon,SimpleStaking,getReward,67287,120587,77424,-,46,0.00052261
+Polygon,SimpleStaking,stake,126368,143468,133372,-,48,0.00090026
+Polygon,SimpleStaking,withdraw,72768,81168,80985,-,46,0.00054665
+Scroll,AdvancedToken,blacklist,47341,47353,47352,-,47,0.00054606
+Scroll,AdvancedToken,pause,-,-,27743,-,47,0.00031993
+Scroll,AdvancedToken,unblacklist,25415,25427,25426,-,46,0.00029321
+Scroll,AdvancedToken,unpause,-,-,27721,-,46,0.00031968
+Scroll,BasicToken,approve,26506,46406,34786,-,46,0.00040115
+Scroll,BasicToken,burn,33808,33832,33809,-,46,0.00038989
+Scroll,BasicToken,mint,36693,53817,40750,-,93,0.00046993
+Scroll,BasicToken,transfer,34486,51610,35230,-,46,0.00040627
+Scroll,MultiSigWallet,confirmTransaction,57501,74613,63417,-,139,0.00073132
+Scroll,MultiSigWallet,executeTransaction,70275,70287,70286,-,46,0.00081054
+Scroll,MultiSigWallet,revokeConfirmation,32296,35581,35509,-,46,0.00040949
+Scroll,MultiSigWallet,submitTransaction,81380,101352,85260,-,48,0.00098322
+Scroll,MyNFT,approve,48655,48679,48678,-,46,0.00056135
+Scroll,MyNFT,batchMint,-,-,199119,-,1,0.00229624
+Scroll,MyNFT,safeMint,61562,95762,71491,-,93,0.00082443
+Scroll,MyNFT,transferFrom,38426,55526,39507,-,47,0.00045559
+Scroll,SimpleAuction,auctionEnd,-,-,62830,-,2,0.00072456
+Scroll,SimpleAuction,bid,40267,69074,48623,-,95,0.00056072
+Scroll,SimpleAuction,withdraw,23509,28560,25642,-,45,0.00029570
+Scroll,SimpleStaking,exit,-,-,153355,-,1,0.00176849
+Scroll,SimpleStaking,getReward,67287,120587,77424,-,46,0.00089285
+Scroll,SimpleStaking,stake,126368,143468,133372,-,48,0.00153805
+Scroll,SimpleStaking,withdraw,72768,81168,80985,-,46,0.00093392
+zkSync,AdvancedToken,blacklist,47341,47353,47352,-,47,0.00796195
+zkSync,AdvancedToken,pause,-,-,27743,-,47,0.00466482
+zkSync,AdvancedToken,unblacklist,25415,25427,25426,-,46,0.00427523
+zkSync,AdvancedToken,unpause,-,-,27721,-,46,0.00466112
+zkSync,BasicToken,approve,26506,46406,34786,-,46,0.00584906
+zkSync,BasicToken,burn,33808,33832,33809,-,46,0.00568478
+zkSync,BasicToken,mint,36693,53817,40750,-,93,0.00685187
+zkSync,BasicToken,transfer,34486,51610,35230,-,46,0.00592371
+zkSync,MultiSigWallet,confirmTransaction,57501,74613,63417,-,139,0.01066319
+zkSync,MultiSigWallet,executeTransaction,70275,70287,70286,-,46,0.01181817
+zkSync,MultiSigWallet,revokeConfirmation,32296,35581,35509,-,46,0.00597063
+zkSync,MultiSigWallet,submitTransaction,81380,101352,85260,-,48,0.01433596
+zkSync,MyNFT,approve,48655,48679,48678,-,46,0.00818491
+zkSync,MyNFT,batchMint,-,-,199119,-,1,0.03348067
+zkSync,MyNFT,safeMint,61562,95762,71491,-,93,0.01202078
+zkSync,MyNFT,transferFrom,38426,55526,39507,-,47,0.00664287
+zkSync,SimpleAuction,auctionEnd,-,-,62830,-,2,0.01056449
+zkSync,SimpleAuction,bid,40267,69074,48623,-,95,0.00817567
+zkSync,SimpleAuction,withdraw,23509,28560,25642,-,45,0.00431155
+zkSync,SimpleStaking,exit,-,-,153355,-,1,0.02578572
+zkSync,SimpleStaking,getReward,67287,120587,77424,-,46,0.01301838
+zkSync,SimpleStaking,stake,126368,143468,133372,-,48,0.02242570
+zkSync,SimpleStaking,withdraw,72768,81168,80985,-,46,0.01361714

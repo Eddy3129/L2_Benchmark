@@ -1,0 +1,9 @@
+Network,Type,Base Fee (Gwei),Priority Fee (Gwei),Max Fee (Gwei),Tx Cost (USD)
+Polygon PoS,Sidechain,1.39E-07,26,26,$0.00012301
+Arbitrum One,Optimistic,0.0308,0.062,0.0928,$0.00700084
+Optimism,Optimistic,5.06E-06,1.00E-09,5.06E-06,$0.00000038
+Base,Optimistic,0.0045,5.00E-08,0.0045,$0.00034217
+zkSync Era,Zk Rollup,0.0452,0.011,0.0562,$0.00424195
+Scroll,Zk Rollup,0.0025,0.0049,0.0074,$0.00055535
+Ink,Zk Rollup,6.58E-07,1.40E-07,7.98E-07,$0.00000006
+Linea,Zk Rollup,7.00E-09,0.049,0.049,$0.00369521

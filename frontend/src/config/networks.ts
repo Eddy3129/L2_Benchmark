@@ -16,7 +16,7 @@ export interface NetworkConfig {
     decimals: number;
   };
   type: 'mainnet' | 'testnet' | 'l2';
-  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync';
+  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync' | 'linea' | 'scroll' | 'ink';
   color: string;
   blockTime: number; // Average block time in seconds
   gasLimit: number; // Block gas limit
@@ -341,6 +341,30 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     category: 'ink',
     color: '#000000',
     blockTime: 2,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'mainnet',
+    isTestnet: false,
+    isL2: true
+  },
+  'zksync-era': {
+    id: 'zksync-era',
+    name: 'zksync-era',
+    displayName: 'zkSync Era',
+    chainId: 324,
+    rpcUrl: getRpcUrl('ZKSYNC_RPC_URL', 'https://mainnet.era.zksync.io'),
+    explorerUrl: 'https://explorer.zksync.io',
+    explorerApiUrl: 'https://api.zksync.io/api',
+    explorerApiKey: process.env.ZKSYNC_API_KEY,
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'zksync',
+    color: '#8C8DFC',
+    blockTime: 1,
     gasLimit: 30000000,
     finalityBlocks: 1,
     parentChain: 'mainnet',

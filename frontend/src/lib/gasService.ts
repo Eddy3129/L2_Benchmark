@@ -22,9 +22,11 @@ const convertNetworkToChain = (network: NetworkConfig): ChainConfig => {
     'optimism': 'optimistic-rollup',
     'base': 'optimistic-rollup',
     'polygon': 'sidechain',
-    'zksync': 'zk-rollup',
+    'zksync-era': 'zk-rollup',
     'scroll': 'zk-rollup',
-    'ethereum': 'mainnet'
+    'ethereum': 'mainnet',
+    'ink':'zk-rollup',
+    'linea':'zk-rollup'
   };
 
   return {
@@ -78,7 +80,7 @@ class MultiChainGasService {
   constructor() {
     // Generate supportedChains from shared configuration
     const mainnetNetworks = getMainnetNetworks().filter(network => 
-      ['polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era', 'scroll', 'linea'].includes(network.id)
+      ['polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era', 'scroll', 'linea','ink'].includes(network.id)
     );
     this.supportedChains = mainnetNetworks.map(convertNetworkToChain);
   }

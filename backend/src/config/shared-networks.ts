@@ -16,7 +16,7 @@ export interface NetworkConfig {
     decimals: number;
   };
   type: 'mainnet' | 'testnet' | 'l2';
-  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync' | 'scroll' | 'linea' | 'ink';
+  category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync-era' | 'scroll' | 'linea' | 'ink';
   color: string;
   blockTime: number; // Average block time in seconds
   gasLimit: number; // Block gas limit
@@ -101,6 +101,28 @@ export const TESTNET_NETWORKS: Record<string, NetworkConfig> = {
     category: 'base',
     color: '#0052ff',
     blockTime: 2,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'sepolia',
+    isTestnet: true,
+    isL2: true
+  },
+  zkSyncSepolia: {
+    id: 'zkSyncSepolia',
+    name: 'zksync-sepolia',
+    displayName: 'zkSync Era Sepolia',
+    chainId: 300,
+    rpcUrl: getRpcUrl('ZKSYNC_SEPOLIA_RPC_URL', 'https://sepolia.era.zksync.dev'),
+    explorerUrl: 'https://sepolia.explorer.zksync.io',
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'zksync-era',
+    color: '#4e529a',
+    blockTime: 1,
     gasLimit: 30000000,
     finalityBlocks: 1,
     parentChain: 'sepolia',
@@ -266,7 +288,7 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
       decimals: 18
     },
     type: 'l2',
-    category: 'zksync',
+    category: 'zksync-era',
     color: '#4e529a',
     blockTime: 1,
     gasLimit: 30000000,
@@ -323,7 +345,7 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     id: 'ink',
     name: 'ink',
     displayName: 'Ink',
-    chainId: 763373,
+    chainId: 57073,
     rpcUrl: getRpcUrl('INK_RPC_URL', 'https://rpc-gel-sepolia.inkonchain.com'),
     explorerUrl: 'https://explorer-sepolia.inkonchain.com',
     nativeCurrency: {
