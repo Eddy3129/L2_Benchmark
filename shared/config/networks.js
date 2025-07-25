@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isL2Network = exports.isTestnetNetwork = exports.isValidNetwork = exports.CHART_COLORS = exports.getNetworkColor = exports.getNetworkDisplayName = exports.getNetworksByCategory = exports.getL2Networks = exports.getMainnetNetworks = exports.getTestnetNetworks = exports.getNetworkConfig = exports.ALL_NETWORKS = exports.MAINNET_NETWORKS = exports.TESTNET_NETWORKS = void 0;
+exports.isL2Network = exports.isTestnetNetwork = exports.isValidNetwork = exports.CHART_COLORS = exports.getNetworkColor = exports.getNetworkDisplayName = exports.createNetworkConfig = exports.getNetworkByChainId = exports.getNetworksByCategory = exports.getL2Networks = exports.getMainnetNetworks = exports.getTestnetNetworks = exports.getNetworkConfig = exports.ALL_NETWORKS = exports.MAINNET_NETWORKS = exports.TESTNET_NETWORKS = void 0;
 const getRpcUrl = (envKey, fallback) => {
     return process.env[envKey] || fallback;
 };
@@ -242,6 +242,76 @@ exports.MAINNET_NETWORKS = {
         finalityBlocks: 128,
         isTestnet: false,
         isL2: true
+    },
+    scroll: {
+        id: 'scroll',
+        name: 'scroll',
+        displayName: 'Scroll',
+        chainId: 534352,
+        rpcUrl: getRpcUrl('SCROLL_RPC_URL', 'https://rpc.scroll.io'),
+        explorerUrl: 'https://scrollscan.com',
+        explorerApiUrl: 'https://api.scrollscan.com/api',
+        explorerApiKey: process.env.SCROLLSCAN_API_KEY,
+        nativeCurrency: {
+            name: 'Ethereum',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        type: 'l2',
+        category: 'scroll',
+        color: '#FFEEDA',
+        blockTime: 3,
+        gasLimit: 30000000,
+        finalityBlocks: 1,
+        parentChain: 'mainnet',
+        isTestnet: false,
+        isL2: true
+    },
+    linea: {
+        id: 'linea',
+        name: 'linea',
+        displayName: 'Linea',
+        chainId: 59144,
+        rpcUrl: getRpcUrl('LINEA_RPC_URL', 'https://rpc.linea.build'),
+        explorerUrl: 'https://lineascan.build',
+        explorerApiUrl: 'https://api.lineascan.build/api',
+        explorerApiKey: process.env.LINEASCAN_API_KEY,
+        nativeCurrency: {
+            name: 'Ethereum',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        type: 'l2',
+        category: 'linea',
+        color: '#121212',
+        blockTime: 2,
+        gasLimit: 30000000,
+        finalityBlocks: 1,
+        parentChain: 'mainnet',
+        isTestnet: false,
+        isL2: true
+    },
+    ink: {
+        id: 'ink',
+        name: 'ink',
+        displayName: 'Ink',
+        chainId: 57073,
+        rpcUrl: getRpcUrl('INK_RPC_URL', 'https://rpc-gel.inkonchain.com'),
+        explorerUrl: 'https://explorer.inkonchain.com',
+        nativeCurrency: {
+            name: 'Ethereum',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        type: 'l2',
+        category: 'ink',
+        color: '#000000',
+        blockTime: 2,
+        gasLimit: 30000000,
+        finalityBlocks: 1,
+        parentChain: 'mainnet',
+        isTestnet: false,
+        isL2: true
     }
 };
 exports.ALL_NETWORKS = {
@@ -268,6 +338,14 @@ const getNetworksByCategory = (category) => {
     return Object.values(exports.ALL_NETWORKS).filter(network => network.category === category);
 };
 exports.getNetworksByCategory = getNetworksByCategory;
+const getNetworkByChainId = (chainId) => {
+    return Object.values(exports.ALL_NETWORKS).find(network => network.chainId === chainId);
+};
+exports.getNetworkByChainId = getNetworkByChainId;
+const createNetworkConfig = () => ({
+    networks: Object.values(exports.ALL_NETWORKS)
+});
+exports.createNetworkConfig = createNetworkConfig;
 const getNetworkDisplayName = (networkId) => {
     const network = (0, exports.getNetworkConfig)(networkId);
     return network?.displayName || networkId.toUpperCase();

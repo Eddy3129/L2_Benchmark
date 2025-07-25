@@ -99,70 +99,24 @@ export const TESTNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'base',
-    color: '#1d4ed8',
+    color: '#0052ff',
     blockTime: 2,
     gasLimit: 30000000,
     finalityBlocks: 1,
     parentChain: 'sepolia',
     isTestnet: true,
     isL2: true
-  },
-  polygonAmoy: {
-    id: 'polygonAmoy',
-    name: 'polygon-amoy',
-    displayName: 'Polygon Amoy',
-    chainId: 80002,
-    rpcUrl: getRpcUrl('POLYGON_AMOY_RPC_URL', 'https://rpc-amoy.polygon.technology'),
-    explorerUrl: 'https://amoy.polygonscan.com',
-    explorerApiUrl: 'https://api-amoy.polygonscan.com/api',
-    explorerApiKey: process.env.POLYGONSCAN_API_KEY,
-    nativeCurrency: {
-      name: 'Polygon',
-      symbol: 'POL',
-      decimals: 18
-    },
-    type: 'l2',
-    category: 'polygon',
-    color: '#7c3aed',
-    blockTime: 2,
-    gasLimit: 30000000,
-    finalityBlocks: 128,
-    isTestnet: true,
-    isL2: true
-  },
-  sepolia: {
-    id: 'sepolia',
-    name: 'sepolia',
-    displayName: 'Sepolia Testnet',
-    chainId: 11155111,
-    rpcUrl: getRpcUrl('SEPOLIA_RPC_URL', 'https://eth-sepolia.g.alchemy.com/v2/demo'),
-    explorerUrl: 'https://sepolia.etherscan.io',
-    explorerApiUrl: 'https://api-sepolia.etherscan.io/api',
-    explorerApiKey: process.env.ETHERSCAN_API_KEY,
-    nativeCurrency: {
-      name: 'Ethereum',
-      symbol: 'ETH',
-      decimals: 18
-    },
-    type: 'testnet',
-    category: 'ethereum',
-    color: '#627EEA',
-    blockTime: 12,
-    gasLimit: 30000000,
-    finalityBlocks: 12,
-    isTestnet: true,
-    isL2: false
   }
 };
 
-// Mainnet configurations (for reference and future use)
+// Mainnet configurations
 export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
-  mainnet: {
-    id: 'mainnet',
-    name: 'mainnet',
-    displayName: 'Ethereum Mainnet',
+  ethereum: {
+    id: 'ethereum',
+    name: 'ethereum',
+    displayName: 'Ethereum',
     chainId: 1,
-    rpcUrl: getRpcUrl('MAINNET_RPC_URL', 'https://eth-mainnet.g.alchemy.com/v2/demo'),
+    rpcUrl: getRpcUrl('ETHEREUM_RPC_URL', 'https://eth-mainnet.g.alchemy.com/v2/demo'),
     explorerUrl: 'https://etherscan.io',
     explorerApiUrl: 'https://api.etherscan.io/api',
     explorerApiKey: process.env.ETHERSCAN_API_KEY,
@@ -173,10 +127,33 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'mainnet',
     category: 'ethereum',
-    color: '#627EEA',
+    color: '#627eea',
     blockTime: 12,
     gasLimit: 30000000,
     finalityBlocks: 12,
+    isTestnet: false,
+    isL2: false
+  },
+  polygon: {
+    id: 'polygon',
+    name: 'polygon',
+    displayName: 'Polygon',
+    chainId: 137,
+    rpcUrl: getRpcUrl('POLYGON_RPC_URL', 'https://polygon-rpc.com'),
+    explorerUrl: 'https://polygonscan.com',
+    explorerApiUrl: 'https://api.polygonscan.com/api',
+    explorerApiKey: process.env.POLYGONSCAN_API_KEY,
+    nativeCurrency: {
+      name: 'Polygon',
+      symbol: 'POL',
+      decimals: 18
+    },
+    type: 'mainnet',
+    category: 'polygon',
+    color: '#8247e5',
+    blockTime: 2,
+    gasLimit: 30000000,
+    finalityBlocks: 256,
     isTestnet: false,
     isL2: false
   },
@@ -196,11 +173,11 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'arbitrum',
-    color: '#28A0F0',
+    color: '#28a0f0',
     blockTime: 1,
     gasLimit: 32000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
@@ -220,11 +197,11 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'optimism',
-    color: '#FF0420',
+    color: '#ff0420',
     blockTime: 2,
     gasLimit: 30000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
@@ -244,34 +221,57 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'base',
-    color: '#0052FF',
+    color: '#0052ff',
     blockTime: 2,
     gasLimit: 30000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
-  polygon: {
-    id: 'polygon',
-    name: 'polygon',
-    displayName: 'Polygon PoS',
-    chainId: 137,
-    rpcUrl: getRpcUrl('POLYGON_RPC_URL', 'https://polygon-rpc.com'),
-    explorerUrl: 'https://polygonscan.com',
-    explorerApiUrl: 'https://api.polygonscan.com/api',
+  'polygon-zkevm': {
+    id: 'polygon-zkevm',
+    name: 'polygon-zkevm',
+    displayName: 'Polygon zkEVM',
+    chainId: 1101,
+    rpcUrl: getRpcUrl('POLYGON_ZKEVM_RPC_URL', 'https://zkevm-rpc.com'),
+    explorerUrl: 'https://zkevm.polygonscan.com',
+    explorerApiUrl: 'https://api-zkevm.polygonscan.com/api',
     explorerApiKey: process.env.POLYGONSCAN_API_KEY,
     nativeCurrency: {
-      name: 'Polygon',
-      symbol: 'POL',
+      name: 'Ethereum',
+      symbol: 'ETH',
       decimals: 18
     },
     type: 'l2',
     category: 'polygon',
-    color: '#8247E5',
-    blockTime: 2,
+    color: '#7b3fe4',
+    blockTime: 5,
     gasLimit: 30000000,
-    finalityBlocks: 128,
+    finalityBlocks: 1,
+    parentChain: 'ethereum',
+    isTestnet: false,
+    isL2: true
+  },
+  'zksync-era': {
+    id: 'zksync-era',
+    name: 'zksync-era',
+    displayName: 'zkSync Era',
+    chainId: 324,
+    rpcUrl: getRpcUrl('ZKSYNC_ERA_RPC_URL', 'https://mainnet.era.zksync.io'),
+    explorerUrl: 'https://explorer.zksync.io',
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    type: 'l2',
+    category: 'zksync',
+    color: '#4e529a',
+    blockTime: 1,
+    gasLimit: 30000000,
+    finalityBlocks: 1,
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
@@ -282,8 +282,6 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     chainId: 534352,
     rpcUrl: getRpcUrl('SCROLL_RPC_URL', 'https://rpc.scroll.io'),
     explorerUrl: 'https://scrollscan.com',
-    explorerApiUrl: 'https://api.scrollscan.com/api',
-    explorerApiKey: process.env.SCROLLSCAN_API_KEY,
     nativeCurrency: {
       name: 'Ethereum',
       symbol: 'ETH',
@@ -291,11 +289,11 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'scroll',
-    color: '#FFEEDA',
+    color: '#ffeaa7',
     blockTime: 3,
     gasLimit: 30000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
@@ -306,8 +304,6 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     chainId: 59144,
     rpcUrl: getRpcUrl('LINEA_RPC_URL', 'https://rpc.linea.build'),
     explorerUrl: 'https://lineascan.build',
-    explorerApiUrl: 'https://api.lineascan.build/api',
-    explorerApiKey: process.env.LINEASCAN_API_KEY,
     nativeCurrency: {
       name: 'Ethereum',
       symbol: 'ETH',
@@ -315,11 +311,11 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     },
     type: 'l2',
     category: 'linea',
-    color: '#121212',
-    blockTime: 2,
+    color: '#61dfff',
+    blockTime: 12,
     gasLimit: 30000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   },
@@ -327,43 +323,41 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
     id: 'ink',
     name: 'ink',
     displayName: 'Ink',
-    chainId: 57073,
-    rpcUrl: getRpcUrl('INK_RPC_URL', 'https://rpc-gel.inkonchain.com'),
-    explorerUrl: 'https://explorer.inkonchain.com',
+    chainId: 763373,
+    rpcUrl: getRpcUrl('INK_RPC_URL', 'https://rpc-gel-sepolia.inkonchain.com'),
+    explorerUrl: 'https://explorer-sepolia.inkonchain.com',
     nativeCurrency: {
       name: 'Ethereum',
       symbol: 'ETH',
       decimals: 18
     },
-    type: 'l2',
+    type: 'mainnet',
     category: 'ink',
     color: '#000000',
     blockTime: 2,
     gasLimit: 30000000,
     finalityBlocks: 1,
-    parentChain: 'mainnet',
     isTestnet: false,
     isL2: true
   }
 };
 
-// Combined network configurations
+// Combined networks
 export const ALL_NETWORKS: Record<string, NetworkConfig> = {
   ...TESTNET_NETWORKS,
   ...MAINNET_NETWORKS
 };
 
-// Utility functions
 export const getNetworkConfig = (networkId: string): NetworkConfig | undefined => {
   return ALL_NETWORKS[networkId];
 };
 
 export const getTestnetNetworks = (): NetworkConfig[] => {
-  return Object.values(TESTNET_NETWORKS);
+  return Object.values(ALL_NETWORKS).filter(network => network.isTestnet);
 };
 
 export const getMainnetNetworks = (): NetworkConfig[] => {
-  return Object.values(MAINNET_NETWORKS);
+  return Object.values(ALL_NETWORKS).filter(network => !network.isTestnet);
 };
 
 export const getL2Networks = (): NetworkConfig[] => {
@@ -382,34 +376,3 @@ export const getNetworkByChainId = (chainId: number): NetworkConfig | undefined 
 export const createNetworkConfig = () => ({
   networks: Object.values(ALL_NETWORKS)
 });
-
-export const getNetworkDisplayName = (networkId: string): string => {
-  const network = getNetworkConfig(networkId);
-  return network?.displayName || networkId.toUpperCase();
-};
-
-export const getNetworkColor = (networkId: string): string => {
-  const network = getNetworkConfig(networkId);
-  return network?.color || '#6b7280';
-};
-
-// Chart colors for consistent styling
-export const CHART_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-  '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'
-];
-
-// Network validation
-export const isValidNetwork = (networkId: string): boolean => {
-  return networkId in ALL_NETWORKS;
-};
-
-export const isTestnetNetwork = (networkId: string): boolean => {
-  const network = getNetworkConfig(networkId);
-  return network?.isTestnet || false;
-};
-
-export const isL2Network = (networkId: string): boolean => {
-  const network = getNetworkConfig(networkId);
-  return network?.isL2 || false;
-};

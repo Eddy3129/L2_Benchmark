@@ -33,97 +33,127 @@ export function ExportButton({ sessions, analysisResult }: ExportButtonProps) {
       csvContent += `Networks Analyzed,${analysisResult.results.length}\n`;
       csvContent += '\n';
 
-      // Network Summary
-      csvContent += 'NETWORK SUMMARY\n';
+      // Methodology Note
+      csvContent += 'METHODOLOGY\n';
+      csvContent += 'Measured Data: gasUsed values are accurate measurements from local Hardhat EVM\n';
+      csvContent += 'Market Data: Gas prices and token prices are real-time data from APIs\n';
+      csvContent += 'Estimated Data: L1/L2 cost breakdowns use simplified formulas and are approximations\n';
+      csvContent += '\n';
+
+      // Main Results Table
+      csvContent += 'ESTIMATED TRANSACTION COSTS FROM STATIC ANALYSIS\n';
       const networkHeaders = [
         'Network',
-        'Deployment Gas',
-        'Deployment Cost (ETH)',
-        'Deployment Cost (USD)',
-        'Gas Price (Gwei)',
+        'Contract',
+        'Method',
+        'Measured gasUsed',
+        'L2 gasPrice (gwei)',
+        'L1 gasPrice (gwei)',
         'Token Price (USD)',
-        'Functions Count',
-        'Total Function Cost (USD)',
-        'Base Fee (Gwei)',
-        'Priority Fee (Gwei)',
-        'Total Fee (Gwei)',
-        'Confidence',
-        'Source'
+        'Est. L1 Data Cost (USD)',
+        'Est. L2 Execution Cost (USD)',
+        'Total Estimated Cost (USD)'
       ];
       csvContent += networkHeaders.join(',') + '\n';
 
       analysisResult.results.forEach((network: any) => {
-        const totalFunctionCost = network.functions.reduce((sum: number, f: any) => sum + (f.estimatedCostUSD || 0), 0);
-        const networkRow = [
-          network.networkName,
-          network.deployment.gasUsed,
-          formatNumber(parseFloat(network.deployment.costETH)),
-          formatNumber(network.deployment.costUSD),
-          parseFloat(network.gasPrice).toFixed(2),
-          network.ethPriceUSD.toFixed(2),
-          network.functions.length,
-          formatNumber(totalFunctionCost),
-          network.gasPriceBreakdown.baseFee.toFixed(2),
-          network.gasPriceBreakdown.priorityFee.toFixed(2),
-          network.gasPriceBreakdown.totalFee.toFixed(2),
-          network.gasPriceBreakdown.confidence.toFixed(2),
-          network.gasPriceBreakdown.source
-        ];
-        csvContent += networkRow.map(field => `"${field}"`).join(',') + '\n';
-      });
-
-      csvContent += '\n';
-
-      // Detailed Function Analysis for each network
-      analysisResult.results.forEach((network: any) => {
-        csvContent += `FUNCTION ANALYSIS - ${network.networkName.toUpperCase()}\n`;
-        const functionHeaders = [
-          'Function Name',
-          'Gas Used',
-          `Cost (${network.network.includes('polygon') ? 'POL' : 'ETH'})`,
-          'Cost (USD)',
-          'Percentage of Network Total'
-        ];
-        csvContent += functionHeaders.join(',') + '\n';
-
-        const totalNetworkCost = network.functions.reduce((sum: number, f: any) => sum + (f.estimatedCostUSD || 0), 0);
+        // Deployment row
+        const l1GasPrice = network.gasPriceBreakdown?.baseFee ? 
+          (network.gasPriceBreakdown.baseFee).toFixed(6) : 'N/A';
+        const l2GasPrice = (network.gasPriceBreakdown.totalFee).toFixed(6);
         
+        // Calculate estimated L1 and L2 costs
+        const estimatedL1Cost = network.deployment.gasUsed && l1GasPrice !== 'N/A' ? 
+          formatNumber((network.deployment.gasUsed * 16 * parseFloat(l1GasPrice) * 1e-9 * network.ethPriceUSD)) : 'N/A';
+        const estimatedL2Cost = network.deployment.costUSD && estimatedL1Cost !== 'N/A' ? 
+          formatNumber(network.deployment.costUSD - parseFloat(estimatedL1Cost)) : formatNumber(network.deployment.costUSD);
+        
+        const deploymentRow = [
+          network.networkName,
+          analysisResult.contractName,
+          'deploy',
+          network.deployment.gasUsed,
+          l2GasPrice,
+          l1GasPrice,
+          network.ethPriceUSD.toFixed(2),
+          estimatedL1Cost,
+          estimatedL2Cost,
+          formatNumber(network.deployment.costUSD)
+        ];
+        csvContent += deploymentRow.map(field => `"${field}"`).join(',') + '\n';
+        
+        // Function rows
         network.functions.forEach((func: any) => {
-          const percentage = totalNetworkCost > 0 ? ((func.estimatedCostUSD || 0) / totalNetworkCost * 100) : 0;
-          const functionRow = [
-            func.functionName,
-            func.gasUsed !== 'N/A' ? func.gasUsed : 'N/A',
-            func.estimatedCostETH !== 'N/A' ? formatNumber(parseFloat(func.estimatedCostETH)) : 'N/A',
-            func.estimatedCostUSD > 0 ? formatNumber(func.estimatedCostUSD) : 'N/A',
-            percentage > 0 ? `${percentage.toFixed(2)}%` : 'N/A'
-          ];
-          csvContent += functionRow.map(field => `"${field}"`).join(',') + '\n';
-        });
-        csvContent += '\n';
-      });
-
-      // Cost Comparison Matrix
-      csvContent += 'COST COMPARISON MATRIX\n';
-      const allFunctions = new Set<string>();
-      analysisResult.results.forEach((network: any) => {
-        network.functions.forEach((func: any) => {
-          if (func.estimatedCostUSD > 0) {
-            allFunctions.add(func.functionName);
+          if (func.gasUsed !== 'N/A' && func.estimatedCostUSD > 0) {
+            const funcL1Cost = l1GasPrice !== 'N/A' && network.gasPriceBreakdown?.baseFee ? 
+              formatNumber((func.gasUsed * 16 * network.gasPriceBreakdown.baseFee * 1e-9 * network.ethPriceUSD)) : 'N/A';
+            const funcL2Cost = funcL1Cost !== 'N/A' ? 
+              formatNumber(func.estimatedCostUSD - parseFloat(funcL1Cost)) : formatNumber(func.estimatedCostUSD);
+            
+            const functionRow = [
+              network.networkName,
+              analysisResult.contractName,
+              func.functionName,
+              func.gasUsed,
+              l2GasPrice,
+              l1GasPrice,
+              network.ethPriceUSD.toFixed(2),
+              funcL1Cost,
+              funcL2Cost,
+              formatNumber(func.estimatedCostUSD)
+            ];
+            csvContent += functionRow.map(field => `"${field}"`).join(',') + '\n';
           }
         });
       });
 
-      const matrixHeaders = ['Function', ...analysisResult.results.map((n: any) => n.networkName)];
-      csvContent += matrixHeaders.join(',') + '\n';
+      csvContent += '\n';
 
-      Array.from(allFunctions).forEach(funcName => {
-        const row = [funcName];
-        analysisResult.results.forEach((network: any) => {
-          const func = network.functions.find((f: any) => f.functionName === funcName);
-          row.push(func ? formatNumber(func.estimatedCostUSD) : '0');
-        });
-        csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+      // Gas Price Data Quality Summary
+      csvContent += 'GAS PRICE DATA QUALITY\n';
+      const qualityHeaders = [
+        'Network',
+        'Confidence (%)',
+        'Data Source',
+        'Base Fee (gwei)',
+        'Priority Fee (gwei)',
+        'Total Fee (gwei)'
+      ];
+      csvContent += qualityHeaders.join(',') + '\n';
+      
+      analysisResult.results.forEach((network: any) => {
+        const qualityRow = [
+          network.networkName,
+          network.gasPriceBreakdown.confidence?.toFixed(1) || 'N/A',
+          network.gasPriceBreakdown.source || 'Unknown',
+          (network.gasPriceBreakdown.baseFee / 1e9).toFixed(2),
+          (network.gasPriceBreakdown.priorityFee / 1e9).toFixed(2),
+          (network.gasPriceBreakdown.totalFee / 1e9).toFixed(2)
+        ];
+        csvContent += qualityRow.map(field => `"${field}"`).join(',') + '\n';
       });
+      csvContent += '\n';
+
+      // Network Cost Comparison
+      csvContent += 'DEPLOYMENT COST COMPARISON\n';
+      const comparisonHeaders = ['Metric', ...analysisResult.results.map((n: any) => n.networkName)];
+      csvContent += comparisonHeaders.join(',') + '\n';
+      
+      // Deployment gas (constant across networks)
+      const gasRow = ['Measured Gas Used', ...analysisResult.results.map((n: any) => n.deployment.gasUsed)];
+      csvContent += gasRow.map(field => `"${field}"`).join(',') + '\n';
+      
+      // Total cost in USD
+      const costRow = ['Total Cost (USD)', ...analysisResult.results.map((n: any) => formatNumber(n.deployment.costUSD))];
+      csvContent += costRow.map(field => `"${field}"`).join(',') + '\n';
+      
+      // Gas price in gwei
+      const gasPriceRow = ['Gas Price (gwei)', ...analysisResult.results.map((n: any) => (n.gasPriceBreakdown.totalFee / 1e9).toFixed(2))];
+      csvContent += gasPriceRow.map(field => `"${field}"`).join(',') + '\n';
+      
+      // Token price
+      const tokenPriceRow = ['Token Price (USD)', ...analysisResult.results.map((n: any) => n.ethPriceUSD.toFixed(2))];
+      csvContent += tokenPriceRow.map(field => `"${field}"`).join(',') + '\n';
 
     } else {
       // Fallback to original benchmark format

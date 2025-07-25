@@ -1,0 +1,118 @@
+@startuml
+!theme plain
+title Live Network Fork - Real-time Function Analysis
+
+' Skin parameters for a clean, vertical look
+skinparam titleFontSize 18
+skinparam defaultFontSize 14
+skinparam sequenceParticipantFontSize 14
+skinparam sequenceArrowFontSize 13
+skinparam noteFontSize 13
+
+' Participants aligned with the Live Network Forking system
+participant "User" as User
+participant "Live Network Forking IDE\n(Frontend)" as Frontend
+participant "Backend Services" as Backend
+participant "Alchemy API" as AlchemyAPI
+participant "Live Blockchain\nNetwork" as LiveNetwork
+
+autonumber
+
+== User Prepares for Live Network Forking ==
+User -> Frontend: Accesses Live Network Forking IDE
+activate Frontend
+note right: Corresponds to UC_IDE, UC_Write_Contract
+User -> Frontend: Writes/edits Solidity contract in Monaco Editor
+User -> Frontend: Configures constructor args & function calls
+User -> Frontend: Selects target network
+note right: Corresponds to UC_Configure
+deactivate Frontend
+
+== Live Network Forking Execution ==
+User -> Frontend: Clicks "Run Live Network Fork"
+activate Frontend
+
+Frontend -> Backend: POST /api/live-network-forking/run\n(contractCode, network, args, functions)
+activate Backend
+note right: Triggers UC_Run_Network_Fork
+
+Backend -> Backend: Create Live Network Fork
+note right: <
+
+alt Fork Creation Failed
+Backend --> Frontend: HTTP 400 - Fork Error
+Frontend -> User: Display fork creation error
+else Fork Successful
+
+Backend -> Backend: **Compile Contract**
+note right: <<include>> UC_Compile
+Backend -> Backend: Extract contract name & compile Solidity
+
+alt Compilation Failed
+    Backend --> Frontend: HTTP 400 - Compilation Error
+    Frontend -> User: Display compilation errors
+else Compilation Successful
+
+    Backend -> Backend: **Get Real-time Gas Prices**
+    note right: <<include>> UC_Fetch_Gas_Prices
+    Backend -> AlchemyAPI: GET real-time gas prices
+    activate AlchemyAPI
+    AlchemyAPI --> Backend: Current gas price data
+    deactivate AlchemyAPI
+    
+    Backend -> Backend: **Deploy Contract on Live Fork**
+    note right: <<include>> UC_Deploy_Contract
+    Backend -> LiveNetwork: Deploy contract with real gas prices
+    activate LiveNetwork
+    LiveNetwork --> Backend: Deployment receipt & contract address
+    deactivate LiveNetwork
+    
+    loop For each function call
+        Backend -> Backend: **Execute Function & Measure Gas**
+        note right: <<include>> UC_Execute_Functions
+        Backend -> LiveNetwork: Call function with real gas prices
+        activate LiveNetwork
+        LiveNetwork --> Backend: Transaction receipt & gas used
+        deactivate LiveNetwork
+    end
+    
+    Backend -> Backend: **Calculate Real Costs**
+    Backend -> Backend: Convert gas to ETH & USD costs
+    
+    Backend --> Frontend: HTTP 200 - Live Network Forking Results\n(contractAddress, costs, gas usage)
+    deactivate Backend
+    
+    Frontend -> Frontend: **Display Live Results**
+    note right: Corresponds to UC_View_Results
+    Frontend -> User: Show deployment costs & function gas costs
+    Frontend -> User: Display deployed contract address
+    
+    == Interactive Contract Usage ==
+    User -> Frontend: Clicks "Execute & Get Gas Cost" on function
+    activate Frontend
+    note right: <<extend>> UC_Interact_Contract
+    
+    Frontend -> Backend: POST /api/live-network-forking/run\n(existing contractAddress, function)
+    activate Backend
+    Backend -> LiveNetwork: Execute function on deployed contract
+    activate LiveNetwork
+    LiveNetwork --> Backend: Real-time gas cost
+    deactivate LiveNetwork
+    Backend --> Frontend: HTTP 200 - Interaction result
+    deactivate Backend
+    
+    Frontend -> User: Display real-time gas cost & interaction history
+    deactivate Frontend
+    
+    alt User wants to cleanup
+        User -> Frontend: Clicks "Cleanup All Sessions"
+        note right: <<extend>> UC_Cleanup
+        Frontend -> Backend: DELETE /api/live-network-forking/cleanup-all
+        activate Backend
+        Backend -> Backend: Stop all active forks
+        Backend --> Frontend: HTTP 200 - Cleanup successful
+        deactivate Backend
+    end
+end
+end
+@enduml

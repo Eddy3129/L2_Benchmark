@@ -8,8 +8,6 @@ import { ethers, ContractFactory, Interface, FunctionFragment, Signer } from 'et
 import { DataStorageService } from '../shared/data-storage.service';
 import { CsvExportService } from '../shared/csv-export.service';
 import { BlocknativeApiService } from '../shared/blocknative-api.service';
-import { NetworkType } from '../config/network.config';
-
 // Import shared utilities
 import { 
   GasPriceData, 
@@ -20,7 +18,8 @@ import {
   AnalysisResult,
   GasAnalysisData
 } from '../shared/types';
-import { NetworkConfigService, NetworkConfig } from '../config/network.config';
+import { NetworkConfigService } from '../shared/network-config.service';
+import { NetworkConfig } from '../config/shared-networks';
 import { GasUtils } from '../shared/gas-utils';
 import { ValidationUtils } from '../shared/validation-utils';
 
@@ -52,6 +51,54 @@ export class GasAnalyzerService {
     private readonly blocknativeApi: BlocknativeApiService
   ) {
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
+  }
+  
+  private analyzeFunctions(
+    compilation: CompilationResult,
+    l2GasPrice: GasPriceData,
+    tokenPriceUSD: number,
+    l1GasPrice?: GasPriceData,
+  ): GasEstimate[] {
+    const functions: GasEstimate[] = [];
+    const contractInterface = new Interface(compilation.abi);
+  
+    for (const fragment of contractInterface.fragments) {
+      if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
+        const measuredGas = GasUtils.estimateFunctionGas(fragment);
+        let estimatedCostUSD: number;
+        let estimatedCostETH: string;
+        let l1DataCost: number | undefined;
+        let l2ExecutionCost: number | undefined;
+  
+        if (l1GasPrice) { // This implies it's an L2
+          const l2CostETH = GasUtils.calculateCostETH(measuredGas, l2GasPrice.totalFee);
+          l2ExecutionCost = GasUtils.calculateCostUSD(l2CostETH, tokenPriceUSD);
+  
+          // Simplified L1 cost for functions (smaller data footprint)
+          const l1DataGas = GasUtils.estimateCalldataGas(fragment);
+          const l1CostETH = GasUtils.calculateCostETH(l1DataGas, l1GasPrice.totalFee);
+          l1DataCost = GasUtils.calculateCostUSD(l1CostETH, tokenPriceUSD);
+  
+          estimatedCostUSD = l2ExecutionCost + l1DataCost;
+          estimatedCostETH = (parseFloat(l2CostETH) + parseFloat(l1CostETH)).toFixed(18);
+  
+        } else { // For L1 or sidechains
+          estimatedCostETH = GasUtils.calculateCostETH(measuredGas, l2GasPrice.totalFee);
+          estimatedCostUSD = GasUtils.calculateCostUSD(estimatedCostETH, tokenPriceUSD);
+        }
+  
+        functions.push({
+          functionName: fragment.name,
+          gasUsed: measuredGas.toString(),
+          estimatedCostETH,
+          estimatedCostUSD,
+          l1DataCost,
+          l2ExecutionCost,
+          totalCost: estimatedCostUSD,
+        });
+      }
+    }
+    return functions;
   }
 
   async analyzeContract(code: string, networks: string[], contractName: string, confidenceLevel: number = 99): Promise<AnalysisResult> {
@@ -91,9 +138,9 @@ export class GasAnalyzerService {
         // Get testnet gas usage but use mainnet gas prices for realistic cost calculation
         const testnetGasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
         const gasPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
-        const mainnetGasPriceData = await this.getOptimalGasPrice({ ...networkConfig, chainId: gasPriceChainId }, confidenceLevel);
-        const tokenPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
-        const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
+      const mainnetGasPriceData = await this.getOptimalGasPrice({ ...networkConfig, chainId: gasPriceChainId }, confidenceLevel);
+      const tokenPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
+      const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
         networkResult = await this.analyzeNetworkGasWithMainnetPricing(compilation, testnetGasPriceData, mainnetGasPriceData, tokenPriceUSD, networkConfig.name);
       }
       
@@ -136,7 +183,7 @@ export class GasAnalyzerService {
       // Get actual gas price
       const gasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
       // Use mainnet chain ID for token pricing if available
-      const tokenPriceChainId = networkConfig.gasPriceChainId || networkConfig.chainId;
+      const tokenPriceChainId = networkConfig.chainId;
       const ethPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
       
       // Calculate deployment costs
@@ -188,7 +235,7 @@ export class GasAnalyzerService {
       // Fallback to estimation if actual deployment fails
       const gasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
       // Use mainnet chain ID for token pricing if available
-      const tokenPriceChainId = networkConfig.gasPriceChainId || networkConfig.chainId;
+      const tokenPriceChainId = networkConfig.chainId;
       const ethPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
       return this.analyzeNetworkGas(compilation, gasPriceData, ethPriceUSD);
     }
@@ -418,6 +465,8 @@ export class GasAnalyzerService {
     const tempFilePath = path.join(this.tempContractsDir, tempFileName);
 
     try {
+      // Ensure temp directory exists before writing file
+      await fs.mkdir(this.tempContractsDir, { recursive: true });
       await fs.writeFile(tempFilePath, code);
       this.logger.log(`Compiling with Hardhat in: ${this.hardhatProjectRoot}`);
       
@@ -502,120 +551,95 @@ export class GasAnalyzerService {
 
   private async analyzeNetworkGasWithMainnetPricing(
     compilation: CompilationResult,
-    testnetGasPriceData: GasPriceData,
-    mainnetGasPriceData: GasPriceData,
-    ethPriceUSD: number,
-    networkName: string
+    l2GasPriceData: GasPriceData,
+    l1GasPriceData: GasPriceData,
+    tokenPriceUSD: number,
+    networkKey: string
   ): Promise<NetworkAnalysisResult> {
-    // Ensure gas price is properly formatted (avoid scientific notation)
-    const safeMainnetGasPrice = Number(mainnetGasPriceData.totalFee.toFixed(9));
-    const safeTestnetGasPrice = Number(testnetGasPriceData.totalFee.toFixed(9));
-    
-    // Get network configuration to check if it's an L2
-    const networkConfig = NetworkConfigService.getNetwork(networkName);
-    const isL2 = networkConfig?.type === NetworkType.L2;
-    
-    // Estimate deployment gas using testnet conditions
-    const deploymentGas = GasUtils.estimateDeploymentGas(compilation.bytecode);
-    
-    // Calculate deployment costs
+    const networkConfig = NetworkConfigService.getNetwork(networkKey);
+    const isL2 = networkConfig?.isL2 || false;
+
+    // Get measured gas from a local, sterile environment (the most accurate part)
+    const measuredDeploymentGas = GasUtils.estimateDeploymentGas(
+      compilation.bytecode,
+    );
+
     let deploymentCostETH: string;
     let deploymentCostUSD: number;
-    let l1DataCost: number | undefined;
-    let l2ExecutionCost: number | undefined;
-    let totalCost: number | undefined;
-    
-    if (isL2 && networkConfig) {
-      try {
-        // For L2s, calculate L1 data cost and L2 execution cost separately
-        const l2ExecutionCostWei = deploymentGas * safeTestnetGasPrice * 1e9; // Convert gwei to wei
-        const l1DataCostWei = deploymentGas * 16 * safeMainnetGasPrice * 1e9; // Rough estimate: 16 gas per byte
-        
-        l2ExecutionCost = parseFloat(ethers.formatEther(l2ExecutionCostWei.toString())) * ethPriceUSD;
-        l1DataCost = parseFloat(ethers.formatEther(l1DataCostWei.toString())) * ethPriceUSD;
-        totalCost = l2ExecutionCost + l1DataCost;
-        
-        deploymentCostETH = ethers.formatEther((l2ExecutionCostWei + l1DataCostWei).toString());
-        deploymentCostUSD = totalCost;
-      } catch (error) {
-        this.logger.warn(`Failed to calculate L1/L2 breakdown for ${networkName}, falling back to simple calculation`);
-        // Fallback to simple calculation
-        deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, safeMainnetGasPrice);
-        deploymentCostUSD = GasUtils.calculateCostUSD(deploymentCostETH, ethPriceUSD);
-      }
+    let l1DataCostUSD: number | undefined;
+    let l2ExecutionCostUSD: number | undefined;
+
+    if (isL2) {
+      // --- CORRECTED CALCULATION LOGIC ---
+      // 1. Calculate L2 Execution Cost
+      const l2ExecutionCostETH = GasUtils.calculateCostETH(
+        measuredDeploymentGas,
+        l2GasPriceData.totalFee,
+      );
+      l2ExecutionCostUSD = GasUtils.calculateCostUSD(
+        l2ExecutionCostETH,
+        tokenPriceUSD,
+      );
+
+      // 2. Calculate L1 Data Cost (more accurate heuristic based on bytecode size)
+      const bytecodeSizeBytes = compilation.bytecode.length / 2 - 1; // Hex string to bytes
+      // For deployment, calculate L1 data cost directly: 16 gas per non-zero byte, 4 gas per zero byte
+      // Assume 80% non-zero bytes for realistic estimate
+      const nonZeroBytes = Math.floor(bytecodeSizeBytes * 0.8);
+      const zeroBytes = bytecodeSizeBytes - nonZeroBytes;
+      const l1DataGas = (nonZeroBytes * 16) + (zeroBytes * 4);
+      const l1DataCostETH = GasUtils.calculateCostETH(
+        l1DataGas,
+        l1GasPriceData.totalFee,
+      );
+      l1DataCostUSD = GasUtils.calculateCostUSD(l1DataCostETH, tokenPriceUSD);
+
+      // 3. Sum them for the total cost
+      deploymentCostUSD = l2ExecutionCostUSD + l1DataCostUSD;
+      deploymentCostETH = (
+        parseFloat(l2ExecutionCostETH) + parseFloat(l1DataCostETH)
+      ).toFixed(18);
     } else {
-      // For non-L2 networks, use mainnet gas prices for realistic estimates
-      deploymentCostETH = GasUtils.calculateCostETH(deploymentGas, safeMainnetGasPrice);
-      deploymentCostUSD = GasUtils.calculateCostUSD(deploymentCostETH, ethPriceUSD);
+      // For L1 or non-rollup sidechains, the cost is simpler
+      deploymentCostETH = GasUtils.calculateCostETH(
+        measuredDeploymentGas,
+        l1GasPriceData.totalFee, // Use L1 gas price for L1 networks
+      );
+      deploymentCostUSD = GasUtils.calculateCostUSD(
+        deploymentCostETH,
+        tokenPriceUSD,
+      );
     }
 
-    // Analyze functions with mainnet pricing
-    const functions: GasEstimate[] = [];
-    const contractInterface = new Interface(compilation.abi);
-    
-    for (const fragment of contractInterface.fragments) {
-      if (fragment.type === 'function' && fragment instanceof FunctionFragment) {
-        const gasEstimate = GasUtils.estimateFunctionGas(fragment);
-        
-        let functionCostETH: string;
-        let functionCostUSD: number;
-        let functionL1DataCost: number | undefined;
-        let functionL2ExecutionCost: number | undefined;
-        let functionTotalCost: number | undefined;
-        
-        if (isL2 && networkConfig) {
-          try {
-            // For L2s, calculate L1 data cost and L2 execution cost separately
-            const l2ExecutionCostWei = gasEstimate * safeTestnetGasPrice * 1e9;
-            const l1DataCostWei = gasEstimate * 16 * safeMainnetGasPrice * 1e9;
-            
-            functionL2ExecutionCost = parseFloat(ethers.formatEther(l2ExecutionCostWei.toString())) * ethPriceUSD;
-            functionL1DataCost = parseFloat(ethers.formatEther(l1DataCostWei.toString())) * ethPriceUSD;
-            functionTotalCost = functionL2ExecutionCost + functionL1DataCost;
-            
-            functionCostETH = ethers.formatEther((l2ExecutionCostWei + l1DataCostWei).toString());
-            functionCostUSD = functionTotalCost;
-          } catch (error) {
-            // Fallback to simple calculation
-            functionCostETH = GasUtils.calculateCostETH(gasEstimate, safeMainnetGasPrice);
-            functionCostUSD = GasUtils.calculateCostUSD(functionCostETH, ethPriceUSD);
-          }
-        } else {
-          // Use mainnet gas prices for cost calculation
-          functionCostETH = GasUtils.calculateCostETH(gasEstimate, safeMainnetGasPrice);
-          functionCostUSD = GasUtils.calculateCostUSD(functionCostETH, ethPriceUSD);
-        }
-        
-        functions.push({
-          functionName: fragment.name,
-          gasUsed: gasEstimate.toString(),
-          estimatedCostETH: functionCostETH,
-          estimatedCostUSD: functionCostUSD,
-          l1DataCost: functionL1DataCost,
-          l2ExecutionCost: functionL2ExecutionCost,
-          totalCost: functionTotalCost
-        });
-      }
-    }
+    // Analyze functions using the same logic
+    const functions = this.analyzeFunctions(
+        compilation, 
+        l2GasPriceData, 
+        tokenPriceUSD,
+        isL2 ? l1GasPriceData : undefined
+    );
 
-    this.logger.log(`${networkName}: Using testnet gas estimates with mainnet gas prices (${mainnetGasPriceData.totalFee} gwei) and mainnet token pricing${isL2 ? ' with L1/L2 cost breakdown' : ''}`);
+    this.logger.log(
+      `${networkKey}: Using mainnet pricing. Total Est Cost: $${deploymentCostUSD.toFixed(
+        4,
+      )}`,
+    );
 
     return {
       deployment: {
-        gasUsed: deploymentGas.toString(),
+        gasUsed: measuredDeploymentGas.toString(),
         costETH: deploymentCostETH,
         costUSD: deploymentCostUSD,
-        l1DataCost,
-        l2ExecutionCost,
-        totalCost
+        l1DataCost: l1DataCostUSD,
+        l2ExecutionCost: l2ExecutionCostUSD,
+        totalCost: deploymentCostUSD,
       },
       functions,
-      gasPrice: `${mainnetGasPriceData.totalFee} gwei (mainnet pricing)`,
-      ethPriceUSD,
-      gasPriceBreakdown: {
-        ...mainnetGasPriceData,
-        source: 'mainnet-pricing' as any
-      }
+      gasPrice: isL2
+        ? `${l2GasPriceData.totalFee} (L2) | ${l1GasPriceData.totalFee} (L1)`
+        : `${l1GasPriceData.totalFee} (L1)`,
+      ethPriceUSD: tokenPriceUSD,
+      gasPriceBreakdown: l2GasPriceData, // Show L2 gas price by default
     };
   }
 
@@ -636,8 +660,8 @@ export class GasAnalyzerService {
     }
     
     // Try Blocknative API first for professional gas price data
-    // Use gasPriceChainId for mainnet pricing if available, otherwise use chainId
-    const gasPriceChainId = networkConfig.gasPriceChainId || networkConfig.chainId;
+    // Use chainId for gas pricing
+    const gasPriceChainId = networkConfig.chainId;
     try {
       const blocknativeData = await this.getBlocknativeGasPrice(gasPriceChainId, confidenceLevel);
       if (blocknativeData) {
@@ -710,7 +734,7 @@ export class GasAnalyzerService {
     // ======================= THE CORE FIX =======================
     // If the requested network is an L2, the blob fee is determined by the L1 it posts to.
     // We must override the network config to point to Ethereum Mainnet for the API call.
-    if (networkConfig.type === NetworkType.L2) { // Check if it's an L2
+    if (networkConfig?.type === 'l2') { // Check if it's an L2
       this.logger.debug(`Original network is L2 (${networkConfig.name}). Redirecting to L1 for blob fee.`);
 
       // Find your L1 configuration. This is a robust way to do it.

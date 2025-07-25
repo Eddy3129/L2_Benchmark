@@ -1,3 +1,5 @@
+import { NetworkConfig, getMainnetNetworks, getL2Networks } from '@/config/networks';
+
 interface ChainConfig {
   id: string;
   name: string;
@@ -12,6 +14,33 @@ interface ChainConfig {
   coingeckoSymbol?: string;
   type: 'optimistic-rollup' | 'zk-rollup' | 'sidechain' | 'mainnet';
 }
+
+// Convert shared NetworkConfig to ChainConfig format
+const convertNetworkToChain = (network: NetworkConfig): ChainConfig => {
+  const typeMap: { [key: string]: ChainConfig['type'] } = {
+    'arbitrum': 'optimistic-rollup',
+    'optimism': 'optimistic-rollup',
+    'base': 'optimistic-rollup',
+    'polygon': 'sidechain',
+    'zksync': 'zk-rollup',
+    'scroll': 'zk-rollup',
+    'ethereum': 'mainnet'
+  };
+
+  return {
+    id: network.id,
+    name: network.displayName,
+    symbol: network.nativeCurrency.symbol,
+    chainId: network.chainId,
+    rpcUrl: network.rpcUrl,
+    blockExplorer: network.explorerUrl,
+    color: network.color,
+    icon: network.nativeCurrency.symbol.charAt(0),
+    apiChainId: network.chainId,
+    coingeckoId: network.nativeCurrency.symbol === 'ETH' ? 'ethereum' : 'polygon-ecosystem-token',
+    type: typeMap[network.category] || 'mainnet'
+  };
+};
 
 interface GasPriceData {
   system: string;
@@ -44,140 +73,14 @@ interface MultiChainGasData {
 }
 
 class MultiChainGasService {
-  public readonly supportedChains: ChainConfig[] = [
-    // {
-    //   id: 'mainnet',
-    //   name: 'Ethereum',
-    //   symbol: 'ETH',
-    //   chainId: 1,
-    //   rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/',
-    //   blockExplorer: 'https://etherscan.io',
-    //   color: '#627EEA',
-    //   icon: 'Ξ',
-    //   apiChainId: 1,
-    //   coingeckoId: 'ethereum'
-    // },
-    {
-      id: 'polygon',
-      name: 'Polygon PoS',
-      symbol: 'POL',
-      chainId: 137,
-      rpcUrl: 'https://polygon-rpc.com',
-      blockExplorer: 'https://polygonscan.com',
-      color: '#8247E5',
-      icon: '⬟',
-      apiChainId: 137,
-      coingeckoId: 'polygon-ecosystem-token',
-      type: 'sidechain'
-    },
-    {
-      id: 'arbitrum',
-      name: 'Arbitrum One',
-      symbol: 'ARB',
-      chainId: 42161,
-      rpcUrl: 'https://arb1.arbitrum.io/rpc',
-      blockExplorer: 'https://arbiscan.io',
-      color: '#28A0F0',
-      icon: 'A',
-      apiChainId: 42161,
-      coingeckoId: 'ethereum',
-      type: 'optimistic-rollup'
-    },
-    {
-      id: 'optimism',
-      name: 'Optimism',
-      symbol: 'OP',
-      chainId: 10,
-      rpcUrl: 'https://mainnet.optimism.io',
-      blockExplorer: 'https://optimistic.etherscan.io',
-      color: '#FF0420',
-      icon: 'O',
-      apiChainId: 10,
-      coingeckoId: 'ethereum',
-      type: 'optimistic-rollup'
-    },
-    {
-      id: 'base',
-      name: 'Base',
-      symbol: 'BASE',
-      chainId: 8453,
-      rpcUrl: 'https://mainnet.base.org',
-      blockExplorer: 'https://basescan.org',
-      color: '#0052FF',
-      icon: 'B',
-      apiChainId: 8453,
-      coingeckoId: 'ethereum',
-      type: 'optimistic-rollup'
-    },
-    {
-      id: 'polygon-zkevm',
-      name: 'Polygon zkEVM',
-      symbol: 'ETH',
-      chainId: 1101,
-      rpcUrl: 'https://zkevm-rpc.com',
-      blockExplorer: 'https://zkevm.polygonscan.com',
-      color: '#7B3FE4',
-      icon: 'Z',
-      apiChainId: 1101,
-      coingeckoId: 'ethereum',
-      type: 'zk-rollup'
-    },
-    {
-      id: 'zksync-era',
-      name: 'zkSync Era',
-      symbol: 'ETH',
-      chainId: 324,
-      rpcUrl: 'https://mainnet.era.zksync.io',
-      blockExplorer: 'https://explorer.zksync.io',
-      color: '#4E529A',
-      icon: 'Z',
-      apiChainId: 324,
-      coingeckoId: 'ethereum',
-      type: 'zk-rollup'
-    },
-    {
-      id: 'scroll',
-      name: 'Scroll',
-      symbol: 'ETH',
-      chainId: 534352,
-      rpcUrl: 'https://rpc.scroll.io',
-      blockExplorer: 'https://scrollscan.com/',
-      color: '#FFEAA7',
-      icon: 'S',
-      apiChainId: 534352,
-      coingeckoId: 'ethereum',
-      type: 'zk-rollup'
-    },
-    {
-      id: 'ink',
-      name: 'Ink',
-      symbol: 'ETH',
-      chainId: 57073,
-      rpcUrl: 'https://rpc-gel.inkonchain.com',
-      blockExplorer: 'https://explorer.inkonchain.com',
-      color: '#000000',
-      icon: 'I',
-      apiChainId: 57073,
-      coingeckoId: 'ethereum',
-      type: 'zk-rollup'
-    },
-    {
-      id: 'linea',
-      name: 'Linea',
-      symbol: 'ETH',
-      chainId: 59144,
-      rpcUrl: 'https://rpc.linea.build',
-      blockExplorer: 'https://lineascan.build/',
-      color: '#61DFFF',
-      icon: 'L',
-      apiChainId: 59144,
-      coingeckoId: 'ethereum',
-      type: 'zk-rollup'
-    },
-  ];
+  public readonly supportedChains: ChainConfig[];
 
   constructor() {
-    // No longer needs API key since all calls go through backend
+    // Generate supportedChains from shared configuration
+    const mainnetNetworks = getMainnetNetworks().filter(network => 
+      ['polygon', 'arbitrum', 'optimism', 'base', 'polygon-zkevm', 'zksync-era', 'scroll', 'linea'].includes(network.id)
+    );
+    this.supportedChains = mainnetNetworks.map(convertNetworkToChain);
   }
 
   async getMultiChainGasData(chainIds: string[]): Promise<MultiChainGasData[]> {

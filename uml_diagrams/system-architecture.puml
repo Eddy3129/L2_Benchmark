@@ -1,0 +1,237 @@
+@startuml
+!theme plain
+title Gas Analysis & Live Benchmarker - System Architecture
+
+' Skin parameters for a clean look
+skinparam defaultFontSize 12
+skinparam classFontSize 11
+skinparam packageFontSize 13
+skinparam titleFontSize 16
+
+package "Frontend Layer" {
+  class "(C) WebInterface" {
+    ○ displayDashboard()
+    ○ renderCharts()
+    ○ handleUserInput()
+    ○ connectWallet()
+  }
+  
+  class "(C) GasEstimatorIDE" {
+    ○ editContract()
+    ○ selectTemplate()
+    ○ configureAnalysis()
+    ○ displayResults()
+  }
+  
+  class "(C) LiveBenchmarkerIDE" {
+    ○ runLiveBenchmark()
+    ○ interactWithContract()
+    ○ displayRealTimeResults()
+    ○ cleanupSessions()
+  }
+  
+  class "(C) MonacoEditor" {
+    ○ editSolidityCode()
+    ○ syntaxHighlighting()
+    ○ autoComplete()
+    ○ errorDetection()
+  }
+}
+
+package "Backend Layer" {
+  class "(C) GasAnalysisController" {
+    ○ analyzeContract()
+    ○ validateCode()
+    ○ getHistory()
+    ○ exportResults()
+  }
+  
+  class "(C) LiveBenchmarkerController" {
+    ○ createBenchmark()
+    ○ runBenchmark()
+    ○ getActiveSessions()
+    ○ cleanupAll()
+  }
+  
+  class "(C) NetworkComparisonController" {
+    ○ compareNetworks()
+    ○ getBlobCosts()
+    ○ quickCompare()
+    ○ getNetworkList()
+  }
+  
+  class "(C) ComparisonReportController" {
+    ○ createReport()
+    ○ getReports()
+    ○ updateReport()
+    ○ deleteReport()
+  }
+  
+  class "(C) GasAnalysisService" {
+    ○ compileContract()
+    ○ estimateGas()
+    ○ calculateCosts()
+    ○ analyzeOptimizations()
+  }
+  
+  class "(C) LiveBenchmarkerService" {
+    ○ createLiveFork()
+    ○ deployContract()
+    ○ executeFunction()
+    ○ measureRealGas()
+  }
+  
+  class "(C) NetworkComparisonService" {
+    ○ compareNetworks()
+    ○ analyzeGasCosts()
+    ○ getBlobCosts()
+    ○ getNetworkMetrics()
+  }
+  
+  class "(C) ContractCompilationService" {
+    ○ compileContract()
+    ○ validateSolidity()
+    ○ extractABI()
+    ○ getBytecode()
+  }
+  
+  class "(C) ForkingService" {
+    ○ createFork()
+    ○ deployToFork()
+    ○ simulateTransaction()
+    ○ cleanupFork()
+  }
+  
+  class "(C) GasEstimationService" {
+    ○ estimateDeployment()
+    ○ estimateFunction()
+    ○ calculateOptimizations()
+    ○ analyzeGasUsage()
+  }
+  
+  class "(C) NetworkAnalysisService" {
+    ○ getGasPrice()
+    ○ getTokenPrice()
+    ○ monitorNetwork()
+    ○ validateTransaction()
+  }
+  
+  class "(C) BlobCostAnalysisService" {
+    ○ calculateBlobCosts()
+    ○ analyzeBlobData()
+    ○ estimateBlobGas()
+    ○ compareBlobCosts()
+  }
+  
+  class "(C) ComparisonReportService" {
+    ○ generateReport()
+    ○ saveReport()
+    ○ getReportHistory()
+    ○ exportReport()
+  }
+  
+  class "(C) DataStorageService" {
+    ○ store()
+    ○ retrieve()
+    ○ findAll()
+    ○ delete()
+  }
+}
+
+package "Database Layer" {
+  class "(C) PostgreSQL" {
+    ○ gas_analysis
+    ○ benchmark_sessions
+    ○ network_metrics
+    ○ user_sessions
+    ○ contract_templates
+  }
+}
+
+package "External APIs" {
+  class "(C) AlchemyAPI" {
+    ○ createFork()
+    ○ getRealTimeGasPrice()
+    ○ simulateTransaction()
+    ○ getBlockData()
+  }
+  
+  class "(C) CoinGeckoAPI" {
+    ○ getTokenPrices()
+    ○ getMarketData()
+    ○ getHistoricalPrices()
+  }
+  
+  class "(C) BlocknativeAPI" {
+    ○ getGasPredictions()
+    ○ getMempoolData()
+    ○ getNetworkCongestion()
+  }
+}
+
+package "Blockchain Layer" {
+  class "(C) SmartContracts" {
+    ○ BasicToken
+    ○ AdvancedToken
+    ○ SimpleAuction
+    ○ MultiSigWallet
+    ○ MyNFT
+    ○ SimpleStaking
+  }
+  
+  class "(C) Layer1Networks" {
+    ○ Ethereum
+    ○ BinanceSmartChain
+    ○ Avalanche
+  }
+  
+  class "(C) Layer2Networks" {
+    ○ Arbitrum
+    ○ Optimism
+    ○ Base
+    ○ Polygon
+    ○ zkSync
+    ○ StarkNet
+  }
+}
+
+"(C) WebInterface" ||--|| "(C) GasEstimatorIDE"
+"(C) WebInterface" ||--|| "(C) LiveBenchmarkerIDE"
+"(C) GasEstimatorIDE" ||--|| "(C) MonacoEditor"
+"(C) LiveBenchmarkerIDE" ||--|| "(C) MonacoEditor"
+
+"(C) GasEstimatorIDE" ||--|| "(C) GasAnalysisController"
+"(C) LiveBenchmarkerIDE" ||--|| "(C) LiveBenchmarkerController"
+"(C) WebInterface" ||--|| "(C) NetworkComparisonController"
+"(C) WebInterface" ||--|| "(C) ComparisonReportController"
+
+"(C) GasAnalysisController" ||--|| "(C) GasAnalysisService"
+"(C) LiveBenchmarkerController" ||--|| "(C) LiveBenchmarkerService"
+"(C) NetworkComparisonController" ||--|| "(C) NetworkComparisonService"
+"(C) ComparisonReportController" ||--|| "(C) ComparisonReportService"
+
+"(C) GasAnalysisService" ||--|| "(C) ContractCompilationService"
+"(C) GasAnalysisService" ||--|| "(C) GasEstimationService"
+"(C) GasAnalysisService" ||--|| "(C) NetworkAnalysisService"
+"(C) LiveBenchmarkerService" ||--|| "(C) ForkingService"
+"(C) LiveBenchmarkerService" ||--|| "(C) ContractCompilationService"
+"(C) LiveBenchmarkerService" ||--|| "(C) NetworkAnalysisService"
+"(C) NetworkComparisonService" ||--|| "(C) BlobCostAnalysisService"
+"(C) NetworkComparisonService" ||--|| "(C) NetworkAnalysisService"
+
+"(C) GasAnalysisService" ||--|| "(C) DataStorageService"
+"(C) LiveBenchmarkerService" ||--|| "(C) DataStorageService"
+"(C) ComparisonReportService" ||--|| "(C) DataStorageService"
+"(C) DataStorageService" ||--|| "(C) PostgreSQL"
+
+"(C) NetworkAnalysisService" ||--|| "(C) AlchemyAPI"
+"(C) NetworkAnalysisService" ||--|| "(C) CoinGeckoAPI"
+"(C) NetworkAnalysisService" ||--|| "(C) BlocknativeAPI"
+"(C) ForkingService" ||--|| "(C) AlchemyAPI"
+"(C) ContractCompilationService" ||--|| "(C) AlchemyAPI"
+
+"(C) AlchemyAPI" ||--|| "(C) Layer1Networks"
+"(C) AlchemyAPI" ||--|| "(C) Layer2Networks"
+"(C) SmartContracts" ||--|| "(C) Layer1Networks"
+"(C) SmartContracts" ||--|| "(C) Layer2Networks"
+@enduml

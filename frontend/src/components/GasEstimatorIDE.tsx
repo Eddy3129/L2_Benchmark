@@ -159,7 +159,7 @@ export function GasEstimatorIDE() {
         setAnalysisProgress({
           stage: 'analyzing',
           progress: baseProgress,
-          message: `Forking ${network} mainnet and analyzing...`,
+          message: `Analyzing ${network}...`,
           currentNetwork: network,
           networksCompleted: i,
           totalNetworks: selectedNetworks.length

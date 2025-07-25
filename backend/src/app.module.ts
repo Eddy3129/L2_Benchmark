@@ -7,8 +7,11 @@ import { GasAnalysisModule } from './modules/gas-analysis/gas-analysis.module';
 import { ComparisonReportModule } from './modules/comparison-report/comparison-report.module';
 import { PrivateKeyBenchmarkModule } from './modules/private-key-benchmark/private-key-benchmark.module';
 import { SharedModule } from './shared/shared.module';
-import networkConfig from './config/network.config';
+import { createNetworkConfig } from './config/shared-networks';
+import { registerAs } from '@nestjs/config';
 import appConfig from './config/app.config';
+
+const networkConfig = registerAs('networks', createNetworkConfig);
 
 @Module({
   imports: [

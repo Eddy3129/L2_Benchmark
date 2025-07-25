@@ -330,8 +330,8 @@ export function GasDashboard() {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 4,
-      maximumFractionDigits: 4
+      minimumFractionDigits: 8,
+      maximumFractionDigits: 8
     }).format(value);
   };
 

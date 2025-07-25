@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import { NetworkConfigService } from './config/network.config';
+import { NetworkConfigService } from './shared/network-config.service';
 import { AppConfig } from './config/app.config';
 
 async function bootstrap() {

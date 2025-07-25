@@ -1,0 +1,78 @@
+@startuml
+!theme plain
+title Live Network Forking - Core Use Cases
+
+' Skin parameters for a clean look
+skinparam defaultFontSize 14
+skinparam usecase {
+BackgroundColor #F3F3F3
+BorderColor #555555
+ArrowColor #333333
+}
+skinparam actor {
+BorderColor #555555
+}
+
+' Direction for a taller, vertical layout
+top to bottom direction
+
+' Primary actor at the top
+actor "Developer/User" as User
+
+' System boundary with a balanced level of detail
+rectangle "Live Network Forking System" {
+usecase "Use Live Network Forking IDE" as UC_IDE
+usecase "Write/Edit Contract" as UC_Write_Contract
+usecase "Configure Network Fork" as UC_Configure
+usecase "Run Live Network Fork" as UC_Run_Network_Fork
+usecase "View Live Results" as UC_View_Results
+usecase "Interact with Contract" as UC_Interact_Contract
+usecase "Cleanup Sessions" as UC_Cleanup
+
+package "Backend Services" {
+usecase "Fork Live Network" as UC_Fork_Network
+usecase "Fetch Real-time Gas Prices" as UC_Fetch_Gas_Prices
+usecase "Compile Contract" as UC_Compile
+usecase "Deploy Contract" as UC_Deploy_Contract
+usecase "Execute Functions" as UC_Execute_Functions
+usecase "Calculate Real Costs" as UC_Calculate_Costs
+}
+}
+
+' Supporting actors at the bottom
+actor "Alchemy API" as AlchemyAPI
+actor "Live Blockchain\nNetworks" as LiveNetwork
+
+' --- Relationships ---
+
+' User interacts with the IDE
+User --> UC_IDE
+
+' IDE functionalities are included when using it
+UC_IDE ..> UC_Write_Contract : <
+
+' User configures and initiates the network fork
+User --> UC_Configure
+User --> UC_Run_Network_Fork
+
+' Live network fork includes several backend steps
+UC_Run_Network_Fork ..> UC_Fork_Network : <
+
+' User views the results and can interact
+User --> UC_View_Results
+UC_View_Results <.. UC_Interact_Contract : <
+
+' Interactive contract functionality
+User --> UC_Interact_Contract
+UC_Interact_Contract ..> UC_Execute_Functions : <
+
+' Cleanup functionality
+User --> UC_Cleanup
+
+' System interactions with external actors
+UC_Fork_Network --> AlchemyAPI
+UC_Fetch_Gas_Prices --> AlchemyAPI
+UC_Deploy_Contract --> LiveNetwork
+UC_Execute_Functions --> LiveNetwork
+
+@enduml

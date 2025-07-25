@@ -13,7 +13,7 @@ export interface NetworkConfig {
         decimals: number;
     };
     type: 'mainnet' | 'testnet' | 'l2';
-    category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync';
+    category: 'ethereum' | 'arbitrum' | 'optimism' | 'polygon' | 'base' | 'zksync' | 'scroll' | 'linea' | 'ink';
     color: string;
     blockTime: number;
     gasLimit: number;
@@ -32,6 +32,10 @@ export declare const getTestnetNetworks: () => NetworkConfig[];
 export declare const getMainnetNetworks: () => NetworkConfig[];
 export declare const getL2Networks: () => NetworkConfig[];
 export declare const getNetworksByCategory: (category: NetworkConfig["category"]) => NetworkConfig[];
+export declare const getNetworkByChainId: (chainId: number) => NetworkConfig | undefined;
+export declare const createNetworkConfig: () => {
+    networks: NetworkConfig[];
+};
 export declare const getNetworkDisplayName: (networkId: string) => string;
 export declare const getNetworkColor: (networkId: string) => string;
 export declare const CHART_COLORS: string[];

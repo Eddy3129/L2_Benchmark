@@ -189,6 +189,47 @@ export class GasUtils {
   }
 
   /**
+   * Estimate calldata gas cost for L1 data availability
+   */
+  static estimateCalldataGas(fragment: FunctionFragment): number {
+    // Base calldata for function selector (4 bytes)
+    let calldataBytes = 4;
+    
+    // Add bytes for each parameter
+    fragment.inputs.forEach(input => {
+      switch (input.type) {
+        case 'uint256':
+        case 'int256':
+        case 'address':
+        case 'bytes32':
+          calldataBytes += 32;
+          break;
+        case 'bool':
+        case 'uint8':
+          calldataBytes += 1;
+          break;
+        case 'string':
+        case 'bytes':
+          calldataBytes += 64; // Estimate for dynamic types
+          break;
+        default:
+          if (input.type.includes('[]')) {
+            calldataBytes += 96; // Estimate for arrays
+          } else {
+            calldataBytes += 32; // Default for other types
+          }
+      }
+    });
+    
+    // L1 data cost: 16 gas per non-zero byte, 4 gas per zero byte
+    // Assume 80% non-zero bytes for realistic estimate
+    const nonZeroBytes = Math.floor(calldataBytes * 0.8);
+    const zeroBytes = calldataBytes - nonZeroBytes;
+    
+    return (nonZeroBytes * 16) + (zeroBytes * 4);
+  }
+
+  /**
    * Aggregate gas estimates for summary statistics
    */
   static aggregateGasEstimates(estimates: GasEstimate[]): {

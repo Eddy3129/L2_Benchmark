@@ -15,7 +15,9 @@ import {
 import { NetworkResult } from '@/types/shared';
 import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig'; 
 import { formatCurrency } from '@/utils/gasUtils';
-import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle, Download, Info } from 'lucide-react';
+import { ExportButton } from './ExportButton';
+import { Tooltip as HeroTooltip } from '@heroui/react';
 
 // Register Chart.js components
 ChartJS.register(
@@ -220,20 +222,6 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
   // --- Render JSX ---
   return (
     <div className="bg-gray-900 text-gray-200 p-4 lg:p-6 rounded-xl space-y-6 font-lekton">
-      
-      <header className="pb-4 border-b border-gray-700">
-        <h1 className="text-2xl font-bold text-white">Gas Cost Analysis Report</h1>
-        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-gray-400">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            <span className="font-mono text-xs">{result.contractName}</span>
-          </div>
-          <span className="text-gray-600 hidden sm:inline">|</span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs">Report generated on {new Date(result.timestamp).toLocaleString()}</span>
-          </div>
-        </div>
-      </header>
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
@@ -283,10 +271,70 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
               <thead className="bg-gray-800">
                 <tr>
                   <th scope="col" className="py-3 pl-4 pr-2 text-left text-xs font-semibold text-white sm:pl-4">Network</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Total Cost</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">L2 Execution</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">L1 Data Cost</th>
-                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">Confidence Level</th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Measured computational gas consumed by the transaction on local Hardhat EVM. This is accurate and constant across all EVM-compatible networks.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>Measured Gas Used</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Real-time gas price on the L2 network from Blocknative API.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>L2 Gas Price (gwei)</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Real-time gas price on Ethereum mainnet from Blocknative API.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>L1 Gas Price (gwei)</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Real-time market price of the network's native token from CoinGecko API.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>Token Price (USD)</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Total estimated cost combining L2 execution and L1 data costs. This is the most accurate final cost estimate.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>Est. Deployment Cost (USD)</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="ESTIMATED: L2 execution cost calculated from measured gas and L2 gas price. Accuracy depends on L1 data cost estimation.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span className="text-yellow-300">Est. L2 Execution</span>
+                        <Info className="w-3 h-3 text-yellow-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="ESTIMATED: L1 data posting cost using simplified formula (gasUsed * 16 * L1_gas_price). This is a rough heuristic which is less inaccurate.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span className="text-orange-300">Est. L1 Data Cost</span>
+                        <Info className="w-3 h-3 text-orange-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
+                  <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">
+                    <HeroTooltip content="Confidence level of gas price data from Blocknative API or provider fallback.">
+                      <div className="flex items-center justify-end gap-1 cursor-help">
+                        <span>Confidence</span>
+                        <Info className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </HeroTooltip>
+                  </th>
                   <th scope="col" className="px-2 py-3 text-right text-xs font-semibold text-white">vs. Ethereum</th>
                 </tr>
               </thead>
@@ -310,26 +358,41 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                           </div>
                         </div>
                       </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
+                        <span className="text-green-400 font-semibold">{parseInt(networkResult.deployment.gasUsed).toLocaleString()}</span>
+                        <div className="text-xs text-gray-500 mt-0.5">✓ Measured</div>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
+                        {networkResult.gasPriceBreakdown?.totalFee?.toFixed(6) || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
+                        {networkResult.gasPriceBreakdown?.baseFee?.toFixed(6) || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
+                        ${networkResult.ethPriceUSD?.toFixed(2) || '—'}
+                      </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-semibold text-white font-mono">
                         {formatCurrency(networkResult.deployment.totalCost || networkResult.deployment.costUSD)}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
-                        {networkResult.deployment.l2ExecutionCost ? formatCurrency(networkResult.deployment.l2ExecutionCost) : '—'}
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
+                        <span className="text-yellow-300">{networkResult.deployment.l2ExecutionCost ? formatCurrency(networkResult.deployment.l2ExecutionCost) : '— (Layer 1)'}</span>
+                        {networkResult.deployment.l2ExecutionCost && <div className="text-xs text-yellow-500 mt-0.5"></div>}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
-                        {networkResult.deployment.l1DataCost ? formatCurrency(networkResult.deployment.l1DataCost) : '—'}
+                      <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
+                        <span className="text-orange-300">{networkResult.deployment.l1DataCost ? formatCurrency(networkResult.deployment.l1DataCost) : '— (Layer 1)'}</span>
+                        {networkResult.deployment.l1DataCost && <div className="text-xs text-orange-500 mt-0.5"></div>}
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400">
-                        {networkResult.simulationData ? (
+                        {networkResult.gasPriceBreakdown?.confidence !== undefined ? (
                           <div className="flex items-center justify-end gap-1">
                             <div className={`w-2 h-2 rounded-full ${
-                              networkResult.simulationData.simulationAccuracy === 'HIGH' ? 'bg-green-400' :
-                              networkResult.simulationData.simulationAccuracy === 'MEDIUM' ? 'bg-yellow-400' : 'bg-red-400'
+                              networkResult.gasPriceBreakdown.confidence >= 95 ? 'bg-green-400' :
+                              networkResult.gasPriceBreakdown.confidence >= 80 ? 'bg-yellow-400' : 'bg-red-400'
                             }`}></div>
-                            <span className="text-xs">{networkResult.simulationData.simulationAccuracy}</span>
+                            <span className="text-xs">{networkResult.gasPriceBreakdown.confidence}%</span>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-500">STATIC</span>
+                          <span className="text-xs text-gray-500">—</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs">

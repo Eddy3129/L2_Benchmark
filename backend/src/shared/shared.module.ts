@@ -4,7 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 import { BlocknativeApiService } from './blocknative-api.service';
 import { CsvExportService } from './csv-export.service';
 import { DataStorageService } from './data-storage.service';
-import { NetworkConfigService } from '../config/network.config';
+import { NetworkConfigService } from './network-config.service';
 
 @Module({
   imports: [ConfigModule, HttpModule],
