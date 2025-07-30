@@ -383,7 +383,7 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                             return '—';
                           } else {
                             // Polygon and Ethereum L2s show their own L2 gas price
-                            return networkResult.gasPriceBreakdown?.totalFee?.toFixed(6) || '—';
+                            return networkResult.gasPriceBreakdown?.totalFee?.toFixed(7) || '—';
                           }
                         })()} 
                       </td>
