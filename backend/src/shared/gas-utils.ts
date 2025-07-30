@@ -15,7 +15,7 @@ export class GasUtils {
     const costWei = BigInt(gasAmount) * gasPriceWei;
     const ethValue = ethers.formatEther(costWei);
     // Limit precision to prevent 'too many decimals for format' errors
-    return Number(ethValue).toFixed(12);
+    return Number(ethValue).toFixed(18);
   }
 
   /**
@@ -242,12 +242,12 @@ export class GasUtils {
   }
 
   /**
-   * Calculate blob cost in ETH using standard blob base fee
+   * Calculate blob cost in ETH using standard blob base fee or custom fee
    */
-  static calculateBlobCostETH(blobGas: number): string {
-    // Standard blob base fee per gas: 1 wei = 1e-9 gwei
-    const blobBaseFeeGwei = 1e-9;
-    return this.calculateCostETH(blobGas, blobBaseFeeGwei);
+  static calculateBlobCostETH(blobGas: number, blobBaseFeeGwei?: number): string {
+    // Use provided blob base fee or default to standard: 1 wei = 1e-9 gwei
+    const baseFee = blobBaseFeeGwei !== undefined ? blobBaseFeeGwei : 1e-9;
+    return this.calculateCostETH(blobGas, baseFee);
   }
 
   /**
@@ -273,6 +273,28 @@ export class GasUtils {
       blobsNeeded,
       totalBlobGas,
       costETH
+    };
+  }
+
+  /**
+   * Estimate deployment blob cost for EIP-4844 with custom blob base fee
+   */
+  static estimateDeploymentBlobCostWithPrice(bytecodeSizeBytes: number, blobBaseFeeGwei: number): {
+    blobsNeeded: number;
+    totalBlobGas: number;
+    costETH: string;
+  } {
+    const BYTES_PER_BLOB = 131072; // 128 KB per blob
+    const GAS_PER_BLOB = 131072; // Gas per blob
+
+    const blobsNeeded = Math.ceil(bytecodeSizeBytes / BYTES_PER_BLOB);
+    const totalBlobGas = blobsNeeded * GAS_PER_BLOB;
+    const costETH = this.calculateBlobCostETH(totalBlobGas, blobBaseFeeGwei);
+
+    return {
+      blobsNeeded,
+      totalBlobGas,
+      costETH,
     };
   }
 

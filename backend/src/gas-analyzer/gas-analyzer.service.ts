@@ -53,12 +53,12 @@ export class GasAnalyzerService {
     fs.mkdir(this.tempContractsDir, { recursive: true }).catch(this.logger.error);
   }
   
-  private analyzeFunctions(
+  private async analyzeFunctions(
     compilation: CompilationResult,
     l2GasPrice: GasPriceData,
     tokenPriceUSD: number,
     l1GasPrice?: GasPriceData,
-  ): GasEstimate[] {
+  ): Promise<GasEstimate[]> {
     const functions: GasEstimate[] = [];
     const contractInterface = new Interface(compilation.abi);
   
@@ -74,9 +74,10 @@ export class GasAnalyzerService {
           const l2CostETH = GasUtils.calculateCostETH(measuredGas, l2GasPrice.totalFee);
           l2ExecutionCost = GasUtils.calculateCostUSD(l2CostETH, tokenPriceUSD);
   
-          // Calculate L1 blob cost for functions using EIP-4844
-          const l1BlobGas = GasUtils.estimateBlobGas(fragment);
-          const l1BlobCostETH = GasUtils.calculateBlobCostETH(l1BlobGas);
+          // For L2 function calls, L1 blob cost is typically minimal compared to deployment
+          // Use a simplified estimation based on function complexity
+          const functionDataSize = fragment.name.length + (fragment.inputs?.length || 0) * 32; // Rough estimate
+          const l1BlobCostETH = GasUtils.calculateBlobCostETH(functionDataSize);
           l1DataCost = GasUtils.calculateCostUSD(l1BlobCostETH, tokenPriceUSD);
   
           estimatedCostUSD = l2ExecutionCost + l1DataCost;
@@ -122,6 +123,15 @@ export class GasAnalyzerService {
     const compilation = await this.compileCode(code, contractName);
     const results: NetworkResult[] = [];
     
+    // Get mainnet gas price and ETH price once for all ETH-based networks
+    const mainnetGasPrice = await this.getMainnetGasPrice();
+    const ethPriceUSD = await this.getNetworkTokenPrice({ chainId: 1 }); // Ethereum mainnet
+    
+    // Cache for token prices to avoid duplicate API calls
+    const tokenPriceCache: Record<number, number> = {
+      1: ethPriceUSD, // Ethereum mainnet
+    };
+    
     for (const networkKey of validNetworks) {
       const networkConfig = NetworkConfigService.getNetwork(networkKey);
       if (!networkConfig || !networkConfig.rpcUrl) {
@@ -135,13 +145,39 @@ export class GasAnalyzerService {
       if (NetworkConfigService.isLocalNetwork(networkConfig.chainId)) {
         networkResult = await this.deployAndAnalyzeLocal(compilation, networkConfig, confidenceLevel);
       } else {
-        // Get testnet gas usage but use mainnet gas prices for realistic cost calculation
-        const testnetGasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
-        const gasPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
-      const mainnetGasPriceData = await this.getOptimalGasPrice({ ...networkConfig, chainId: gasPriceChainId }, confidenceLevel);
-      const tokenPriceChainId = NetworkConfigService.getMainnetChainId(networkKey);
-      const tokenPriceUSD = await this.getNetworkTokenPrice({ chainId: tokenPriceChainId });
-        networkResult = await this.analyzeNetworkGasWithMainnetPricing(compilation, testnetGasPriceData, mainnetGasPriceData, tokenPriceUSD, networkConfig.name);
+        // Get the mainnet chain ID for this network (for pricing)
+        const mainnetChainId = NetworkConfigService.getMainnetChainId(networkKey);
+        
+        // Determine if this is an L2 network that should use mainnet pricing for L1 costs
+        const isL2Network = networkConfig?.isL2 || false;
+        
+        // For token pricing: ETH-based networks use ETH price, others use their own token price
+        let tokenPriceUSD: number;
+        if (mainnetChainId === 1) {
+          // ETH-based network (Ethereum, Arbitrum, Optimism, Base, etc.)
+          tokenPriceUSD = ethPriceUSD;
+          this.logger.log(`${networkKey}: Using ETH price for ETH-based network: $${tokenPriceUSD}`);
+        } else {
+          // Non-ETH network (Polygon, etc.)
+          if (!tokenPriceCache[networkConfig.chainId]) {
+            tokenPriceCache[networkConfig.chainId] = await this.getNetworkTokenPrice({ chainId: networkConfig.chainId });
+          }
+          tokenPriceUSD = tokenPriceCache[networkConfig.chainId];
+          this.logger.log(`${networkKey}: Using native token price: $${tokenPriceUSD}`);
+        }
+        
+        if (isL2Network && mainnetChainId === 1 && networkConfig.parentChain === 'ethereum') {
+          // Ethereum L2 networks (Arbitrum, Optimism, Base, etc.): use their own gas price + mainnet pricing for L1 costs
+          const l2GasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
+          const l1GasPriceData = mainnetGasPrice; // Use cached mainnet gas price for L1 costs
+          
+          networkResult = await this.analyzeNetworkGasWithMainnetPricing(compilation, l2GasPriceData, l1GasPriceData, tokenPriceUSD, networkKey);
+        } else {
+          // L1 networks, sidechains (Polygon), or non-Ethereum L2s: use their own gas pricing only
+          const networkGasPriceData = await this.getOptimalGasPrice(networkConfig, confidenceLevel);
+          
+          networkResult = await this.analyzeNetworkGas(compilation, networkGasPriceData, tokenPriceUSD);
+        }
       }
       
       results.push({
@@ -558,51 +594,71 @@ export class GasAnalyzerService {
     let l2ExecutionCostUSD: number | undefined;
 
     if (isL2) {
-  // --- CORRECTED CALCULATION LOGIC ---
-  // 1. Calculate L2 Execution Cost (This section remains the same)
-  const l2ExecutionCostETH = GasUtils.calculateCostETH(
-    measuredDeploymentGas,
-    l2GasPriceData.totalFee,
-  );
-  l2ExecutionCostUSD = GasUtils.calculateCostUSD(
-    l2ExecutionCostETH,
-    tokenPriceUSD,
-  );
+      // 1. Calculate L2 Execution Cost
+      const l2ExecutionCostETH = GasUtils.calculateCostETH(
+        measuredDeploymentGas,
+        l2GasPriceData.totalFee,
+      );
+      l2ExecutionCostUSD = GasUtils.calculateCostUSD(
+        l2ExecutionCostETH,
+        tokenPriceUSD,
+      );
 
-  // 2. Calculate L1 Data Cost using EIP-4844 blobs only
-    const bytecodeSizeBytes = compilation.bytecode.length / 2 - 1; // Hex string to bytes
+      // 2. Calculate L1 Data Cost using real-time blob prices from Blocknative
+      const bytecodeSizeBytes = compilation.bytecode.length / 2 - 1; // Hex string to bytes
+      
+      // Get real-time blob base fee from Ethereum mainnet
+      let blobBaseFeeGwei: number;
+      try {
+        const ethereumBlockPrices = await this.blocknativeApi.getEthereumBlockPrices();
+        if (ethereumBlockPrices?.blockPrices?.[0]?.blobBaseFeePerGas) {
+          blobBaseFeeGwei = ethereumBlockPrices.blockPrices[0].blobBaseFeePerGas;
+          this.logger.log(`${networkKey}: Using real-time blob base fee: ${blobBaseFeeGwei.toExponential(2)} gwei`);
+        } else {
+          // Fallback to standard blob base fee
+          blobBaseFeeGwei = 1e-9; // 1 wei in gwei
+          this.logger.warn(`${networkKey}: Using fallback blob base fee: ${blobBaseFeeGwei.toExponential(2)} gwei`);
+        }
+      } catch (error) {
+        this.logger.warn(`${networkKey}: Failed to fetch real-time blob prices, using fallback: ${error.message}`);
+        blobBaseFeeGwei = 1e-9; // 1 wei in gwei
+      }
 
-    // Use the new blob-based cost calculation from GasUtils
-    const blobCostData = GasUtils.estimateDeploymentBlobCost(bytecodeSizeBytes);
-    const l1DataCostETH = blobCostData.costETH;
-    l1DataCostUSD = GasUtils.calculateCostUSD(l1DataCostETH, tokenPriceUSD);
+      // Calculate blob cost with real-time pricing
+      const blobCostData = GasUtils.estimateDeploymentBlobCostWithPrice(bytecodeSizeBytes, blobBaseFeeGwei);
+      const l1DataCostETH = blobCostData.costETH;
+      l1DataCostUSD = GasUtils.calculateCostUSD(l1DataCostETH, tokenPriceUSD);
 
-    this.logger.log(
-      `${networkKey}: Blob cost calculation - Blobs needed: ${blobCostData.blobsNeeded}, ` +
-      `Total blob gas: ${blobCostData.totalBlobGas}, Cost: ${l1DataCostETH} ETH`
-    );
+      this.logger.log(
+        `${networkKey}: Blob cost calculation - Blobs needed: ${blobCostData.blobsNeeded}, ` +
+        `Total blob gas: ${blobCostData.totalBlobGas}, Cost: ${l1DataCostETH} ETH, USD: $${l1DataCostUSD.toExponential(6)}`
+      );
 
+      // 3. Sum them for the total cost
+      deploymentCostUSD = l2ExecutionCostUSD + l1DataCostUSD;
+      deploymentCostETH = (
+        parseFloat(l2ExecutionCostETH) + parseFloat(l1DataCostETH)
+      ).toFixed(18);
 
-    // 3. Sum them for the total cost (This section remains the same)
-    deploymentCostUSD = l2ExecutionCostUSD + l1DataCostUSD;
-    deploymentCostETH = (
-      parseFloat(l2ExecutionCostETH) + parseFloat(l1DataCostETH)
-    ).toFixed(18);
-
-  } else {
-    // For L1 or non-rollup sidechains, the cost is simpler (This remains the same)
-    deploymentCostETH = GasUtils.calculateCostETH(
-      measuredDeploymentGas,
-      l1GasPriceData.totalFee, // Use L1 gas price for L1 networks
-    );
-    deploymentCostUSD = GasUtils.calculateCostUSD(
-      deploymentCostETH,
-      tokenPriceUSD,
-    );
-  }
+    } else {
+      // For L1 or non-rollup sidechains, the cost is simpler
+      deploymentCostETH = GasUtils.calculateCostETH(
+        measuredDeploymentGas,
+        l1GasPriceData.totalFee, // Use L1 gas price for L1 networks
+      );
+      deploymentCostUSD = GasUtils.calculateCostUSD(
+        deploymentCostETH,
+        tokenPriceUSD,
+      );
+      
+      // For L1 networks, set L2 execution cost to the total cost (since it's all L1 execution)
+      // and L1 data cost remains undefined (not applicable)
+      l2ExecutionCostUSD = deploymentCostUSD;
+      l1DataCostUSD = undefined;
+    }
 
     // Analyze functions using the same logic
-    const functions = this.analyzeFunctions(
+    const functions = await this.analyzeFunctions(
         compilation, 
         l2GasPriceData, 
         tokenPriceUSD,
@@ -629,7 +685,10 @@ export class GasAnalyzerService {
         ? `${l2GasPriceData.totalFee} (L2) | ${l1GasPriceData.totalFee} (L1)`
         : `${l1GasPriceData.totalFee} (L1)`,
       ethPriceUSD: tokenPriceUSD,
-      gasPriceBreakdown: l2GasPriceData, // Show L2 gas price by default
+      gasPriceBreakdown: isL2 ? {
+        ...l2GasPriceData,
+        l1GasPrice: l1GasPriceData.totalFee // Include L1 gas price for frontend display
+      } : l1GasPriceData,
     };
   }
 

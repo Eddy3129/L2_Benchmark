@@ -231,12 +231,13 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     rpcUrl: process.env.ZKSYNC_RPC_URL || 'https://mainnet.era.zksync.io',
     chainId: 324,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.ZKSYNC_ERA,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://explorer.zksync.io',
     blockTime: 1,
     gasLimit: 30000000,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     finalityBlocks: 1
   },
   {
@@ -450,12 +451,13 @@ const PREDEFINED_NETWORKS: NetworkConfig[] = [
     rpcUrl: process.env.INK_MAINNET_RPC_URL || 'https://rpc-gel.inkonchain.com',
     chainId: 57073,
     type: NetworkType.L2,
+    isLayer2: true,
     category: NetworkCategory.INK,
     nativeCurrency: 'ETH',
     blockExplorerUrl: 'https://explorer.inkonchain.com',
     blockTime: 1,
     gasLimit: 30000000,
-    parentChain: 'mainnet',
+    parentChain: 'ethereum',
     finalityBlocks: 1
   },
   {

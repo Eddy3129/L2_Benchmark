@@ -20,6 +20,7 @@ export interface NetworkResult {
     totalFee: number;
     confidence: number;
     source: string;
+    l1GasPrice?: number; // L1 gas price for L2 networks (unified mainnet pricing)
     l1DataFee?: number; // L1 data fee component
     l2ExecutionFee?: number; // L2 execution fee component
   };

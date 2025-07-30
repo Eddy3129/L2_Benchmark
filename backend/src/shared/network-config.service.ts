@@ -121,6 +121,7 @@ export class NetworkConfigService {
       'base': 1,
       'polygon-zkevm': 1,
       'zksync': 1,
+      'zksync-era': 1, // ZkSync Era uses ETH for pricing
       'scroll': 1,
       'linea': 1,
       'ink': 1, // Ink uses ETH for pricing

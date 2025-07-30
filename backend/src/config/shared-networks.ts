@@ -353,12 +353,13 @@ export const MAINNET_NETWORKS: Record<string, NetworkConfig> = {
       symbol: 'ETH',
       decimals: 18
     },
-    type: 'mainnet',
+    type: 'l2',
     category: 'ink',
     color: '#000000',
     blockTime: 2,
     gasLimit: 30000000,
     finalityBlocks: 1,
+    parentChain: 'ethereum',
     isTestnet: false,
     isL2: true
   }

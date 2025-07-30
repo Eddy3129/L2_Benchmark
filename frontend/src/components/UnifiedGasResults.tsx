@@ -127,6 +127,19 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
     };
   }, [sortedResults]);
 
+  // Extract Ethereum mainnet L1 gas price for consistent display across all L2s
+  const ethereumL1GasPrice = useMemo(() => {
+    if (!result || !result.results) return null;
+    
+    // Find Ethereum mainnet result
+    const ethereumResult = result.results.find(r => 
+      r.network === 'mainnet' || r.network === 'ethereum'
+    );
+    
+    // Return the L1 gas price (which is the totalFee for Ethereum mainnet)
+    return ethereumResult?.gasPriceBreakdown?.totalFee || null;
+  }, [result]);
+
   
   // --- Chart Options ---
   // UPDATED: Function now accepts a boolean to force power-of-10 ticks
@@ -360,13 +373,34 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
                         <span className="text-green-400 font-semibold">{parseInt(networkResult.deployment.gasUsed).toLocaleString()}</span>
-                        <div className="text-xs text-gray-500 mt-0.5">✓ Measured</div>
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
-                        {networkResult.gasPriceBreakdown?.totalFee?.toFixed(6) || '—'}
+                        {(() => {
+                          const isMainnet = networkResult.network === 'mainnet' || networkResult.network === 'ethereum';
+                          const isPolygon = networkResult.network === 'polygon';
+                          
+                          if (isMainnet) {
+                            return '—';
+                          } else {
+                            // Polygon and Ethereum L2s show their own L2 gas price
+                            return networkResult.gasPriceBreakdown?.totalFee?.toFixed(6) || '—';
+                          }
+                        })()} 
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
-                        {networkResult.gasPriceBreakdown?.baseFee?.toFixed(6) || '—'}
+                        {(() => {
+                          const isMainnet = networkResult.network === 'mainnet' || networkResult.network === 'ethereum';
+                          const isPolygon = networkResult.network === 'polygon';
+                          
+                          if (isMainnet) {
+                            return networkResult.gasPriceBreakdown?.totalFee?.toFixed(6) || '—';
+                          } else if (isPolygon) {
+                            return '—';
+                          } else {
+                            // Ethereum L2s - show unified mainnet L1 gas price
+                            return ethereumL1GasPrice ? ethereumL1GasPrice.toFixed(6) : '—';
+                          }
+                        })()} 
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400 font-mono">
                         ${networkResult.ethPriceUSD?.toFixed(2) || '—'}
@@ -375,11 +409,49 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
                         {formatCurrency(networkResult.deployment.totalCost || networkResult.deployment.costUSD)}
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
-                        <span className="text-yellow-300">{networkResult.deployment.l2ExecutionCost ? formatCurrency(networkResult.deployment.l2ExecutionCost) : '— (Layer 1)'}</span>
-                        {networkResult.deployment.l2ExecutionCost && <div className="text-xs text-yellow-500 mt-0.5"></div>}
+                        {(() => {
+                          const isEthereumL2 = ['arbitrum', 'optimism', 'base', 'zksync-era', 'scroll', 'linea', 'ink'].includes(networkResult.network);
+                          const isMainnet = networkResult.network === 'mainnet' || networkResult.network === 'ethereum';
+                          const isPolygon = networkResult.network === 'polygon';
+                          
+                          if (isMainnet || isPolygon) {
+                            // L1 networks show total deployment cost as "L2 execution"
+                            return <span className="text-yellow-300">{formatCurrency(networkResult.deployment.costUSD)}</span>;
+                          } else if (isEthereumL2) {
+                            // Ethereum L2s should show actual L2 execution cost if available, otherwise fallback to total cost
+                            const l2Cost = networkResult.deployment.l2ExecutionCost || networkResult.deployment.costUSD;
+                            return <span className="text-yellow-300">{formatCurrency(l2Cost)}</span>;
+                          } else {
+                            return <span className="text-gray-500">—</span>;
+                          }
+                        })()} 
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs font-mono">
-                        ~<span className="text-blue-300">{networkResult.deployment.l1DataCost}</span>
+                        {(() => {
+                          const isEthereumL2 = ['arbitrum', 'optimism', 'base', 'zksync-era', 'scroll', 'linea', 'ink'].includes(networkResult.network);
+                          const isMainnet = networkResult.network === 'mainnet' || networkResult.network === 'ethereum';
+                          const isPolygon = networkResult.network === 'polygon';
+                          
+                          if (isMainnet || isPolygon) {
+                            return <span className="text-gray-500">—</span>;
+                          } else if (isEthereumL2) {
+                            // Check if l1DataCost exists and is a valid number
+                                const l1DataCost = networkResult.deployment.l1DataCost;
+                                
+                                if (l1DataCost !== undefined && l1DataCost !== null && typeof l1DataCost === 'number' && l1DataCost > 0) {
+                              // Format the USD value properly
+                              return (
+                                <span className="text-blue-300">
+                                  {formatCurrency(l1DataCost)}
+                                </span>
+                              );
+                            } else {
+                              return <span className="text-gray-500">—</span>;
+                            }
+                          } else {
+                            return <span className="text-gray-500">—</span>;
+                          }
+                        })()} 
                       </td>
                       <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-gray-400">
                         {networkResult.gasPriceBreakdown?.confidence !== undefined ? (

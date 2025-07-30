@@ -14,6 +14,7 @@ export interface GasPriceData {
   totalFee: number; // in Gwei
   confidence: number;
   source: 'blocknative' | 'provider' | 'hardhat' | 'mainnet-pricing';
+  l1GasPrice?: number; // L1 gas price for L2 networks (unified mainnet pricing)
 }
 
 export interface CompilationResult {

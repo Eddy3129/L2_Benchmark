@@ -15,6 +15,22 @@ export const formatCurrency = (amount: number | string | undefined | null, curre
   if (isNaN(numAmount)) return '$0.00';
   
   if (currency === 'USD') {
+    // For extremely small values (less than $0.000001), use scientific notation
+    if (numAmount > 0 && numAmount < 0.000001) {
+      return `$${numAmount.toExponential(2)}`;
+    }
+    
+    // For very small values (less than $0.01), show more decimal places
+    if (numAmount > 0 && numAmount < 0.01) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+      }).format(numAmount);
+    }
+    
+    // Standard formatting for normal values
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
