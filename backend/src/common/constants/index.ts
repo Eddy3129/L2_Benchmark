@@ -4,7 +4,7 @@ export const API_CONSTANTS = {
   VERSION: 'v1',
   TIMEOUT: 30000,
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000,
+  RETRY_DELAY: 2000,
 } as const;
 
 // Pagination Constants

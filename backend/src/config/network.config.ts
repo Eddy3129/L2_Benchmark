@@ -115,7 +115,7 @@ export class NetworksConfig {
   @IsNumber()
   @Transform(({ value }) => parseInt(value, 10))
   @IsOptional()
-  retryDelay: number = 1000;
+  retryDelay: number = 2000;
 }
 
 // Predefined network configurations
@@ -481,7 +481,7 @@ export default registerAs('networks', (): NetworksConfig => {
     blocknativeApiKey: process.env.BLOCKNATIVE_API_KEY,
     requestTimeout: parseInt(process.env.NETWORK_REQUEST_TIMEOUT || '30000', 10),
     maxRetries: parseInt(process.env.NETWORK_MAX_RETRIES || '3', 10),
-    retryDelay: parseInt(process.env.NETWORK_RETRY_DELAY || '1000', 10),
+    retryDelay: parseInt(process.env.NETWORK_RETRY_DELAY || '2000', 10),
   });
 
   const errors = validateSync(config, {

@@ -25,6 +25,17 @@ export default function FunctionCallsEditor({
   availableFunctions = [],
   className = ''
 }: FunctionCallsEditorProps) {
+  
+  // Debug: Log when availableFunctions prop changes
+  React.useEffect(() => {
+    console.log('🎯 FunctionCallsEditor received availableFunctions:', availableFunctions);
+    console.log('🎯 Number of available functions:', availableFunctions.length);
+  }, [availableFunctions]);
+  
+  // Debug: Log when functionCalls prop changes
+  React.useEffect(() => {
+    console.log('🎯 FunctionCallsEditor received functionCalls:', functionCalls);
+  }, [functionCalls]);
   const addFunctionCall = () => {
     const newFunctionCall: FunctionCall = {
       functionName: '',
@@ -58,6 +69,15 @@ export default function FunctionCallsEditor({
     }
   };
 
+  const getSelectedFunction = (functionName: string) => {
+    return availableFunctions.find(func => func.name === functionName);
+  };
+
+  const getParameterTypes = (functionName: string) => {
+    const func = getSelectedFunction(functionName);
+    return func ? func.inputs.map(input => `${input.name}: ${input.type}`).join(', ') : '';
+  };
+
   return (
     <Card className={className}>
       <CardHeader className="pb-3">
@@ -67,38 +87,31 @@ export default function FunctionCallsEditor({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {functionCalls.map((functionCall, index) => (
-            <div key={index} className="p-4 border border-gray-600 rounded-lg bg-gray-800/50">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-300">
-                  Function Call #{index + 1}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => removeFunctionCall(index)}
-                  className="text-red-400 hover:text-red-300 border-red-600 hover:border-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Function Name
-                  </label>
+        <div className="space-y-3">
+          {functionCalls.map((functionCall, index) => {
+            const selectedFunc = getSelectedFunction(functionCall.functionName);
+            const parameterTypes = getParameterTypes(functionCall.functionName);
+            return (
+              <div key={`${index}-${functionCall.functionName || 'empty'}`} className="flex items-center gap-3 p-3 border border-gray-600 rounded-lg bg-gray-800/50">
+                {/* Function Selection */}
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Function</label>
                   {availableFunctions.length > 0 ? (
                     <select
                       value={functionCall.functionName}
-                      onChange={(e) => updateFunctionCall(index, 'functionName', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => {
+                        console.log('🎯 Function selected:', e.target.value);
+                        console.log('🎯 Available functions for selection:', availableFunctions.map(f => f.name));
+                        updateFunctionCall(index, 'functionName', e.target.value);
+                        // Reset parameters when function changes
+                        updateFunctionCall(index, 'parameters', []);
+                      }}
+                      className="w-full px-2 py-1 text-sm bg-gray-900 border border-gray-600 rounded text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <option value="">Select a function...</option>
-                      {availableFunctions.map((func) => (
-                        <option key={func.name} value={func.name}>
-                          {func.name}({func.inputs.map(input => input.type).join(', ')})
+                      <option value="">Select function...</option>
+                      {availableFunctions.map((func, funcIndex) => (
+                        <option key={`${func.name}-${funcIndex}`} value={func.name}>
+                          {func.name}
                         </option>
                       ))}
                     </select>
@@ -106,29 +119,59 @@ export default function FunctionCallsEditor({
                     <Input
                       value={functionCall.functionName}
                       onChange={(e) => updateFunctionCall(index, 'functionName', e.target.value)}
-                      placeholder="e.g., setValue, transfer, mint"
-                      className="bg-gray-900 border-gray-600 text-gray-100"
+                      placeholder="Function name"
+                      className="h-8 text-sm bg-gray-900 border-gray-600 text-gray-100"
                     />
                   )}
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Parameters (JSON Array)
+                {/* Parameter Types Display */}
+                {parameterTypes && (
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Expected Parameters</label>
+                    <div className="px-2 py-1 text-xs bg-gray-900 border border-gray-600 rounded text-gray-300 font-mono">
+                      {parameterTypes || 'No parameters'}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Parameters Input */}
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">
+                    Parameters {selectedFunc && selectedFunc.inputs.length > 0 && `(${selectedFunc.inputs.map(i => i.type).join(', ')})`}
                   </label>
                   <Input
                     value={JSON.stringify(functionCall.parameters)}
                     onChange={(e) => updateParameters(index, e.target.value)}
-                    placeholder='e.g., [100, "0x123...", true]'
-                    className="bg-gray-900 border-gray-600 text-gray-100 font-mono text-sm"
+                    placeholder={selectedFunc && selectedFunc.inputs.length > 0 
+                      ? `[${selectedFunc.inputs.map(input => {
+                        switch(input.type) {
+                          case 'uint256': case 'uint': case 'int256': case 'int': return '100';
+                          case 'address': return '"0x123..."';
+                          case 'string': return '"text"';
+                          case 'bool': return 'true';
+                          case 'bytes': case 'bytes32': return '"0x123..."';
+                          default: return '"value"';
+                        }
+                      }).join(', ')}]`
+                      : '[]'
+                    }
+                    className="h-8 text-sm bg-gray-900 border-gray-600 text-gray-100 font-mono"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Enter parameters as a JSON array. Use [] for functions with no parameters.
-                  </p>
                 </div>
+                
+                {/* Remove Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeFunctionCall(index)}
+                  className="h-8 w-8 p-0 text-red-400 hover:text-red-300 border-red-600 hover:border-red-500 flex-shrink-0"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
               </div>
-            </div>
-          ))}
+            );
+          })}
           
           <Button
             onClick={addFunctionCall}

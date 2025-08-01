@@ -108,7 +108,10 @@ export class BlockchainExecutorService {
       nativeCurrency: networkConfig.nativeCurrency.symbol
     });
 
-    const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
+    const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl, undefined, {
+      staticNetwork: true,
+      pollingInterval: 2000
+    });
     const wallet = new ethers.Wallet(process.env.TEST_WALLET_PRIVATE_KEY!, provider);
     
     this.logger.debug(`👛 Wallet initialized: ${wallet.address}`);

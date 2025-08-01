@@ -303,10 +303,45 @@ export interface ComparisonResult {
 
 // Live Benchmarker API
 class LiveBenchmarkerApi {
-  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+  async setupNetwork(networkName: string) {
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/setup-network`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ networkName }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to setup network: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async compileContract(data: { contractCode: string; contractName?: string }) {
+    console.log('🔧 API compileContract called with:', data);
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/compile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ contractCode: data.contractCode, contractName: data.contractName }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to compile contract: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 
   async getActiveBenchmarks() {
-    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/active`);
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/active`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -317,17 +352,17 @@ class LiveBenchmarkerApi {
   }
 
   async runLiveBenchmark(data: {
-    networkName: string;
+    benchmarkId: string;
     contractCode: string;
     constructorArgs?: any[];
     functionCalls?: Array<{
       functionName: string;
       parameters: any[];
     }>;
-    blockNumber?: number;
     solidityVersion?: string;
+    contractAddress?: string;
   }) {
-    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/run`, {
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -344,7 +379,7 @@ class LiveBenchmarkerApi {
   }
 
   async cleanupBenchmark(benchmarkId: string) {
-    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/${benchmarkId}`, {
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/${benchmarkId}`, {
       method: 'DELETE',
     });
 
@@ -357,7 +392,7 @@ class LiveBenchmarkerApi {
   }
 
   async cleanupAllBenchmarks() {
-    const response = await fetch(`${this.baseUrl}/api/live-benchmarker/cleanup-all`, {
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/cleanup-all`, {
       method: 'DELETE',
     });
 

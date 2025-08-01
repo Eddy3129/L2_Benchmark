@@ -44,7 +44,7 @@ import { BlobCostAnalysisService } from '../services/blob-cost-analysis.service'
 import { SUCCESS_MESSAGES, API_CONSTANTS } from '../../../common/constants';
 
 @ApiTags('Network Comparison')
-@Controller(`${API_CONSTANTS.PREFIX}/gas-analysis/compare`)
+@Controller('gas-analysis/compare')
 @UseFilters(GlobalExceptionFilter)
 @UsePipes(ValidationPipe)
 export class NetworkComparisonController extends BaseController {

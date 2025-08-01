@@ -280,10 +280,10 @@ export class LiveBenchmarkerService extends BaseService<any> {
       signer
     );
 
-    // Deploy with real-time gas price
+    // Deploy with real-time gas price (ensure BigInt conversion)
     const contract = await factory.deploy(...constructorArgs, {
-      maxFeePerGas: gasPriceData.maxFeePerGas,
-      maxPriorityFeePerGas: gasPriceData.maxPriorityFeePerGas
+      maxFeePerGas: BigInt(gasPriceData.maxFeePerGas.toString()),
+      maxPriorityFeePerGas: BigInt(gasPriceData.maxPriorityFeePerGas.toString())
     });
     
     const deploymentTx = contract.deploymentTransaction();
@@ -361,10 +361,11 @@ export class LiveBenchmarkerService extends BaseService<any> {
       try {
         const functionParams = functionCall.parameters || [];
         
-        // Execute function call with real-time gas price
-        const tx = await contract[functionCall.functionName](...functionParams, {
-          maxFeePerGas: gasPriceData.maxFeePerGas,
-          maxPriorityFeePerGas: gasPriceData.maxPriorityFeePerGas
+        // Execute function call with real-time gas price (ensure BigInt conversion)
+        const contractFunction = contract[functionCall.functionName];
+        const tx = await contractFunction(...functionParams, {
+          maxFeePerGas: BigInt(gasPriceData.maxFeePerGas.toString()),
+          maxPriorityFeePerGas: BigInt(gasPriceData.maxPriorityFeePerGas.toString())
         });
         
         const receipt = await tx.wait();
@@ -423,21 +424,33 @@ export class LiveBenchmarkerService extends BaseService<any> {
       const liveProvider = new ethers.JsonRpcProvider(benchmarkConfig.alchemyRpcUrl);
       const feeData = await liveProvider.getFeeData();
       
+      // Ensure all values are BigInt
+      const baseFeePerGas = feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : gasPrice;
+      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? BigInt(feeData.maxPriorityFeePerGas.toString()) : gasPrice / 10n;
+      const maxFeePerGas = feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : gasPrice;
+      
       return {
-        baseFeePerGas: feeData.gasPrice || gasPrice,
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || gasPrice / 10n,
-        maxFeePerGas: feeData.maxFeePerGas || gasPrice,
+        baseFeePerGas,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
         gasPrice
       };
     } catch (error) {
       this.logger.warn(`Failed to get real-time gas price: ${error.message}`);
       // Fallback to forked network gas price
       const feeData = await benchmarkConfig.provider!.getFeeData();
+      
+      // Ensure all fallback values are BigInt
+      const baseFeePerGas = feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : 20000000000n;
+      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? BigInt(feeData.maxPriorityFeePerGas.toString()) : 2000000000n;
+      const maxFeePerGas = feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas.toString()) : 22000000000n;
+      const gasPrice = feeData.gasPrice ? BigInt(feeData.gasPrice.toString()) : 20000000000n;
+      
       return {
-        baseFeePerGas: feeData.gasPrice || 20000000000n,
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || 2000000000n,
-        maxFeePerGas: feeData.maxFeePerGas || 22000000000n,
-        gasPrice: feeData.gasPrice || 20000000000n
+        baseFeePerGas,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gasPrice
       };
     }
   }

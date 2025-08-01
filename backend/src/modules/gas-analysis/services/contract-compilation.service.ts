@@ -64,8 +64,10 @@ export class ContractCompilationService extends BaseService {
       // Prepare compilation input
       const input = this.prepareCompilationInput(request);
       
-      // Compile
-      const output = JSON.parse(compiler.compile(JSON.stringify(input)));
+      // Compile with import resolution
+      const output = JSON.parse(compiler.compile(JSON.stringify(input), {
+        import: this.resolveImport.bind(this)
+      }));
       
       // Process compilation result
       const result = await this.processCompilationOutput(
@@ -248,6 +250,9 @@ export class ContractCompilationService extends BaseService {
           },
         },
         evmVersion: 'london', // Use London EVM version for better compatibility
+        remappings: [
+          '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/'
+        ]
       },
     };
   }
@@ -444,5 +449,33 @@ export class ContractCompilationService extends BaseService {
     complexity += events * 0.5;
     
     return Math.round(complexity);
+  }
+
+  /**
+   * Resolves imports for Solidity compilation
+   */
+  private resolveImport(importPath: string): { contents: string } | { error: string } {
+    try {
+      let resolvedPath: string;
+      
+      // Handle OpenZeppelin imports
+      if (importPath.startsWith('@openzeppelin/contracts/')) {
+        resolvedPath = path.join(
+          process.cwd(),
+          'node_modules',
+          importPath
+        );
+      } else {
+        // Handle relative imports or other patterns
+        resolvedPath = path.resolve(importPath);
+      }
+      
+      // Read the file content
+      const contents = fs.readFileSync(resolvedPath, 'utf8');
+      return { contents };
+    } catch (error) {
+      this.logger.warn(`Failed to resolve import: ${importPath}`, error.message);
+      return { error: `Import not found: ${importPath}` };
+    }
   }
 }

@@ -43,7 +43,7 @@ import { ContractCompilationService } from '../services/contract-compilation.ser
 import { SUCCESS_MESSAGES, API_CONSTANTS } from '../../../common/constants';
 
 @ApiTags('Gas Analysis')
-@Controller(`${API_CONSTANTS.PREFIX}/gas-analysis`)
+@Controller('gas-analysis')
 @UseFilters(GlobalExceptionFilter)
 @UsePipes(ValidationPipe)
 export class GasAnalysisController extends BaseController {
