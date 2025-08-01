@@ -47,6 +47,111 @@ export function GasDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
   const [ethereumBlockPrices, setEthereumBlockPrices] = useState<any>(null);
+  const [isStoring, setIsStoring] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [storeMessage, setStoreMessage] = useState<string | null>(null);
+
+  // --- Store Data Functions ---
+  const storeCurrentData = async () => {
+    try {
+      setIsStoring(true);
+      setStoreMessage(null);
+      
+      if (!multiChainData || multiChainData.length === 0) {
+        throw new Error('No gas data available to store');
+      }
+
+      // Transform current gas data to the format expected by the backend
+      const gasDataToStore = multiChainData.map(d => {
+        const config = multiChainGasService.getChainConfig(d.chainId);
+        if (!config) return null;
+        
+        const baseFee = getBaseFee(d);
+        const priorityFee = getStandardPriorityFee(d);
+        const totalFee = getStandardTotalFee(d);
+        const txCost = gweiToUsd(totalFee * 21000, config);
+        
+        return {
+          network: config.name,
+          type: formatTypeLabel(config.type),
+          baseFeeGwei: baseFee,
+          priorityFeeGwei: priorityFee,
+          maxFeeGwei: totalFee,
+          txCostUsd: txCost,
+          metadata: {
+            chainId: d.chainId,
+            blockNumber: d.gasData?.blockPrices?.[0]?.blockNumber,
+            gasLimit: 21000,
+          },
+        };
+      }).filter(Boolean);
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/gas-monitoring/store`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(gasDataToStore),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to store data: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      setStoreMessage(`Successfully stored ${result.data.recordsStored} records`);
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setStoreMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to store gas data:', err);
+      setStoreMessage(`Error: ${err instanceof Error ? err.message : 'Failed to store data'}`);
+      setTimeout(() => setStoreMessage(null), 5000);
+    } finally {
+      setIsStoring(false);
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      setIsExporting(true);
+      setStoreMessage(null);
+      
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/gas-monitoring/export/csv`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // Export all data
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to export CSV: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Download the CSV file
+      const downloadUrl = `${backendUrl}/api/gas-monitoring/export/csv/download/${result.data.filename}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = result.data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setStoreMessage(`Successfully exported ${result.data.recordCount} records`);
+      setTimeout(() => setStoreMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+      setStoreMessage(`Error: ${err instanceof Error ? err.message : 'Failed to export CSV'}`);
+      setTimeout(() => setStoreMessage(null), 5000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // --- Data Fetching ---
   const fetchEthereumBlockPrices = async () => {
@@ -395,6 +500,20 @@ export function GasDashboard() {
             </div>
           </div>
           <div className="flex flex-col items-end space-y-2">
+            {/* Action Buttons */}
+            
+            {/* Status Message */}
+            {storeMessage && (
+              <div className={`text-xs px-3 py-1.5 rounded-full border ${
+                storeMessage.startsWith('Error') 
+                  ? 'bg-red-900/50 text-red-300 border-red-600' 
+                  : 'bg-green-900/50 text-green-300 border-green-600'
+              }`}>
+                {storeMessage}
+              </div>
+            )}
+            
+            {/* Ethereum Block Prices */}
             {ethereumBlockPrices && ethereumBlockPrices.blockPrices && ethereumBlockPrices.blockPrices[0] && (
               <>
                 <div className="text-xs text-gray-300 bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600">
@@ -442,8 +561,34 @@ export function GasDashboard() {
       {/* Gas Analysis Table */}
       <div className="bg-gray-800/60 backdrop-blur-sm border border-gray-700/50 rounded-xl overflow-hidden">
         <div className="px-6 py-4 bg-gray-900/80 border-b border-gray-700/50">
-          <h2 className="text-lg font-semibold text-gray-200">Network Gas Analysis</h2>
-          <p className="text-sm text-gray-400 mt-1">Standard transaction gas metrics (21,000 gas limit)</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-200">Network Gas Analysis</h2>
+              <p className="text-sm text-gray-400 mt-1">Standard transaction gas metrics (21,000 gas limit)</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={storeCurrentData}
+                disabled={isStoring || !multiChainData || multiChainData.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center space-x-1.5"
+              >
+                {isStoring ? (
+                  <>
+                    <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                    <span>Storing...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span>Store Data</span>
+                  </>
+                )}
+              </button>
+              
+            </div>
+          </div>
         </div>
         
         <div className="overflow-x-auto">

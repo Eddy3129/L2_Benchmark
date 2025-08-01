@@ -1,0 +1,17 @@
+Network,Type,Base Fee (Gwei),Priority Fee (Gwei),Max Fee (Gwei),Tx Cost (USD)
+zkSync Era,Mainnet,4.52e-2,0.0000091,0.0452591,$0.00342450
+Arbitrum One,Optimistic Rollup,1.93e-1,0.39,0.582924,$0.04410651
+Optimism,Optimistic Rollup,4.73e-7,1e-9,4.74e-7,$0.00000004
+Base,Optimistic Rollup,1.92e-2,5e-8,0.019228378,$0.00145490
+Polygon PoS,Sidechain,2.45e-3,30,30.002445531,$0.00012686
+Linea,Zk Rollup,7.00e-9,0.055,0.055000007,$0.00416153
+Scroll,Zk Rollup,2.16e+0,0.000031,2.159051448,$0.16336303
+Ink,Zk Rollup,8.23e-5,0.0000021,0.000084387,$0.00000639
+Arbitrum One,Optimistic Rollup,2.06e-1,0.41,0.615574,$0.04643462
+Optimism,Optimistic Rollup,4.30e-7,1e-9,4.31e-7,$0.00000003
+Base,Optimistic Rollup,2.31e-2,5e-8,0.023050475,$0.00173877
+Polygon PoS,Sidechain,1.17e-3,27,27.001166574,$0.00011324
+Linea,Zk Rollup,7.00e-9,0.043,0.043000007,$0.00324362
+Scroll,Zk Rollup,1.50e+0,0.000071,1.497567892,$0.11296611
+Ink,Zk Rollup,7.14e-5,2.2e-7,0.000071623,$0.00000540
+zkSync Era,Mainnet,4.52e-2,0.0018,0.04705,$0.00354913
