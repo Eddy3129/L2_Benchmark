@@ -148,11 +148,183 @@ export const STANDARD_ABIS = {
       "stateMutability": "view",
       "type": "function"
     }
+  ],
+  
+  ADVANCED_TOKEN: [
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+      "name": "balanceOf",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "to", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}],
+      "name": "transfer",
+      "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "spender", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}],
+      "name": "approve",
+      "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "to", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}],
+      "name": "mint",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+      "name": "burn",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "pause",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "unpause",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+      "name": "blacklist",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+      "name": "unblacklist",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "newOwner", "type": "address"}],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  
+  SIMPLE_AUCTION: [
+    {
+      "inputs": [{"internalType": "uint256", "name": "biddingTime", "type": "uint256"}, {"internalType": "address", "name": "beneficiaryAddress", "type": "address"}],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "beneficiary",
+      "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "auctionEndTime",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "highestBidder",
+      "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "highestBid",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "bid",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdraw",
+      "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "auctionEnd",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTimeLeft",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "isActive",
+      "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+      "stateMutability": "view",
+      "type": "function"
+    }
   ]
 };
 
 // Function to get a standard ABI by type
-export const getContractAbi = (type: 'ERC20' | 'ERC721' | 'MULTISIG' | 'STAKING'): any[] | undefined => {
+export const getContractAbi = (type: 'ERC20' | 'ERC721' | 'MULTISIG' | 'STAKING' | 'ADVANCED_TOKEN' | 'SIMPLE_AUCTION'): any[] | undefined => {
   return STANDARD_ABIS[type];
 };
 
@@ -161,7 +333,7 @@ export interface ContractDeployment {
   address: string;
   name: string;
   abi: any[];
-  type: 'ERC20' | 'ERC721' | 'MULTISIG' | 'STAKING' | 'CUSTOM';
+  type: 'ERC20' | 'ERC721' | 'MULTISIG' | 'STAKING' | 'ADVANCED_TOKEN' | 'SIMPLE_AUCTION' | 'CUSTOM';
   verified: boolean;
   deploymentBlock?: number;
 }
@@ -321,6 +493,24 @@ export const CONTRACT_TEMPLATES: ContractTemplate[] = [
     fileName: 'SimpleStaking.sol',
     category: 'DeFi',
     abi: STANDARD_ABIS.STAKING
+  },
+  {
+    id: 'advanced-token',
+    name: 'Advanced Token',
+    description: 'An advanced ERC20 token with pause, burn, and blacklist functionality',
+    contractName: 'AdvancedToken',
+    fileName: 'AdvancedToken.sol',
+    category: 'Token',
+    abi: STANDARD_ABIS.ADVANCED_TOKEN
+  },
+  {
+    id: 'simple-auction',
+    name: 'Simple Auction',
+    description: 'A simple auction contract with bidding and withdrawal functionality',
+    contractName: 'SimpleAuction',
+    fileName: 'SimpleAuction.sol',
+    category: 'Auction',
+    abi: STANDARD_ABIS.SIMPLE_AUCTION
   }
 ];
 
@@ -395,6 +585,8 @@ export const getDefaultBenchmarkFunctions = (contractType: ContractDeployment['t
     ERC721: ['mint', 'approve', 'transferFrom'],
     MULTISIG: ['submitTransaction', 'confirmTransaction'],
     STAKING: ['stake', 'unstake', 'claimRewards'],
+    ADVANCED_TOKEN: ['transfer', 'mint', 'burn', 'pause', 'blacklist'],
+    SIMPLE_AUCTION: ['bid', 'withdraw', 'auctionEnd'],
     CUSTOM: ['transfer', 'approve'] // Default fallback
   };
   

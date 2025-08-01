@@ -45,7 +45,8 @@ const config: HardhatUserConfig = {
       mining: {
         auto: true,
         interval: 0
-      }
+      },
+      blockGasLimit: 30000000 // Set realistic gas limit (30M) for forked networks
     },
     localhost: {
       url: "http://127.0.0.1:8545",

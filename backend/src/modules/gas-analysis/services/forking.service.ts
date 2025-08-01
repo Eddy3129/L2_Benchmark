@@ -217,49 +217,37 @@ export class ForkingService extends BaseService<any> {
   }
 
   /**
-   * Calculates L1 data cost for Layer 2 transactions
+   * Calculates L1 data cost for Layer 2 transactions using EIP-4844 blob transactions
    */
   async calculateL1DataCost(
     networkConfig: NetworkConfig,
     transactionData: string,
     l1GasPrice: number
   ): Promise<number> {
-    // Calculate calldata cost (16 gas per non-zero byte, 4 gas per zero byte)
-    let calldataGas = 0;
+    // Calculate transaction data size in bytes
     const data = transactionData.startsWith('0x') ? transactionData.slice(2) : transactionData;
+    const dataSizeBytes = data.length / 2; // Convert hex string to bytes
     
-    for (let i = 0; i < data.length; i += 2) {
-      const byte = data.substr(i, 2);
-      if (byte === '00') {
-        calldataGas += 4;
-      } else {
-        calldataGas += 16;
-      }
-    }
-
-    // Add fixed overhead for transaction
-    const fixedOverhead = 21000; // Base transaction cost
-    const totalL1Gas = calldataGas + fixedOverhead;
-
-    // Apply L2-specific multipliers
-    let multiplier = 1.0;
-    const networkName = networkConfig.name.toLowerCase();
+    // EIP-4844 blob constants
+    const BYTES_PER_BLOB = 131072; // 128 KiB per blob
+    const GAS_PER_BLOB = 131072;   // Gas units per blob
     
-    if (networkName.includes('arbitrum')) {
-      multiplier = 1.5; // Arbitrum has additional overhead
-    } else if (networkName.includes('optimism') || networkName.includes('base')) {
-      multiplier = 1.24; // Optimism/Base overhead
-    } else if (networkName.includes('scroll')) {
-      multiplier = 1.2; // Scroll L1 data cost multiplier
-    } else if (networkName.includes('ink')) {
-      multiplier = 1.24; // Ink (Optimism stack) overhead
-    } else if (networkName.includes('linea')) {
-      multiplier = 1.1; // Linea L1 data cost multiplier
-    } else if (networkName.includes('polygon')) {
-      multiplier = 0.1; // Polygon is much cheaper
-    }
+    // Calculate number of blobs needed for the transaction data
+    const blobsNeeded = Math.ceil(dataSizeBytes / BYTES_PER_BLOB);
+    const totalBlobGas = blobsNeeded * GAS_PER_BLOB;
+    
+    // Base transaction overhead (Type 3 blob transaction)
+    const baseTxGas = 21000;
+    const blobTxOverhead = 1000; // Additional overhead for blob transaction
+    const totalBaseTxGas = baseTxGas + blobTxOverhead;
+    
+    // Total gas is base transaction gas + blob gas
+    // Note: Blob gas is priced separately at blob base fee (1 wei = 1e-9 gwei)
+    const totalGas = totalBaseTxGas + totalBlobGas;
 
-    return Math.floor(totalL1Gas * multiplier);
+    // Return actual gas calculation without artificial multipliers
+    // Let the forked network provide real data instead of fake efficiency factors
+    return totalGas;
   }
 
   /**

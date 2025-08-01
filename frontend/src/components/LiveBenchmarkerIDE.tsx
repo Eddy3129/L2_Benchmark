@@ -1,54 +1,53 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import Editor from '@monaco-editor/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Play, Square, Network, Zap, Code, Settings, FileText, Save, Trash2, CheckCircle, ArrowRight } from 'lucide-react';
-import LiveBenchmarkResults from '@/components/LiveBenchmarkResults';
-import FunctionCallsEditor from '@/components/FunctionCallsEditor';
+import { Play, Square, Network, Zap, Code, Settings, FileText, Save, Trash2, CheckCircle, ArrowRight, AlertCircle, NetworkIcon, Globe, Layers, Box } from 'lucide-react';
 import { liveBenchmarkerApi } from '@/lib/api';
-import { CONTRACT_TEMPLATES, loadContractTemplate, getConstructorArgsByContractName, detectContractName, getConstructorInfoByContractName } from '@/lib/contractTemplate';
-import { extractWritableFunctions, BenchmarkFunction } from '@/config/contracts';
-import { compileContract } from '@/lib/abiService';
+import { CONTRACT_TEMPLATES } from '@/config/contracts';
+import { loadContractTemplate } from '@/lib/contractTemplate';
+import FunctionCallsEditor from './FunctionCallsEditor';
+import LiveBenchmarkResults from './LiveBenchmarkResults';
 
-// --- Shared Types ---
-interface LiveBenchmarkSession {
+// Types for better TypeScript support
+interface NetworkSetupData {
   benchmarkId: string;
   network: string;
   chainId: number;
   forkPort: number;
-  blockNumber?: number;
+  rpcUrl: string;
   isActive: boolean;
 }
 
-interface LiveBenchmarkResult {
-  contractAddress?: string;
-  deploymentCost: {
-    gasUsed: number;
-    gasPrice: string;
-    totalCostWei: string;
-    totalCostEth: string;
-    totalCostUsd: number;
-  };
-  functionCosts: {
-    functionName: string;
-    gasUsed: number;
-    gasPrice: string;
-    totalCostWei: string;
-    totalCostEth: string;
-    totalCostUsd: number;
-    l1DataCost?: number;
-    l2ExecutionCost?: number;
-  }[];
+interface DeploymentCost {
+  gasUsed: number;
+  gasPrice: string;
+  totalCostWei: string;
+  totalCostEth: string;
+  totalCostUsd: number;
+  transactionHash?: string;
+}
+
+interface FunctionCost {
+  functionName: string;
+  gasUsed: number;
+  gasPrice: string;
+  totalCostWei: string;
+  totalCostEth: string;
+  totalCostUsd: number;
+  transactionHash?: string;
+}
+
+interface BenchmarkResult {
+  contractAddress: string;
+  deploymentCost: DeploymentCost;
+  functionCosts: FunctionCost[];
   feeComposition: {
     baseFee: string;
     priorityFee: string;
     maxFeePerGas: string;
     gasPrice: string;
-    l1DataFee?: string;
   };
   networkMetrics: {
     blockNumber: number;
@@ -65,7 +64,27 @@ interface FunctionCall {
   parameters: any[];
 }
 
-// --- Constants ---
+interface AvailableFunction {
+  name: string;
+  inputs: any[];
+}
+
+interface ContractBenchmarkSession {
+  id: string;
+  contractAddress: string;
+  contractName?: string;
+  deploymentResult: BenchmarkResult;
+  executionResult?: BenchmarkResult;
+  network: {
+    name: string;
+    displayName: string;
+    chainId: number;
+    category: string;
+    isLayer2?: boolean;
+  };
+  timestamp: number;
+}
+
 const DEFAULT_CONTRACT = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -107,945 +126,804 @@ const SUPPORTED_NETWORKS = [
   {
     id: 'mainnet',
     name: 'Ethereum',
-    type: 'mainnet',
-    icon: Zap,
-    color: 'bg-blue-500',
     chainId: 1,
-    rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://etherscan.io',
-    description: 'Ethereum Mainnet - The original smart contract platform'
+    color: 'bg-blue-500',
+    description: 'Ethereum Mainnet',
+    icon: NetworkIcon
   },
   {
     id: 'arbitrum',
     name: 'Arbitrum',
-    type: 'l2',
-    icon: Network,
-    color: 'bg-cyan-500',
     chainId: 42161,
-    rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://arbiscan.io',
-    description: 'Arbitrum One - Optimistic rollup with fraud proofs'
+    color: 'bg-cyan-500',
+    description: 'Arbitrum One',
+    icon: Layers
   },
   {
     id: 'optimism',
     name: 'Optimism',
-    type: 'l2',
-    icon: Zap,
-    color: 'bg-red-500',
     chainId: 10,
-    rpcUrl: `https://opt-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://optimistic.etherscan.io',
-    description: 'Optimism - Fast, stable, and scalable L2 blockchain'
+    color: 'bg-red-500',
+    description: 'Optimism Mainnet',
+    icon: Globe
   },
   {
     id: 'base',
     name: 'Base',
-    type: 'l2',
-    icon: Network,
-    color: 'bg-blue-600',
     chainId: 8453,
-    rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://basescan.org',
-    description: 'Base - Coinbase L2 built on Optimism stack'
+    color: 'bg-blue-600',
+    description: 'Base Mainnet',
+    icon: Box
   },
   {
     id: 'polygon',
     name: 'Polygon PoS',
-    type: 'l2',
-    icon: Settings,
-    color: 'bg-purple-500',
     chainId: 137,
-    rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://polygonscan.com',
-    description: 'Polygon PoS - Multi-chain scaling solution'
+    color: 'bg-purple-500',
+    description: 'Polygon Mainnet',
+    icon: Layers
   },
   {
-    id: 'linea',
-    name: 'Linea',
-    type: 'l2',
-    icon: Network,
-    color: 'bg-gray-800',
-    chainId: 59144,
-    rpcUrl: `https://linea-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://lineascan.build',
-    description: 'Linea - ConsenSys zkEVM rollup for Ethereum'
+    id: 'zksync-era',
+    name: 'zkSync Era',
+    chainId: 324,
+    color: 'bg-gray-500',
+    description: 'zkSync Era Mainnet',
+    icon: Box
   },
   {
     id: 'scroll',
     name: 'Scroll',
-    type: 'l2',
-    icon: Settings,
-    color: 'bg-orange-500',
     chainId: 534352,
-    rpcUrl: `https://scroll-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://scrollscan.com',
-    description: 'Scroll - Native zkEVM Layer 2 for Ethereum'
+    color: 'bg-orange-500',
+    description: 'Scroll Mainnet',
+    icon: Globe
   },
   {
-    id: 'zksync-era',
-    name: 'ZkSync Era',
-    type: 'l2',
-    icon: Zap,
-    color: 'bg-black',
-    chainId: 324,
-    rpcUrl: `https://zksync-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://explorer.zksync.io',
-    description: 'ZkSync Era - Scalable zkRollup for Ethereum'
+    id: 'linea',
+    name: 'Linea',
+    chainId: 59144,
+    color: 'bg-green-500',
+    description: 'Linea Mainnet',
+    icon: NetworkIcon
   },
   {
     id: 'ink',
     name: 'Ink',
-    type: 'l2',
-    icon: Zap,
-    color: 'bg-black',
     chainId: 57073,
-    rpcUrl: `https://ink-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
-    explorerUrl: 'https://explorer.inkonchain.com',
-    description: 'Ink - Kraken L2 built on Optimism stack'
+    color: 'bg-indigo-500',
+    description: 'Ink Mainnet',
+    icon: Layers
   }
 ];
 
-// --- Main Component ---
-export default function LiveBenchmarkerIDE() {
-  // Tab management
-  const [activeTab, setActiveTab] = useState('setup');
-  
-  // Network setup state
+export default function ImprovedLiveBenchmarkerIDE() {
+  // Simplified state management
+  const [activeTab, setActiveTab] = useState<string>('setup');
   const [selectedNetwork, setSelectedNetwork] = useState<string>('arbitrum');
-  const [isSettingUpNetwork, setIsSettingUpNetwork] = useState(false);
-  const [networkSetupResult, setNetworkSetupResult] = useState<any>(null);
-  const [benchmarkId, setBenchmarkId] = useState<string | null>(null);
+  const [contractCode, setContractCode] = useState<string>(DEFAULT_CONTRACT);
+  const [constructorArgs, setConstructorArgs] = useState<string>('[100]');
+  const [functionCalls, setFunctionCalls] = useState<FunctionCall[]>([
+    { functionName: 'setValue', parameters: [200] }
+  ]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('custom');
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
   
-  // Contract deployment state
-  const [contractCode, setContractCode] = useState('');
-  const [contractName, setContractName] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>(CONTRACT_TEMPLATES[0].id);
-  const [constructorArgs, setConstructorArgs] = useState('');
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deploymentResult, setDeploymentResult] = useState<any>(null);
-  const [compiledContract, setCompiledContract] = useState<any>(null);
-  const [isCompiling, setIsCompiling] = useState(false);
-  const [compilationError, setCompilationError] = useState<string | null>(null);
+  // Status states
+  const [networkSetup, setNetworkSetup] = useState<NetworkSetupData | null>(null);
+  const [deploymentResult, setDeploymentResult] = useState<BenchmarkResult | null>(null);
+  const [executionResults, setExecutionResults] = useState<BenchmarkResult | null>(null);
+  const [availableFunctions, setAvailableFunctions] = useState<AvailableFunction[]>([]);
   
-  // Function execution state
-  const [functionCalls, setFunctionCalls] = useState<FunctionCall[]>([]);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [executionResults, setExecutionResults] = useState<any>(null);
+  // Session management
+  const [benchmarkSessions, setBenchmarkSessions] = useState<ContractBenchmarkSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  
+  // Loading states
+  const [isSettingUpNetwork, setIsSettingUpNetwork] = useState<boolean>(false);
+  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+  const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [isCompiling, setIsCompiling] = useState<boolean>(false);
+  
+  // Error handling
+  const [error, setError] = useState<string | null>(null);
 
-  // Network setup function
+  // Helper functions
+  const extractContractName = (code: string): string => {
+    const match = code.match(/contract\s+(\w+)/);
+    return match ? match[1] : 'Unknown Contract';
+  };
+
+  const getNetworkCategory = (networkId: string): string => {
+    switch (networkId) {
+      case 'mainnet': return 'Layer 1';
+      case 'arbitrum': case 'optimism': case 'base': case 'zksync-era': case 'scroll': case 'linea': case 'ink': return 'Layer 2';
+      case 'polygon': return 'Sidechain';
+      default: return 'Unknown';
+    }
+  };
+
+  // Removed auto-advance to next tab to prevent unwanted tab switching
+
+  // Function to validate and filter executable functions
+  const validateAndFilterFunctions = async (allFunctions: AvailableFunction[], contractAddress: string, parsedConstructorArgs: any[]) => {
+    try {
+      // Generate default function calls for validation
+      const defaultFunctionCalls = getDefaultFunctionCalls(allFunctions, contractCode);
+      
+      // Call validation API
+      const validationResult = await liveBenchmarkerApi.validateFunctions({
+        benchmarkId: networkSetup.benchmarkId,
+        contractCode,
+        constructorArgs: parsedConstructorArgs,
+        functionCalls: defaultFunctionCalls,
+        solidityVersion: '0.8.19',
+        contractAddress
+      });
+      
+      if (validationResult.success) {
+        const executableFunctionNames = validationResult.data.executableFunctions.map((f: any) => f.functionName);
+        
+        // Filter available functions to only include executable ones
+        const executableFunctions = allFunctions.filter(func => 
+          executableFunctionNames.includes(func.name)
+        );
+        
+        setAvailableFunctions(executableFunctions);
+        
+        // Set function calls to only executable ones
+        const executableFunctionCalls = defaultFunctionCalls.filter(fc => 
+          executableFunctionNames.includes(fc.functionName)
+        );
+        setFunctionCalls(executableFunctionCalls);
+        
+        // Log validation results
+        console.log(`✅ Function validation: ${executableFunctions.length}/${allFunctions.length} functions are executable`);
+        if (executableFunctions.length < allFunctions.length) {
+          const nonExecutable = allFunctions.filter(func => !executableFunctionNames.includes(func.name));
+          console.log(`❌ Non-executable functions: ${nonExecutable.map(f => f.name).join(', ')}`);
+        }
+      } else {
+        // Fallback: use all functions if validation fails
+        console.warn('Function validation failed, using all functions');
+        setAvailableFunctions(allFunctions);
+        setFunctionCalls(getDefaultFunctionCalls(allFunctions, contractCode));
+      }
+    } catch (error) {
+      console.error('Function validation error:', error);
+      // Fallback: use all functions if validation fails
+      setAvailableFunctions(allFunctions);
+      setFunctionCalls(getDefaultFunctionCalls(allFunctions, contractCode));
+    }
+  };
+
+  // Helper function to get default function calls based on contract type
+  const getDefaultFunctionCalls = (availableFunctions: AvailableFunction[], contractCode: string): FunctionCall[] => {
+    const functionNames = availableFunctions.map(f => f.name);
+    
+    // Detect contract type based on available functions and code
+    const isERC20 = functionNames.includes('transfer') && functionNames.includes('approve');
+    const isERC721 = functionNames.includes('mint') && (contractCode.includes('ERC721') || contractCode.includes('NFT'));
+    const isMultiSig = functionNames.includes('submitTransaction') && functionNames.includes('confirmTransaction');
+    const isStaking = functionNames.includes('stake') && functionNames.includes('unstake');
+    
+    const defaults: FunctionCall[] = [];
+    
+    if (isERC721) {
+      // NFT contract defaults
+      if (functionNames.includes('mint')) {
+        const mintFunc = availableFunctions.find(f => f.name === 'mint');
+        if (mintFunc) {
+          if (mintFunc.inputs.length === 1 && mintFunc.inputs[0].type === 'uint256') {
+            // mint(quantity)
+            defaults.push({ functionName: 'mint', parameters: [2] });
+          } else if (mintFunc.inputs.length === 2) {
+            // mint(to, quantity) or similar
+            defaults.push({ functionName: 'mint', parameters: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 1] });
+          }
+        }
+      }
+      if (functionNames.includes('setMintPrice')) {
+        defaults.push({ functionName: 'setMintPrice', parameters: ['10000000000000000'] }); // 0.01 ETH in wei
+      }
+    } else if (isERC20) {
+      // ERC20 contract defaults
+      if (functionNames.includes('transfer')) {
+        defaults.push({ functionName: 'transfer', parameters: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 1000] });
+      }
+      if (functionNames.includes('approve')) {
+        defaults.push({ functionName: 'approve', parameters: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 5000] });
+      }
+    } else if (isMultiSig) {
+      // MultiSig defaults - use smaller value and ensure proper parameters
+      if (functionNames.includes('submitTransaction')) {
+        defaults.push({ functionName: 'submitTransaction', parameters: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 1000000000000000, '0x'] }); // 0.001 ETH instead of 1 ETH
+      }
+      if (functionNames.includes('confirmTransaction')) {
+        defaults.push({ functionName: 'confirmTransaction', parameters: [0] }); // Confirm first transaction
+      }
+    } else if (isStaking) {
+      // Staking defaults
+      if (functionNames.includes('stake')) {
+        defaults.push({ functionName: 'stake', parameters: [1000] });
+      }
+    } else {
+      // Generic contract - try common functions
+      if (functionNames.includes('setValue')) {
+        defaults.push({ functionName: 'setValue', parameters: [200] });
+      }
+      if (functionNames.includes('deposit')) {
+        defaults.push({ functionName: 'deposit', parameters: [] });
+      }
+      if (functionNames.includes('transfer')) {
+        defaults.push({ functionName: 'transfer', parameters: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 100] });
+      }
+    }
+    
+    // If no defaults found, add the first available function with empty parameters
+    if (defaults.length === 0 && availableFunctions.length > 0) {
+      const firstFunc = availableFunctions[0];
+      const defaultParams = firstFunc.inputs.map(input => {
+        if (input.type.includes('uint')) return 100;
+        if (input.type === 'address') return '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+        if (input.type === 'string') return 'test';
+        if (input.type === 'bool') return true;
+        return '';
+      });
+      defaults.push({ functionName: firstFunc.name, parameters: defaultParams });
+    }
+    
+    return defaults;
+  };
+
+  // Prevent mouse wheel from switching tabs
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      const target = e.target as Element;
+      if (target.closest('[role="tablist"]')) {
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => document.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  const handleTemplateChange = async (templateId: string) => {
+    if (templateId === selectedTemplate) return;
+    
+    const template = CONTRACT_TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+    
+    setIsLoadingTemplate(true);
+    try {
+      const contractCode = await loadContractTemplate(template.fileName);
+      if (contractCode) {
+        setContractCode(contractCode);
+        setSelectedTemplate(templateId);
+        
+        // Set appropriate constructor arguments based on template
+        if (templateId === 'multisig-wallet') {
+          setConstructorArgs('[["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"], 2]');
+        } else if (templateId === 'simple-staking') {
+          setConstructorArgs('["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"]');
+        } else if (templateId === 'simple-auction') {
+          setConstructorArgs('[3600, "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]');
+        } else {
+          setConstructorArgs('[]'); // Most ERC20/ERC721 don't need constructor args
+        }
+        
+        // Reset function calls and available functions when template changes
+        setFunctionCalls([]);
+        setAvailableFunctions([]);
+        // Clear previous deployment and execution results
+        setDeploymentResult(null);
+        setExecutionResults(null);
+      }
+    } catch (err: any) {
+      setError(`Failed to load template: ${err.message}`);
+    } finally {
+      setIsLoadingTemplate(false);
+    }
+  };
+
   const handleNetworkSetup = async () => {
     setIsSettingUpNetwork(true);
     setError(null);
-    // Reset previous states
-    setFunctionsExecuted(false);
-    setExecutionResults(null);
-    setBenchmarkResult(null);
-    setDeployedContractAddress(null);
-    setDeploymentResult(null);
+    
     try {
+      console.log('Calling backend for network setup with network:', selectedNetwork);
       const result = await liveBenchmarkerApi.setupNetwork(selectedNetwork);
-      if (!result.success) {
+      console.log('Backend network setup response:', result);
+      if (result.success) {
+        setNetworkSetup(result.data);
+        // Clear previous results when setting up new network
+        setDeploymentResult(null);
+        setExecutionResults(null);
+      } else {
         throw new Error(result.message || 'Network setup failed');
       }
-      setNetworkSetupResult(result);
-      setBenchmarkId(result.data.benchmarkId);
-      setActiveTab('deploy'); // Move to deploy tab after successful setup
-    } catch (error) {
-      console.error('Network setup failed:', error);
-      alert('Failed to setup network fork. Please try again.');
+    } catch (err: any) {
+      setError(`Network setup failed: ${err.message}`);
     } finally {
       setIsSettingUpNetwork(false);
     }
   };
-  
-  // General state
-  const [error, setError] = useState<string | null>(null);
-  const [activeSessions, setActiveSessions] = useState<LiveBenchmarkSession[]>([]);
-  const [deployedContractAddress, setDeployedContractAddress] = useState<string | null>(null);
-  const [availableFunctions, setAvailableFunctions] = useState<BenchmarkFunction[]>([]);
-  
-  // Debug: Log when availableFunctions changes
-  useEffect(() => {
-    console.log('🔧 Available functions updated:', availableFunctions);
-    console.log('🔧 Number of available functions:', availableFunctions.length);
-    if (availableFunctions.length > 0) {
-      console.log('🔧 Function names:', availableFunctions.map(f => f.name));
-    }
-  }, [availableFunctions]);
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
-  const [saveToDatabase, setSaveToDatabase] = useState(true);
-  const [functionsExecuted, setFunctionsExecuted] = useState(false);
-  
-  // Legacy state for compatibility
-  const [selectedNetworks, setSelectedNetworks] = useState<string[]>(['arbitrum']);
-  const [confidenceLevel, setConfidenceLevel] = useState(68);
-  const [isRunning, setIsRunning] = useState(false);
-  const [benchmarkResult, setBenchmarkResult] = useState<LiveBenchmarkResult | null>(null);
-  const [isInteracting, setIsInteracting] = useState(false);
-  const [interactionResults, setInteractionResults] = useState<any[]>([]);
 
-  useEffect(() => {
-    console.log('🏁 LiveBenchmarkerIDE component mounted');
-    console.log('🏁 Initial contract code length:', contractCode.length);
-    console.log('🏁 Initial available functions:', availableFunctions.length);
-    
-    loadActiveSessions();
-    handleTemplateChange(CONTRACT_TEMPLATES[0].id);
-  }, []);
-  
-  // Extract functions when contract code or compiled contract changes
-  useEffect(() => {
-    if (contractCode && contractCode.trim().length > 0) {
-      console.log('🔧 Contract code changed, extracting functions');
-      extractFunctionsFromCode();
-    }
-  }, [contractCode, compiledContract]);
-  
-  // Remove automatic function extraction - only compile when deploying
-
-  const handleTemplateChange = async (templateId: string) => {
-    const template = CONTRACT_TEMPLATES.find(t => t.id === templateId);
-    if (template) {
-      setIsLoadingTemplate(true);
-      setError(null);
-      try {
-        const contractCode = await loadContractTemplate(template.fileName);
-        setSelectedTemplate(templateId);
-        setContractCode(contractCode);
-        setContractName(template.contractName);
-      } catch (error) {
-        console.error('Failed to load contract template:', error);
-        setError('Failed to load contract template. Please try again.');
-      } finally {
-        setIsLoadingTemplate(false);
-      }
-    }
-  };
-
-  const extractFunctionsFromCode = async () => {
-    try {
-      console.log('🔧 extractFunctionsFromCode called');
-      console.log('🔧 Contract code length:', contractCode.length);
-      console.log('🔧 Compiled contract available:', !!compiledContract);
-      console.log('🔧 Deployed contract available:', !!deploymentResult?.contractAddress);
-      
-      // Use existing compiled contract if available
-      if (compiledContract && compiledContract.abi) {
-        console.log('🔧 Using existing compiled contract for function extraction');
-        console.log('🔧 ABI length:', compiledContract.abi.length);
-        const writableFunctions = extractWritableFunctions(compiledContract.abi);
-        console.log('🔧 Extracted writable functions:', writableFunctions);
-        setAvailableFunctions(writableFunctions);
-        return;
-      }
-
-      // Don't compile if no contract code
-      if (!contractCode || contractCode.trim().length === 0) {
-        console.log('🔧 No contract code available, skipping compilation');
-        setAvailableFunctions([]);
-        return;
-      }
-
-      // Otherwise compile the contract
-      console.log('🔧 No compiled contract available, compiling...');
-      const compilationResult = await liveBenchmarkerApi.compileContract({
-        contractCode,
-        contractName: contractName || 'Contract'
-      });
-
-      if (compilationResult.success && compilationResult.data) {
-        console.log('🔧 Compilation successful, extracting functions');
-        const writableFunctions = extractWritableFunctions(compilationResult.data.abi);
-        setAvailableFunctions(writableFunctions);
-        console.log('🔧 Extracted functions after compilation:', writableFunctions);
-      } else {
-        console.warn('⚠️ Failed to compile contract for function extraction');
-        setAvailableFunctions([]);
-      }
-    } catch (error) {
-      console.error('❌ Error extracting functions:', error);
-      setAvailableFunctions([]);
-    }
-  };
-
-  const loadActiveSessions = async () => {
-    try {
-      const response = await liveBenchmarkerApi.getActiveBenchmarks();
-      if (response.success) {
-        setActiveSessions(response.data.activeBenchmarks);
-      }
-    } catch (err) {
-      console.error('Failed to load active sessions:', err);
-    }
-  };
-
-  const runLiveBenchmark = async () => {
-    if (!contractCode.trim()) {
-      setError('Please enter contract code');
-      return;
-    }
-
-    if (!benchmarkId) {
-      setError('Please setup network fork first');
+  const handleContractDeployment = async () => {
+    if (!networkSetup) {
+      setError('Please setup network first');
       return;
     }
 
     setIsDeploying(true);
     setError(null);
-    setDeploymentResult(null);
-    setExecutionResults(null);
-    setBenchmarkResult(null);
-    setInteractionResults([]);
-    setDeployedContractAddress(null);
-    setCompilationError(null);
-    setFunctionsExecuted(false);
-
+    
     try {
-      // Analyze contract code to determine constructor arguments
-      let parsedConstructorArgs: any[] = [];
-      
-      // Enhanced constructor parameter analysis with template support
-      const getSmartConstructorArgs = (code: string) => {
-        // First, try to detect if this is a known contract template
-        const contractName = detectContractName(code);
-        if (contractName) {
-          const templateArgs = getConstructorArgsByContractName(contractName);
-          if (templateArgs.length > 0 || getConstructorInfoByContractName(contractName)) {
-            console.log(`🎯 Using template constructor args for ${contractName}:`, templateArgs);
-            return templateArgs;
-          }
-        }
-        
-        // Fallback to smart analysis for unknown contracts
-        const constructorMatch = code.match(/constructor\s*\(([^)]*)\)/);
-        if (!constructorMatch || !constructorMatch[1].trim()) {
-          return []; // No parameters
-        }
-        
-        const params = constructorMatch[1].split(',').map(p => p.trim()).filter(p => p);
-        const defaultValues: any[] = [];
-        
-        params.forEach(param => {
-          const cleanParam = param.replace(/\s+/g, ' ').trim();
-          
-          if (cleanParam.includes('uint') || cleanParam.includes('int')) {
-            // For numeric types, use reasonable defaults
-            if (cleanParam.includes('biddingTime') || cleanParam.includes('Time')) {
-              defaultValues.push(3600); // 1 hour for time-related params
-            } else {
-              defaultValues.push(100); // General numeric default
-            }
-          } else if (cleanParam.includes('address')) {
-            // For address types, use a default address
-            if (cleanParam.includes('[]')) {
-              // Array of addresses (like MultiSigWallet owners)
-              defaultValues.push(["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"]);
-            } else {
-              // Single address
-              defaultValues.push("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-            }
-          } else if (cleanParam.includes('string')) {
-            defaultValues.push("DefaultValue");
-          } else if (cleanParam.includes('bool')) {
-            defaultValues.push(false);
+      // Parse constructor args safely
+      let parsedArgs: any[] = [];
+      if (constructorArgs.trim()) {
+        try {
+          // If it's not wrapped in brackets, try to parse as a single value
+          const trimmed = constructorArgs.trim();
+          if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+            // Try to parse as a single number or string
+            const singleValue = isNaN(Number(trimmed)) ? trimmed : Number(trimmed);
+            parsedArgs = [singleValue];
           } else {
-            // Fallback for unknown types
-            defaultValues.push(100);
+            parsedArgs = JSON.parse(constructorArgs);
           }
-        });
-        
-        console.log(`🔍 Using smart analysis for unknown contract:`, defaultValues);
-        return defaultValues;
-      };
-      
-      if (constructorArgs.trim()) {
-          try {
-            parsedConstructorArgs = JSON.parse(constructorArgs);
-          } catch (e) {
-            console.warn('Constructor args parse error, using smart default:', e.message);
-            parsedConstructorArgs = getSmartConstructorArgs(contractCode);
-          }
-        } else {
-          // Smart defaults based on template or constructor analysis
-          parsedConstructorArgs = getSmartConstructorArgs(contractCode);
+        } catch (e) {
+          // Fallback to smart parsing
+          parsedArgs = [100]; // Default for this example
         }
-      console.log('🚀 Deploying contract with constructor args:', parsedConstructorArgs);
+      }
 
-      // Prepare request payload - only include constructorArgs if user explicitly provided them
-      const requestPayload: any = {
-         benchmarkId,
-         contractCode,
-         functionCalls: functionCalls.length > 0 ? functionCalls : [],
-         contractName: contractName || 'Contract'
+      const payload = {
+        benchmarkId: networkSetup.benchmarkId,
+        contractCode,
+        constructorArgs: parsedArgs,
+        functionCalls: [], // Deploy only, no function calls yet
+        solidityVersion: '0.8.19'
       };
-      
-      // Only include constructorArgs if user explicitly provided them in the input field
-      // This allows backend's smart constructor detection to work when field is empty
-      if (constructorArgs.trim()) {
-        requestPayload.constructorArgs = parsedConstructorArgs;
-      }
-      
-      console.log('🚀 Request payload:', requestPayload);
 
-      // Deploy using live benchmarker (includes compilation)
-      const deployResult = await liveBenchmarkerApi.runLiveBenchmark(requestPayload);
-
-      if (!deployResult.success) {
-        throw new Error(`Deployment failed: ${deployResult.message}`);
-      }
-      console.log('🚀 Contract deployed successfully:', deployResult.data);
-      console.log('🚀 Full deployment result structure:', JSON.stringify(deployResult.data, null, 2));
+      console.log('Calling backend for deployment with payload:', payload);
+      const result = await liveBenchmarkerApi.runLiveBenchmark(payload);
+      console.log('Backend deployment response:', result);
       
-      // Extract contract address from the deployment result
-      let contractAddress = null;
-      if (deployResult.data.contractAddress) {
-        contractAddress = deployResult.data.contractAddress;
-      } else if (deployResult.data.contract?.address) {
-        contractAddress = deployResult.data.contract.address;
-      } else if (deployResult.data.address) {
-        contractAddress = deployResult.data.address;
-      }
-      
-      console.log('🚀 Extracted contract address:', contractAddress);
-      
-      if (!contractAddress || contractAddress === '') {
-        console.error('❌ No contract address found in deployment result');
-        throw new Error('Contract deployment failed: No contract address returned');
-      }
-      
-      setDeploymentResult({
-        contractAddress: contractAddress,
-        deploymentCost: deployResult.data.deploymentCost,
-        networkMetrics: deployResult.data.networkMetrics
-      });
-      setBenchmarkResult(deployResult.data);
-      if (contractAddress) {
-        setDeployedContractAddress(contractAddress);
-      }
-      
-      // Extract functions from the compiled contract (backend compiles during deployment)
-      // We need to compile separately to get the ABI for function extraction
-      try {
-        const compilationResult = await liveBenchmarkerApi.compileContract({
-          contractCode,
-          contractName: contractName || 'Contract'
-        });
+      if (result.success) {
+        setDeploymentResult(result.data);
         
-        if (compilationResult.success && compilationResult.data?.abi) {
-          console.log('🔧 Extracting functions from compiled contract ABI');
-          const writableFunctions = extractWritableFunctions(compilationResult.data.abi);
-          console.log('🔧 Extracted functions after deployment:', writableFunctions);
-          setAvailableFunctions(writableFunctions);
-          setCompiledContract(compilationResult.data);
-        } else {
-          console.warn('⚠️ Could not compile contract for function extraction');
+        // Create a new benchmark session
+        const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const networkInfo = SUPPORTED_NETWORKS.find(n => n.id === selectedNetwork);
+        
+        const newSession: ContractBenchmarkSession = {
+          id: sessionId,
+          contractAddress: result.data.contractAddress,
+          contractName: extractContractName(contractCode),
+          deploymentResult: result.data,
+          network: {
+            name: selectedNetwork,
+            displayName: networkInfo?.name || selectedNetwork,
+            chainId: networkInfo?.chainId || 0,
+            category: getNetworkCategory(selectedNetwork),
+            isLayer2: selectedNetwork !== 'mainnet'
+          },
+          timestamp: Date.now()
+        };
+        
+        setBenchmarkSessions(prev => [...prev, newSession]);
+        setCurrentSessionId(sessionId);
+        
+        // Extract functions from the deployed contract's ABI
+        if (result.data.contract?.abi) {
+          const writableFunctions = result.data.contract.abi
+            .filter((item: any) => item.type === 'function' && 
+                          (item.stateMutability === 'nonpayable' || item.stateMutability === 'payable'))
+            .map((func: any) => ({
+              name: func.name,
+              inputs: func.inputs || []
+            }));
+          
+          // Validate which functions are executable
+          await validateAndFilterFunctions(writableFunctions, result.data.contractAddress, parsedArgs);
         }
-      } catch (compileError) {
-        console.warn('⚠️ Function extraction compilation failed:', compileError.message);
-      }
-      
-      setActiveTab('execute');
-      await loadActiveSessions();
-    } catch (err: any) {
-      console.error('Deployment failed:', err);
-      if (err.message.includes('compilation')) {
-        setCompilationError(err.message);
       } else {
-        setError(err.message || 'An unexpected error occurred');
+        throw new Error(result.message || 'Deployment failed');
       }
+    } catch (err: any) {
+      setError(`Deployment failed: ${err.message}`);
     } finally {
       setIsDeploying(false);
-      setIsCompiling(false);
-      setIsRunning(false);
-    }
-  };
-  
-  const cleanupAllSessions = async () => {
-    try {
-      await liveBenchmarkerApi.cleanupAllBenchmarks();
-      await loadActiveSessions();
-      setActiveSessions([]);
-      setBenchmarkResult(null);
-      setDeploymentResult(null);
-      setExecutionResults(null);
-      setDeployedContractAddress(null);
-      setInteractionResults([]);
-      setError(null);
-      setActiveTab('deploy'); // Reset to first tab
-    } catch (err: any) {
-      setError(err.message || 'Failed to cleanup sessions');
     }
   };
 
-  const interactWithContract = async (functionName: string, parameters: any[]) => {
-    if (!deployedContractAddress) {
-      setError('No contract deployed. Please run a benchmark first.');
+  const handleFunctionExecution = async () => {
+    if (!deploymentResult) {
+      setError('Please deploy contract first');
       return;
     }
 
-    setIsInteracting(true);
+    setIsExecuting(true);
     setError(null);
-
+    
     try {
-      const response = await liveBenchmarkerApi.runLiveBenchmark({
-        networkName: selectedNetworks[0] || 'arbitrum',
-        contractCode: contractCode,
-        constructorArgs: [],
-        functionCalls: [{ functionName, parameters }],
-        solidityVersion: '0.8.19',
-        contractAddress: deployedContractAddress
-      });
+      const payload = {
+        benchmarkId: networkSetup.benchmarkId,
+        contractCode,
+        constructorArgs: JSON.parse(constructorArgs || '[]'),
+        functionCalls: functionCalls.filter(fc => fc.functionName && fc.parameters),
+        solidityVersion: '0.8.19'
+      };
 
-      if (response.success && response.data.functionCosts && response.data.functionCosts.length > 0) {
-        const newResult = {
-          functionName,
-          parameters,
-          ...response.data.functionCosts[0],
-          timestamp: new Date().toISOString()
-        };
-        setInteractionResults(prev => [newResult, ...prev]);
+      console.log('Calling backend for function execution with payload:', payload);
+      const result = await liveBenchmarkerApi.runLiveBenchmark(payload);
+      console.log('Backend function execution response:', result);
+      
+      if (result.success) {
+        setExecutionResults(result.data);
+        
+        // Update the current session with execution results
+        if (currentSessionId) {
+          setBenchmarkSessions(prev => prev.map(session => 
+            session.id === currentSessionId 
+              ? { ...session, executionResult: result.data }
+              : session
+          ));
+        }
       } else {
-        throw new Error(response.message || 'Contract interaction failed');
+        throw new Error(result.message || 'Function execution failed');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to interact with contract');
+      setError(`Function execution failed: ${err.message}`);
     } finally {
-      setIsInteracting(false);
+      setIsExecuting(false);
     }
   };
 
-  const selectedNetworkInfo = SUPPORTED_NETWORKS.find(n => n.id === selectedNetworks[0]);
+  const clearAllSessions = () => {
+    setBenchmarkSessions([]);
+    setCurrentSessionId(null);
+  };
+
+  const resetSession = async () => {
+    try {
+      await liveBenchmarkerApi.cleanupAllBenchmarks();
+      setNetworkSetup(null);
+      setDeploymentResult(null);
+      setBenchmarkSessions([]);
+      setCurrentSessionId(null);
+      setExecutionResults(null);
+      setAvailableFunctions([]);
+      setError(null);
+      setActiveTab('setup');
+    } catch (err: any) {
+      setError('Failed to cleanup session');
+    }
+  };
+
+  const addFunctionCall = () => {
+    setFunctionCalls([...functionCalls, { functionName: '', parameters: [] }]);
+  };
+
+  const updateFunctionCall = (index: number, field: keyof FunctionCall, value: any) => {
+    const updated = [...functionCalls];
+    updated[index][field] = value;
+    setFunctionCalls(updated);
+  };
+
+  const removeFunctionCall = (index: number) => {
+    setFunctionCalls(functionCalls.filter((_, i) => i !== index));
+  };
+
+  const getTabStatus = (tab: string) => {
+    switch (tab) {
+      case 'setup': return networkSetup ? 'completed' : 'pending';
+      case 'deploy': return deploymentResult ? 'completed' : networkSetup ? 'pending' : 'disabled';
+      case 'execute': return executionResults ? 'completed' : deploymentResult ? 'pending' : 'disabled';
+      case 'results': return executionResults ? 'completed' : 'disabled';
+      default: return 'disabled';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-lekton">
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold mb-2">Live Benchmarker IDE</h1>
+          <p className="text-gray-400">Deploy and benchmark smart contracts on mainnet forks</p>
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-gray-800 border border-gray-700">
-            <TabsTrigger 
-              value="setup" 
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-300 hover:text-white transition-all"
-            >
-              <div className="flex items-center space-x-2">
-                <Network className="w-4 h-4" />
-                <span>Setup Network</span>
-                {networkSetupResult && <CheckCircle className="w-4 h-4 text-green-400" />}
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="deploy" 
-              disabled={!networkSetupResult}
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-300 hover:text-white transition-all disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <Code className="w-4 h-4" />
-                <span>Deploy Contract</span>
-                {deploymentResult && <CheckCircle className="w-4 h-4 text-green-400" />}
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="execute" 
-              disabled={!deploymentResult}
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-300 hover:text-white transition-all disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <Play className="w-4 h-4" />
-                <span>Execute Functions</span>
-                {executionResults && <CheckCircle className="w-4 h-4 text-green-400" />}
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="results" 
-              disabled={!executionResults}
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-300 hover:text-white transition-all disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <Zap className="w-4 h-4" />
-                <span>View Results</span>
-                {executionResults && <CheckCircle className="w-4 h-4 text-green-400" />}
-              </div>
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 bg-gray-800 border border-gray-700 mb-6 h-14">
+            {[
+              { id: 'setup', label: 'Setup Network', icon: Network },
+              { id: 'deploy', label: 'Deploy Contract', icon: Code },
+              { id: 'execute', label: 'Execute Functions', icon: Play },
+              { id: 'results', label: 'View Results', icon: Zap }
+            ].map(tab => {
+              const status = getTabStatus(tab.id);
+              const IconComponent = tab.icon;
+              
+              return (
+                <TabsTrigger 
+                  key={tab.id}
+                  value={tab.id}
+                  disabled={status === 'disabled'}
+                  className={`
+                    flex items-center gap-2 p-3 h-12 transition-all
+                    ${status === 'completed' ? 'text-green-400' : ''}
+                    ${status === 'disabled' ? 'opacity-50' : ''}
+                    data-[state=active]:bg-blue-600 data-[state=active]:text-white
+                  `}
+                >
+                  <IconComponent className="w-4 h-4" />
+                  {tab.label}
+                  {status === 'completed' && <CheckCircle className="w-4 h-4" />}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          {/* Tab 1: Setup Network */}
-          <TabsContent value="setup" className="mt-6">
-            <div className="space-y-6">
-              <div className="bg-gray-900 rounded-lg border border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <Network className="w-5 h-5 mr-2 text-blue-400" />
-                  Network Fork Setup
-                </h3>
-                <p className="text-gray-300 mb-6">
-                  Select a network and start a local fork for live benchmarking. This creates an isolated environment for testing.
-                </p>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">
-                      Select Network
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {SUPPORTED_NETWORKS.map((network) => {
-                        const IconComponent = network.icon;
-                        return (
-                          <button
-                            key={network.id}
-                            onClick={() => setSelectedNetwork(network.id)}
-                            disabled={isSettingUpNetwork}
-                            className={`p-4 rounded-lg border-2 transition-all duration-200 text-left hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                              selectedNetwork === network.id
-                                ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                                : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3 mb-2">
-                              <div className={`p-2 rounded-lg ${network.color}`}>
-                                <IconComponent className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-sm">{network.name}</div>
-                                <div className="text-xs opacity-75">{network.type.toUpperCase()}</div>
-                              </div>
-                            </div>
-                            <div className="text-xs text-gray-400 line-clamp-2">
-                              {network.description}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <Button
-                    onClick={handleNetworkSetup}
-                    disabled={isSettingUpNetwork}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
-                  >
-                    {isSettingUpNetwork ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Setting up network fork...
-                      </div>
-                    ) : (
-                      <div className="flex items-center">
-                        <Network className="w-4 h-4 mr-2" />
-                        Start Network Fork
-                      </div>
-                    )}
-                  </Button>
-                  
-                  {networkSetupResult && (
-                    <Alert className="bg-green-900/20 border-green-700">
-                      <CheckCircle className="h-4 w-4 text-green-400" />
-                      <AlertDescription className="text-green-300">
-                        Network fork started successfully! Benchmark ID: {benchmarkId}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              </div>
-            </div>
-          </TabsContent>
+          {/* Global Error Display */}
+          {error && (
+            <Alert className="mb-6 border-red-500/50 bg-red-900/20">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-red-300">{error}</AlertDescription>
+            </Alert>
+          )}
 
-          {/* Tab 2: Deploy Contract */}
-          <TabsContent value="deploy" className="mt-6">
-            <div className="space-y-6">
-              {!benchmarkId && (
-                <Alert className="bg-yellow-900/20 border-yellow-700">
-                  <Network className="h-4 w-4 text-yellow-400" />
-                  <AlertDescription className="text-yellow-300">
-                    Please setup a network fork first in the "Setup Network" tab before deploying contracts.
-                  </AlertDescription>
-                </Alert>
-              )}
+          {/* Setup Network Tab */}
+          <TabsContent value="setup" className="space-y-6">
+
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Network className="w-5 h-5 text-blue-400" />
+                Network Fork Setup
+              </h3>
               
-              {/* Deploy Actions */}
-              <div className="card card-elevated">
-                <div className="p-4 border-b border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                        <Code className="w-5 h-5 text-blue-400" />
-                        <span>Contract Deployment</span>
-                      </h3>
-                      <p className="text-sm text-gray-400 mt-1">Compile and deploy your smart contract</p>
-                      {benchmarkId && (
-                        <p className="text-xs text-green-400 mt-1">Network fork ready: {benchmarkId}</p>
-                      )}
-                    </div>
-                    <div className="flex space-x-3">
-                      <Button
-                        onClick={runLiveBenchmark}
-                        disabled={isDeploying || !contractCode.trim() || !benchmarkId}
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg"
-                      >
-                        {isDeploying ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            {isCompiling ? 'Compiling...' : 'Deploying...'}
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4" />
-                            Deploy Contract
-                          </>
-                        )}
-                      </Button>
-                      
-                      <Button
-                        onClick={cleanupAllSessions}
-                        disabled={isDeploying}
-                        variant="outline"
-                        className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        End Session
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contract Configuration */}
-              <div className="card card-elevated">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                    <Code className="w-5 h-5 text-blue-400" />
-                    <span>Contract Configuration</span>
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">Configure and edit your smart contract</p>
-                </div>
-                <div className="p-4">
-                  <div className="mb-4">
-                    {/* Contract Template */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <FileText className="w-4 h-4 inline mr-1" />
-                        Template
-                      </label>
-                      <select
-                        value={selectedTemplate}
-                        onChange={(e) => handleTemplateChange(e.target.value)}
-                        disabled={isLoadingTemplate}
-                        className="w-full max-w-md px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        {CONTRACT_TEMPLATES.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                      {isLoadingTemplate && (
-                        <div className="text-sm text-gray-500 flex items-center space-x-2 mt-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                          <span>Loading template...</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-
-
-                  {/* Contract Editor */}
-                  <div className="border border-gray-600 rounded-lg overflow-hidden">
-                    <Editor
-                      height="400px"
-                      defaultLanguage="solidity"
-                      value={contractCode}
-                      onChange={(value) => setContractCode(value || '')}
-                      theme="vs-dark"
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 14,
-                        lineNumbers: 'on',
-                        roundedSelection: false,
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        padding: { top: 16, bottom: 16 },
-                        wordWrap: 'on',
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-
-
-              {/* Status Messages */}
-              {error && (
-                <Alert className="border-red-500/50 bg-red-900/20">
-                  <AlertDescription className="text-red-300">{error}</AlertDescription>
-                </Alert>
-              )}
-              
-              {deploymentResult && (
-                <Alert className="border-green-500/50 bg-green-900/20">
-                  <AlertDescription className="text-green-300">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-5 h-5" />
-                      <span>Contract deployed successfully! Address: {deploymentResult.contractAddress}</span>
-                      <Button
-                        onClick={() => setActiveTab('execute')}
-                        size="sm"
-                        className="ml-4 bg-green-600 hover:bg-green-700"
-                      >
-                        Next: Execute Functions <ArrowRight className="w-4 h-4 ml-1" />
-                      </Button>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Tab 2: Execute Functions */}
-          <TabsContent value="execute" className="mt-6">
-            <div className="space-y-6">
-              <div className="card card-elevated">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                    <Play className="w-5 h-5 text-blue-400" />
-                    <span>Function Execution</span>
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">Configure and execute contract functions for gas analysis</p>
-                </div>
-                <div className="p-4">
-                  <FunctionCallsEditor
-                    functionCalls={functionCalls}
-                    onFunctionCallsChange={setFunctionCalls}
-                    availableFunctions={availableFunctions}
-                  />
-                  {/* Function availability status */}
-                  {availableFunctions.length === 0 && (
-                    <div className="mt-2 p-3 bg-yellow-900/20 border border-yellow-600 rounded text-sm text-yellow-300">
-                      <div className="flex items-center gap-2">
-                        <Zap className="h-4 w-4" />
-                        <span className="font-medium">No functions available</span>
+              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-6">
+                {SUPPORTED_NETWORKS.map(network => {
+                  const IconComponent = network.icon;
+                  return (
+                    <button
+                      key={network.id}
+                      onClick={() => setSelectedNetwork(network.id)}
+                      disabled={isSettingUpNetwork}
+                      className={`
+                        p-2 rounded-lg border-2 transition-all text-center hover:scale-105 min-w-0
+                        ${selectedNetwork === network.id 
+                          ? 'border-blue-500 bg-blue-500/10' 
+                          : 'border-gray-600 bg-gray-800/50 hover:border-gray-500'
+                        }
+                        disabled:opacity-50
+                      `}
+                    >
+                      <div className={`w-6 h-6 rounded mb-1 mx-auto ${network.color} flex items-center justify-center`}>
+                        <IconComponent className="w-4 h-4 text-white" />
                       </div>
-                      <p className="mt-1 text-xs text-yellow-400">
-                        Please compile your contract first by clicking the "Compile Contract" button above.
-                      </p>
-                    </div>
-                  )}
-                  {availableFunctions.length > 0 && (
-                    <div className="mt-2 p-2 bg-green-900/20 border border-green-600 rounded text-xs text-green-300">
-                      Available Functions: {availableFunctions.map(f => f.name).join(', ')}
-                    </div>
-                  )}
-                </div>
+                      <div className="font-semibold text-xs truncate">{network.name}</div>
+                      <div className="text-xs text-gray-400 truncate">{network.description}</div>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Execute Button */}
-              <div className="flex justify-center space-x-4">
+              <div className="flex gap-4">
                 <Button
-                  onClick={async () => {
-                    console.log('🚀 Execute button clicked');
-                    console.log('🚀 Current function calls:', functionCalls);
-                    console.log('🚀 Available functions:', availableFunctions);
-                    console.log('🚀 Deployment result:', deploymentResult);
-                    
-                    if (!deploymentResult?.contractAddress) {
-                      console.error('❌ No contract deployed');
-                      setError('No contract deployed. Please deploy a contract first.');
-                      return;
-                    }
-
-                    setIsExecuting(true);
-                    setError(null);
-
-                    try {
-                      const response = await liveBenchmarkerApi.runLiveBenchmark({
-                        networkName: selectedNetwork || 'arbitrum',
-                        contractCode: contractCode,
-                        constructorArgs: [],
-                        functionCalls: functionCalls,
-                        solidityVersion: '0.8.19',
-                        contractAddress: deploymentResult.contractAddress
-                      });
-
-                      if (response.success) {
-                        setExecutionResults({
-                          functionCosts: response.data.functionCosts,
-                          feeComposition: response.data.feeComposition,
-                          networkMetrics: response.data.networkMetrics,
-                          executionTime: response.data.executionTime
-                        });
-                        // Update the full benchmark result
-                        setBenchmarkResult({
-                          ...deploymentResult,
-                          ...response.data
-                        });
-                        setFunctionsExecuted(true);
-                        setActiveTab('results');
-                      } else {
-                        throw new Error(response.message || 'Function execution failed');
-                      }
-                    } catch (err: any) {
-                      setError(err.message || 'Failed to execute functions');
-                    } finally {
-                      setIsExecuting(false);
-                    }
-                  }}
-                  disabled={isExecuting || functionCalls.length === 0}
-                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg"
+                  onClick={handleNetworkSetup}
+                  disabled={isSettingUpNetwork}
+                  className="bg-blue-600 hover:bg-blue-700 px-6 py-2"
                 >
-                  {isExecuting ? (
+                  {isSettingUpNetwork ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Executing Functions...
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Setting up...
                     </>
                   ) : (
                     <>
-                      <Play className="w-5 h-5" />
+                      <Network className="w-4 h-4 mr-2" />
+                      Start Network Fork
+                    </>
+                  )}
+                </Button>
+
+                {networkSetup && (
+                  <Button onClick={resetSession} variant="outline" className="border-gray-600">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Reset Session
+                  </Button>
+                )}
+              </div>
+
+              {networkSetup && (
+                <Alert className="mt-4 border-green-500/50 bg-green-900/20">
+                  <CheckCircle className="h-4 w-4 text-green-400" />
+                  <AlertDescription className="text-green-300">
+                    Network fork ready! RPC: {networkSetup.rpcUrl}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Deploy Contract Tab */}
+          <TabsContent value="deploy" className="space-y-6">
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Code className="w-5 h-5 text-blue-400" />
+                Contract Deployment
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <FileText className="w-4 h-4 inline mr-1" />
+                    Contract Template
+                  </label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => handleTemplateChange(e.target.value)}
+                    disabled={isLoadingTemplate || isDeploying}
+                    className="w-full max-w-md px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {CONTRACT_TEMPLATES.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  {isLoadingTemplate && (
+                    <div className="text-sm text-gray-500 flex items-center space-x-2 mt-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                      <span>Loading template...</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Constructor Arguments (JSON)</label>
+                  <input
+                    type="text"
+                    value={constructorArgs}
+                    onChange={(e) => setConstructorArgs(e.target.value)}
+                    placeholder='[100]'
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                    disabled={isDeploying}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Contract Code</label>
+                  <textarea
+                    value={contractCode}
+                    onChange={(e) => setContractCode(e.target.value)}
+                    rows={15}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm"
+                    disabled={isDeploying}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleContractDeployment}
+                  disabled={isDeploying || !networkSetup}
+                  className="bg-green-600 hover:bg-green-700 px-6 py-2"
+                >
+                  {isDeploying ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2" />
+                      Deploy Contract
+                    </>
+                  )}
+                </Button>
+
+                {deploymentResult && (
+                  <Alert className="border-green-500/50 bg-green-900/20">
+                    <CheckCircle className="h-4 w-4 text-green-400" />
+                    <AlertDescription className="text-green-300">
+                      Contract deployed successfully! Address: {deploymentResult.contractAddress}
+                      <br />
+                      Gas used: {deploymentResult.deploymentCost.gasUsed.toLocaleString()}
+                      <br />
+                      Cost: ${deploymentResult.deploymentCost.totalCostUsd.toFixed(4)} USD
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Execute Functions Tab */}
+          <TabsContent value="execute" className="space-y-6">
+            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Play className="w-5 h-5 text-blue-400" />
+                Function Execution
+              </h3>
+
+              {availableFunctions.length > 0 && (
+                <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-300 text-sm">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Contract deployed! {availableFunctions.length} functions available.</span>
+                    {functionCalls.length > 0 && (
+                      <span className="text-blue-400">({functionCalls.length} function calls ready)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <FunctionCallsEditor
+                functionCalls={functionCalls}
+                onFunctionCallsChange={setFunctionCalls}
+                availableFunctions={availableFunctions}
+                className="mb-6"
+              />
+
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleFunctionExecution}
+                  disabled={isExecuting || !deploymentResult || functionCalls.length === 0}
+                  className="bg-purple-600 hover:bg-purple-700 px-6 py-2"
+                >
+                  {isExecuting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2" />
                       Execute Functions ({functionCalls.length})
                     </>
                   )}
                 </Button>
               </div>
 
-              {functionsExecuted && (
+              {executionResults && (
                 <Alert className="border-green-500/50 bg-green-900/20">
+                  <CheckCircle className="h-4 w-4 text-green-400" />
                   <AlertDescription className="text-green-300">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-5 h-5" />
-                      <span>Functions executed successfully!</span>
-                      <Button
-                        onClick={() => setActiveTab('results')}
-                        size="sm"
-                        className="ml-4 bg-green-600 hover:bg-green-700"
-                      >
-                        View Results <ArrowRight className="w-4 h-4 ml-1" />
-                      </Button>
-                    </div>
+                    Functions executed successfully!
+                    <br />
+                    Total function calls: {executionResults.functionCosts?.length || 0}
+                    <br />
+                    Average gas per call: {executionResults.functionCosts?.length > 0 
+                      ? Math.round(executionResults.functionCosts.reduce((sum: number, fc: any) => sum + fc.gasUsed, 0) / executionResults.functionCosts.length).toLocaleString()
+                      : 'N/A'
+                    }
                   </AlertDescription>
                 </Alert>
               )}
             </div>
           </TabsContent>
 
-          {/* Tab 3: View Results */}
-          <TabsContent value="results" className="mt-6">
-            <div className="space-y-6">
-              {executionResults ? (
-                <LiveBenchmarkResults 
-                  result={benchmarkResult} 
-                  network={SUPPORTED_NETWORKS.find(n => n.id === selectedNetwork)}
-                  interactionResults={interactionResults}
-                  contractCode={contractCode}
-                  onInteract={interactWithContract}
-                  isInteracting={isInteracting}
-                />
-              ) : (
-                <div className="card card-elevated">
-                  <div className="flex items-center justify-center h-64 text-center text-gray-400 p-6">
-                    <div>
-                      <Zap className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2 text-white">No results yet</p>
-                      <p className="text-sm">Execute functions to see detailed gas cost analysis.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          {/* Results Tab */}
+          <TabsContent value="results" className="space-y-6">
+            {benchmarkSessions.length > 0 ? (
+              <LiveBenchmarkResults 
+                sessions={benchmarkSessions}
+                onClearSessions={clearAllSessions}
+              />
+            ) : (
+              <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-blue-400" />
+                  Benchmark Results
+                </h3>
+                <Alert className="border-yellow-500/50 bg-yellow-900/20">
+                  <AlertDescription className="text-yellow-300">
+                    No benchmark sessions available. Please deploy and execute contracts first.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

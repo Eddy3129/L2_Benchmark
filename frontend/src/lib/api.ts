@@ -351,6 +351,33 @@ class LiveBenchmarkerApi {
     return response.json();
   }
 
+  async validateFunctions(data: {
+    benchmarkId: string;
+    contractCode: string;
+    constructorArgs?: any[];
+    functionCalls: Array<{
+      functionName: string;
+      parameters: any[];
+    }>;
+    solidityVersion?: string;
+    contractAddress?: string;
+  }) {
+    const response = await fetch(`${this.baseUrl}/live-benchmarker/validate-functions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `Failed to validate functions: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
   async runLiveBenchmark(data: {
     benchmarkId: string;
     contractCode: string;

@@ -910,10 +910,12 @@ export class GasAnalyzerService {
           1101: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Mainnet
           2442: { id: 'ethereum', name: 'ETH' },        // Polygon zkEVM Testnet
           324: { id: 'ethereum', name: 'ETH' },         // zkSync Era Mainnet
-          300: { id: 'ethereum', name: 'ETH' },          // zkSync Era Sepolia
+          300: { id: 'ethereum', name: 'ETH' },         // zkSync Era Sepolia
+          534352: { id: 'ethereum', name: 'ETH' },      // Scroll Mainnet
+          534351: { id: 'ethereum', name: 'ETH' },      // Scroll Sepolia
           59144: { id: 'ethereum', name: 'ETH' },       // Linea Mainnet
-          57073: { id: 'ethereum', name: 'ETH' },      // Ink Mainnet
-          534352: {id:'ethereum',name:'ETH'} // Scroll Mainnet
+          59141: { id: 'ethereum', name: 'ETH' },       // Linea Sepolia
+          57073: { id: 'ethereum', name: 'ETH' }        // Ink Mainnet
       };
   
       const token = tokenMap[networkConfig.chainId] || { id: 'ethereum', name: 'ETH' };
