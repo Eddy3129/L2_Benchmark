@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import GasMonitoringTable from '@/components/GasMonitoringTable';
 import GasEstimationTable from '@/components/GasEstimationTable';
-import LiveBenchmarkTable from '@/components/LiveBenchmarkTable';
+import LiveNetworkForkTable from '@/components/LiveNetworkForkTable';
 
 export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState<'monitoring' | 'estimation' | 'benchmark'>('monitoring');
@@ -70,7 +70,7 @@ export default function AnalysisPage() {
               }`}
             >
               <FileText className="w-4 h-4" />
-              Live Benchmark
+              Live Network Fork
             </Button>
           </div>
         </CardHeader>
@@ -102,10 +102,10 @@ export default function AnalysisPage() {
               <div className="mb-4 p-4 bg-purple-900/20 border border-purple-500/50 rounded-lg">
                 <h3 className="text-purple-300 font-medium mb-2">Live Benchmark Data</h3>
                 <p className="text-sm text-gray-400">
-                  Real contract execution benchmarks from the Live Benchmarker. This includes actual gas usage statistics, execution counts, L1/L2 cost breakdowns, and performance metrics across networks.
+                  Real contract execution from the Live Network Fork. This includes actual gas usage statistics, execution counts, L1/L2 cost breakdowns, and performance metrics across networks.
                 </p>
               </div>
-              <LiveBenchmarkTable />
+              <LiveNetworkForkTable />
             </div>
           )}
         </CardContent>

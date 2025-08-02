@@ -17,7 +17,7 @@ import { CompilationResultDto, FunctionCallDto } from '../../../common/dto/gas-a
 
 const execAsync = promisify(exec);
 
-interface LiveBenchmarkConfig {
+interface LiveNetworkForkConfig {
   network: string;
   chainId: number;
   rpcUrl: string;
@@ -29,7 +29,7 @@ interface LiveBenchmarkConfig {
   hardhatProcess?: ChildProcess;
 }
 
-interface LiveBenchmarkResult {
+interface LiveNetworkForkResult {
   contractAddress: string;
   deploymentCost: {
     gasUsed: number;
@@ -81,8 +81,8 @@ interface GasPriceData {
 }
 
 @Injectable()
-export class LiveBenchmarkerService extends BaseService<any> {
-  private readonly activeBenchmarks = new Map<string, LiveBenchmarkConfig>();
+export class LiveNetworkForkerService extends BaseService<any> {
+  private readonly activeBenchmarks = new Map<string, LiveNetworkForkConfig>();
   private readonly hardhatProjectRoot = path.join(process.cwd(), '..', 'hardhat');
   private readonly basePort = 8545;
   private portCounter = 0;
@@ -99,10 +99,10 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Creates a live benchmark session by forking the specified network
    */
-  async createLiveBenchmark(
+  async createLiveNetworkFork(
     networkName: string,
     blockNumber?: number
-  ): Promise<LiveBenchmarkConfig> {
+  ): Promise<LiveNetworkForkConfig> {
     const benchmarkKey = `${networkName}_${blockNumber || 'latest'}`;
     
     // Return existing benchmark if available
@@ -123,7 +123,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
     this.logger.log(`- RPC URL: ${alchemyRpcUrl}`);
     
     const forkPort = this.basePort + this.portCounter++;
-    const benchmarkConfig: LiveBenchmarkConfig = {
+    const benchmarkConfig: LiveNetworkForkConfig = {
       network: networkConfig.name,
       chainId: networkConfig.chainId,
       rpcUrl: networkConfig.rpcUrl,
@@ -167,13 +167,13 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Runs a comprehensive live benchmark including deployment and function calls
    */
-  async runLiveBenchmark(
-    benchmarkConfig: LiveBenchmarkConfig,
+  async runLiveNetworkFork(
+    benchmarkConfig: LiveNetworkForkConfig,
     compilation: CompilationResultDto,
     functionCalls: FunctionCallDto[] = [],
     constructorArgs: any[] = [],
     existingContractAddress?: string
-  ): Promise<LiveBenchmarkResult> {
+  ): Promise<LiveNetworkForkResult> {
     const startTime = Date.now();
     
     if (!benchmarkConfig.provider || !benchmarkConfig.isActive) {
@@ -278,7 +278,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
    * Benchmarks contract deployment with real-time gas prices
    */
   private async benchmarkDeployment(
-    benchmarkConfig: LiveBenchmarkConfig,
+    benchmarkConfig: LiveNetworkForkConfig,
     compilation: CompilationResultDto,
     constructorArgs: any[],
     gasPriceData: GasPriceData
@@ -361,7 +361,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
    * Public method to validate functions for the API
    */
   async validateFunctions(
-    benchmarkConfig: LiveBenchmarkConfig,
+    benchmarkConfig: LiveNetworkForkConfig,
     compilation: CompilationResultDto,
     functionCalls: FunctionCallDto[],
     constructorArgs: any[] = [],
@@ -458,7 +458,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
    * Benchmarks function calls with real-time gas prices
    */
   private async benchmarkFunctionCalls(
-    benchmarkConfig: LiveBenchmarkConfig,
+    benchmarkConfig: LiveNetworkForkConfig,
     compilation: CompilationResultDto,
     functionCalls: FunctionCallDto[],
     contractAddress: string,
@@ -637,7 +637,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Gets real-time gas price data from the live network
    */
-  private async getRealTimeGasPrice(benchmarkConfig: LiveBenchmarkConfig): Promise<GasPriceData> {
+  private async getRealTimeGasPrice(benchmarkConfig: LiveNetworkForkConfig): Promise<GasPriceData> {
     try {
       // Use Alchemy's enhanced API for gas price data
       const response = await axios.post(benchmarkConfig.alchemyRpcUrl, {
@@ -706,7 +706,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
    * Calculates L1 data cost for Layer 2 transactions using EIP-4844 blob transactions
    */
   private async calculateL1DataCost(
-    benchmarkConfig: LiveBenchmarkConfig,
+    benchmarkConfig: LiveNetworkForkConfig,
     transactionData: string
   ): Promise<number | undefined> {
     // Only calculate for L2 networks
@@ -744,7 +744,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
    * Calculates L1 data fee for Layer 2 transactions using EIP-4844 blob base fee
    */
   private async calculateL1DataFee(
-    benchmarkConfig: LiveBenchmarkConfig,
+    benchmarkConfig: LiveNetworkForkConfig,
     bytecode: string
   ): Promise<bigint | undefined> {
     const l1DataCost = await this.calculateL1DataCost(benchmarkConfig, bytecode);
@@ -942,7 +942,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Starts a Hardhat fork process for live benchmarking
    */
-  private async startHardhatFork(benchmarkConfig: LiveBenchmarkConfig): Promise<void> {
+  private async startHardhatFork(benchmarkConfig: LiveNetworkForkConfig): Promise<void> {
     const optimalBlock = await this.getOptimalForkBlock(benchmarkConfig);
     const forkUrl = benchmarkConfig.alchemyRpcUrl;
     
@@ -1052,7 +1052,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Gets the optimal block number for forking (recent but stable)
    */
-  private async getOptimalForkBlock(benchmarkConfig: LiveBenchmarkConfig): Promise<number> {
+  private async getOptimalForkBlock(benchmarkConfig: LiveNetworkForkConfig): Promise<number> {
     try {
       const provider = new ethers.JsonRpcProvider(benchmarkConfig.alchemyRpcUrl);
       const latestBlock = await provider.getBlockNumber();
@@ -1070,7 +1070,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Cleans up a specific live benchmark
    */
-  async cleanupLiveBenchmark(benchmarkKey: string): Promise<void> {
+  async cleanupLiveNetworkFork(benchmarkKey: string): Promise<void> {
     const benchmark = this.activeBenchmarks.get(benchmarkKey);
     if (benchmark && benchmark.isActive) {
       try {
@@ -1091,9 +1091,9 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Cleans up all active live benchmarks
    */
-  async cleanupAllLiveBenchmarks(): Promise<void> {
+  async cleanupAllLiveNetworkForks(): Promise<void> {
     const cleanupPromises = Array.from(this.activeBenchmarks.keys()).map(key => 
-      this.cleanupLiveBenchmark(key)
+      this.cleanupLiveNetworkFork(key)
     );
     await Promise.all(cleanupPromises);
   }
@@ -1101,7 +1101,7 @@ export class LiveBenchmarkerService extends BaseService<any> {
   /**
    * Gets active benchmark sessions
    */
-  getActiveBenchmarks(): LiveBenchmarkConfig[] {
+  getActiveBenchmarks(): LiveNetworkForkConfig[] {
     return Array.from(this.activeBenchmarks.values()).filter(b => b.isActive);
   }
 }

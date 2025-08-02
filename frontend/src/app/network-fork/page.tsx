@@ -1,8 +1,8 @@
 'use client';
 
-import LiveBenchmarkerIDE from '@/components/LiveBenchmarkerIDE';
+import LiveNetworkForkerIDE from '@/components/LiveNetworkForkerIDE';
 
-export default function LiveBenchmarkerPage() {
+export default function LiveNetworkForkerPage() {
   return (
     <div className="min-h-screen bg-gray-900">
       <div className="bg-gray-800 border-b border-gray-700">
@@ -10,7 +10,7 @@ export default function LiveBenchmarkerPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white mb-2">
-                Live Benchmarker
+                Live Network Fork
               </h1>
               <p className="text-gray-400 text-sm">
                 Empirical gas analysis using forked mainnet environments with real-time gas prices for academic-grade accuracy.
@@ -24,7 +24,7 @@ export default function LiveBenchmarkerPage() {
         </div>
       </div>
       
-      <LiveBenchmarkerIDE />
+      <LiveNetworkForkerIDE />
     </div>
   );
 }

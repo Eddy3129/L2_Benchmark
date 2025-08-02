@@ -24,7 +24,7 @@ import {
   BarChart3
 } from 'lucide-react';
 
-interface LiveBenchmarkResult {
+interface LiveNetworkForkResult {
   contractAddress?: string;
   deploymentCost: {
     gasUsed: number;
@@ -70,18 +70,18 @@ interface NetworkInfo {
   isLayer2?: boolean;
 }
 
-interface ContractBenchmarkSession {
+interface ContractNetworkForkSession {
   id: string;
   contractAddress: string;
   contractName?: string;
-  deploymentResult: LiveBenchmarkResult;
-  executionResult?: LiveBenchmarkResult;
+  deploymentResult: LiveNetworkForkResult;
+  executionResult?: LiveNetworkForkResult;
   network: NetworkInfo;
   timestamp: number;
 }
 
 interface Props {
-  sessions: ContractBenchmarkSession[];
+  sessions: ContractNetworkForkSession[];
   onClearSessions?: () => void;
 }
 
@@ -108,7 +108,7 @@ function formatTimestamp(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleString();
 }
 
-export default function LiveBenchmarkResults({ sessions, onClearSessions }: Props) {
+export default function LiveNetworkForkResults({ sessions, onClearSessions }: Props) {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [isStoring, setIsStoring] = useState(false);
@@ -138,7 +138,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const getSessionSummary = (session: ContractBenchmarkSession) => {
+  const getSessionSummary = (session: ContractNetworkForkSession) => {
     const deploymentCost = session.deploymentResult.deploymentCost.totalCostUsd;
     const functionCost = session.executionResult?.functionCosts.reduce((sum, fc) => sum + fc.totalCostUsd, 0) || 0;
     const totalCost = deploymentCost + functionCost;
@@ -162,7 +162,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
 
   const storeBenchmarkData = async () => {
     if (sessions.length === 0) {
-      setStoreMessage('No benchmark data to store');
+      setStoreMessage('No network fork data to store');
       setTimeout(() => setStoreMessage(null), 3000);
       return;
     }
@@ -174,7 +174,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       
       // Transform sessions data to match the backend interface
-      const benchmarkData = sessions.flatMap(session => {
+      const networkForkData = sessions.flatMap(session => {
         const results = [];
         
         // Add deployment data if available
@@ -234,12 +234,12 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
         return results;
       });
 
-      const response = await fetch(`${backendUrl}/api/live-benchmark/store`, {
+      const response = await fetch(`${backendUrl}/api/live-network-fork/store`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(benchmarkData),
+        body: JSON.stringify(networkForkData),
       });
 
       if (!response.ok) {
@@ -248,9 +248,9 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
       }
 
       const responseData = await response.json();
-      setStoreMessage(`Successfully stored ${responseData.data.recordsStored} benchmark records`);
+      setStoreMessage(`Successfully stored ${responseData.data.recordsStored} network fork records`);
     } catch (error) {
-      console.error('Failed to store benchmark data:', error);
+      console.error('Failed to store network fork data:', error);
       setStoreMessage(`Error: ${error instanceof Error ? error.message : 'Failed to store data'}`);
     } finally {
       setIsStoring(false);
@@ -267,9 +267,9 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
             <BarChart3 className="w-8 h-8 text-gray-500" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Benchmark Results</h3>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Network Fork Results</h3>
             <p className="text-gray-500 max-w-md mx-auto">
-              Deploy and execute contracts to see comprehensive benchmark analysis and gas cost comparisons.
+              Deploy and execute contracts to see comprehensive network fork analysis and gas cost comparisons.
             </p>
           </div>
         </div>
@@ -285,7 +285,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
       <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 rounded-xl border border-gray-600/50 p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Benchmark Analysis Dashboard</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">Network Fork Analysis Dashboard</h2>
             <p className="text-gray-400">Comprehensive gas cost analysis across {sessions.length} contract{sessions.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex gap-2">
@@ -302,7 +302,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
               ) : (
                 <>
                   <Database className="w-4 h-4" />
-                  Store Data
+                  Store Fork Data
                 </>
               )}
             </button>
@@ -388,7 +388,7 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
       {/* Contract Sessions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Contract Benchmark Sessions</h3>
+          <h3 className="text-lg font-semibold text-white">Contract Network Fork Sessions</h3>
           <Badge variant="outline" className="text-gray-400 border-gray-600">
             {sessions.length} session{sessions.length !== 1 ? 's' : ''}
           </Badge>

@@ -18,14 +18,14 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { LiveBenchmarkService, LiveBenchmarkData, BenchmarkExportOptions } from '../services/live-benchmark.service';
+import { LiveNetworkForkService, LiveNetworkForkData } from '../services/live-network-fork.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-@ApiTags('Live Benchmark')
-@Controller('live-benchmark')
-export class LiveBenchmarkController {
-  constructor(private readonly liveBenchmarkService: LiveBenchmarkService) {}
+@ApiTags('Live Network Fork')
+@Controller('live-network-fork')
+export class LiveNetworkForkController {
+  constructor(private readonly liveNetworkForkService: LiveNetworkForkService) {}
 
   @Post('store')
   @ApiOperation({
@@ -78,14 +78,14 @@ export class LiveBenchmarkController {
       },
     },
   })
-  async storeBenchmarkData(@Body() benchmarkData: LiveBenchmarkData[]) {
+  async storeNetworkForkData(@Body() networkForkData: LiveNetworkForkData[]) {
     try {
-      if (!Array.isArray(benchmarkData) || benchmarkData.length === 0) {
+      if (!Array.isArray(networkForkData) || networkForkData.length === 0) {
         throw new BadRequestException('Live benchmark data array is required and cannot be empty');
       }
 
       // Validate required fields
-      for (const data of benchmarkData) {
+      for (const data of networkForkData) {
         if (!data.network || !data.contractName || !data.functionName ||
             !data.minGasUsed || !data.maxGasUsed || !data.avgGasUsed ||
             typeof data.executionCount !== 'number' || 
@@ -96,7 +96,7 @@ export class LiveBenchmarkController {
         }
       }
 
-      const records = await this.liveBenchmarkService.storeBenchmarkData(benchmarkData);
+      const records = await this.liveNetworkForkService.storeNetworkForkData(networkForkData);
       
       return {
         success: true,
@@ -147,7 +147,7 @@ export class LiveBenchmarkController {
       const parsedOffset = offset ? parseInt(offset, 10) : 0;
       const parsedSortOrder = sortOrder || 'DESC';
 
-      const result = await this.liveBenchmarkService.getRecords(
+      const result = await this.liveNetworkForkService.getRecords(
         parsedStartDate,
         parsedEndDate,
         parsedNetworks,
@@ -191,7 +191,7 @@ export class LiveBenchmarkController {
   })
   async deleteRecordsByTimestamp(@Param('timestamp') timestamp: string) {
     try {
-      const deletedCount = await this.liveBenchmarkService.deleteRecordsByTimestamp(timestamp);
+      const deletedCount = await this.liveNetworkForkService.deleteByTimestamp(timestamp);
       return {
         success: true,
         message: `Deleted ${deletedCount} live benchmark records`,
@@ -225,41 +225,36 @@ export class LiveBenchmarkController {
     @Res() res?: Response,
   ) {
     try {
-      const options: BenchmarkExportOptions = {
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        networks: networks ? networks.split(',').map(n => n.trim()) : undefined,
-        contractNames: contractNames ? contractNames.split(',').map(n => n.trim()) : undefined,
-        format: 'csv',
-      };
-
-      const { filename, filePath, recordCount } = await this.liveBenchmarkService.exportToCsv(options);
+      const exportResult = await this.liveNetworkForkService.exportToCsv();
 
       if (res) {
+        // Read the CSV file content
+        const csvContent = fs.readFileSync(exportResult.filePath, 'utf8');
+        
         // Set headers for file download
         res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${exportResult.filename}"`);
+        res.setHeader('Content-Length', Buffer.byteLength(csvContent, 'utf8').toString());
         
-        // Stream the file
-        const fileStream = fs.createReadStream(filePath);
-        fileStream.pipe(res);
+        // Send the file content
+        res.send(csvContent);
         
-        // Clean up the file after sending
-        fileStream.on('end', () => {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error('Error deleting temporary file:', err);
-          });
+        // Clean up the temporary file
+        fs.unlink(exportResult.filePath, (err) => {
+          if (err) console.error('Error deleting temporary file:', err);
         });
-      } else {
-        return {
-          success: true,
-          message: `Exported ${recordCount} live benchmark records`,
-          data: {
-            filename,
-            recordCount,
-          },
-        };
+        
+        return;
       }
+        
+      return {
+        success: true,
+        message: `Exported ${exportResult.recordCount} live network fork records`,
+        data: {
+          filename: exportResult.filename,
+          recordCount: exportResult.recordCount,
+        },
+      };
     } catch (error) {
       throw new BadRequestException(`Failed to export live benchmark data: ${error.message}`);
     }
@@ -276,10 +271,10 @@ export class LiveBenchmarkController {
   })
   async getStatistics() {
     try {
-      const statistics = await this.liveBenchmarkService.getStatistics();
+      const stats = await this.liveNetworkForkService.getStatistics();
       return {
         success: true,
-        data: statistics,
+        data: stats,
       };
     } catch (error) {
       throw new BadRequestException(`Failed to get statistics: ${error.message}`);

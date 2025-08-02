@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { LiveBenchmarkRecord } from '../entities/live-benchmark-record.entity';
+import { LiveNetworkForkRecord } from '../entities/live-network-fork-record.entity';
 import { CsvExportService } from '../shared/csv-export.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export interface LiveBenchmarkData {
+export interface LiveNetworkForkData {
   network: string;
   contractName: string;
   functionName: string;
@@ -33,22 +33,22 @@ export interface BenchmarkExportOptions {
 }
 
 @Injectable()
-export class LiveBenchmarkService {
-  private readonly logger = new Logger(LiveBenchmarkService.name);
+export class LiveNetworkForkService {
+  private readonly logger = new Logger(LiveNetworkForkService.name);
 
   constructor(
-    @InjectRepository(LiveBenchmarkRecord)
-    private readonly liveBenchmarkRepository: Repository<LiveBenchmarkRecord>,
+    @InjectRepository(LiveNetworkForkRecord)
+    private readonly liveNetworkForkRepository: Repository<LiveNetworkForkRecord>,
     private readonly csvExportService: CsvExportService,
   ) {}
 
   /**
    * Store live benchmark data to database
    */
-  async storeBenchmarkData(data: LiveBenchmarkData[]): Promise<LiveBenchmarkRecord[]> {
+  async storeNetworkForkData(data: LiveNetworkForkData[]): Promise<LiveNetworkForkRecord[]> {
     try {
       const records = data.map(item => {
-        const record = new LiveBenchmarkRecord();
+        const record = new LiveNetworkForkRecord();
         record.network = item.network;
         record.contractName = item.contractName;
         record.functionName = item.functionName;
@@ -67,7 +67,7 @@ export class LiveBenchmarkService {
         return record;
       });
 
-      const savedRecords = await this.liveBenchmarkRepository.save(records);
+      const savedRecords = await this.liveNetworkForkRepository.save(records);
       this.logger.log(`Stored ${savedRecords.length} live benchmark records`);
       return savedRecords;
     } catch (error) {
@@ -90,7 +90,7 @@ export class LiveBenchmarkService {
     sortOrder: 'ASC' | 'DESC' = 'DESC'
   ) {
     try {
-      const queryBuilder = this.liveBenchmarkRepository.createQueryBuilder('record');
+      const queryBuilder = this.liveNetworkForkRepository.createQueryBuilder('record');
 
       // Apply filters
       if (startDate && endDate) {
@@ -140,9 +140,9 @@ export class LiveBenchmarkService {
   /**
    * Delete records by timestamp
    */
-  async deleteRecordsByTimestamp(timestamp: string): Promise<number> {
+  async deleteByTimestamp(timestamp: string): Promise<number> {
     try {
-      const result = await this.liveBenchmarkRepository.delete({ timestamp: new Date(timestamp) });
+      const result = await this.liveNetworkForkRepository.delete({ timestamp: new Date(timestamp) });
       const affectedRows = result.affected || 0;
       this.logger.log(`Deleted ${affectedRows} live benchmark records for timestamp ${timestamp}`);
       return affectedRows;
@@ -217,25 +217,25 @@ export class LiveBenchmarkService {
    */
   async getStatistics() {
     try {
-      const totalRecords = await this.liveBenchmarkRepository.count();
+      const totalRecords = await this.liveNetworkForkRepository.count();
       
-      const networksQuery = await this.liveBenchmarkRepository
+      const networksQuery = await this.liveNetworkForkRepository
         .createQueryBuilder('record')
         .select('DISTINCT record.network', 'network')
         .getRawMany();
       
-      const contractsQuery = await this.liveBenchmarkRepository
+      const contractsQuery = await this.liveNetworkForkRepository
         .createQueryBuilder('record')
         .select('DISTINCT record.contractName', 'contractName')
         .getRawMany();
       
-      const dateRangeQuery = await this.liveBenchmarkRepository
+      const dateRangeQuery = await this.liveNetworkForkRepository
         .createQueryBuilder('record')
         .select('MIN(record.timestamp)', 'earliest')
         .addSelect('MAX(record.timestamp)', 'latest')
         .getRawOne();
       
-      const avgCostQuery = await this.liveBenchmarkRepository
+      const avgCostQuery = await this.liveNetworkForkRepository
         .createQueryBuilder('record')
         .select('record.network', 'network')
         .addSelect('AVG(CAST(record.avgCostUsd AS DECIMAL))', 'avgCost')

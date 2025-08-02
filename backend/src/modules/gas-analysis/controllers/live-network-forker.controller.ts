@@ -8,25 +8,25 @@ import {
   HttpStatus,
   HttpException
 } from '@nestjs/common';
-import { LiveBenchmarkerService } from '../services/live-benchmarker.service';
+import { LiveNetworkForkerService } from '../services/live-network-forker.service';
 import { ContractCompilationService } from '../services/contract-compilation.service';
 
-@Controller('live-benchmarker')
-export class LiveBenchmarkerController {
+@Controller('live-network-forker')
+export class LiveNetworkForkerController {
   constructor(
-    private readonly liveBenchmarkerService: LiveBenchmarkerService,
+    private readonly liveNetworkForkerService: LiveNetworkForkerService,
     private readonly compilationService: ContractCompilationService
   ) {}
 
   @Get('test')
   async test(): Promise<any> {
-    return { success: true, message: 'LiveBenchmarker controller is working!' };
+    return { success: true, message: 'LiveNetworkForker controller is working!' };
   }
 
   @Get('active')
   async getActiveBenchmarks(): Promise<any> {
     try {
-      const activeBenchmarks = this.liveBenchmarkerService.getActiveBenchmarks();
+      const activeBenchmarks = this.liveNetworkForkerService.getActiveBenchmarks();
       return {
         success: true,
         message: 'Active benchmark sessions retrieved successfully',
@@ -49,7 +49,7 @@ export class LiveBenchmarkerController {
   }): Promise<any> {
     try {
       // Create and start the network fork
-      const benchmarkConfig = await this.liveBenchmarkerService.createLiveBenchmark(
+      const benchmarkConfig = await this.liveNetworkForkerService.createLiveNetworkFork(
         request.networkName,
         request.blockNumber
       );
@@ -129,7 +129,7 @@ export class LiveBenchmarkerController {
   }): Promise<any> {
     try {
       // Get the existing benchmark config
-      const activeBenchmarks = this.liveBenchmarkerService.getActiveBenchmarks();
+      const activeBenchmarks = this.liveNetworkForkerService.getActiveBenchmarks();
       
       let benchmarkConfig;
       
@@ -175,7 +175,7 @@ export class LiveBenchmarkerController {
       }
       
       // Get executable functions
-      const executableFunctions = await this.liveBenchmarkerService.validateFunctions(
+      const executableFunctions = await this.liveNetworkForkerService.validateFunctions(
         benchmarkConfig,
         compilationResult,
         request.functionCalls || [],
@@ -201,7 +201,7 @@ export class LiveBenchmarkerController {
   }
 
   @Post('run')
-  async runLiveBenchmark(@Body() request: {
+  async runLiveNetworkFork(@Body() request: {
     benchmarkId?: string;
     contractCode: string;
     constructorArgs: any[];
@@ -211,7 +211,7 @@ export class LiveBenchmarkerController {
   }): Promise<any> {
     try {
       // Get the existing benchmark config
-      const activeBenchmarks = this.liveBenchmarkerService.getActiveBenchmarks();
+      const activeBenchmarks = this.liveNetworkForkerService.getActiveBenchmarks();
       
       let benchmarkConfig;
       
@@ -257,7 +257,7 @@ export class LiveBenchmarkerController {
       }
       
       // Run the live benchmark
-      const result = await this.liveBenchmarkerService.runLiveBenchmark(
+      const result = await this.liveNetworkForkerService.runLiveNetworkFork(
         benchmarkConfig,
         compilationResult,
         request.functionCalls || [],
@@ -297,7 +297,7 @@ export class LiveBenchmarkerController {
       const forkPort = parseInt(portStr);
       
       // Get the existing benchmark config
-      const activeBenchmarks = this.liveBenchmarkerService.getActiveBenchmarks();
+      const activeBenchmarks = this.liveNetworkForkerService.getActiveBenchmarks();
       const benchmarkConfig = activeBenchmarks.find(
         config => config.network === networkName && config.forkPort === forkPort
       );
@@ -336,7 +336,7 @@ export class LiveBenchmarkerController {
   @Delete('cleanup-all')
   async cleanupAllBenchmarks(): Promise<any> {
     try {
-      await this.liveBenchmarkerService.cleanupAllLiveBenchmarks();
+      await this.liveNetworkForkerService.cleanupAllLiveNetworkForks();
       return {
         success: true,
         message: 'All benchmark sessions cleaned up successfully'
@@ -356,7 +356,7 @@ export class LiveBenchmarkerController {
       const [networkName, portStr] = benchmarkId.split('-');
       const benchmarkKey = `${networkName}-${portStr}`;
       
-      await this.liveBenchmarkerService.cleanupLiveBenchmark(benchmarkKey);
+      await this.liveNetworkForkerService.cleanupLiveNetworkFork(benchmarkKey);
       return {
         success: true,
         message: 'Benchmark session cleaned up successfully'

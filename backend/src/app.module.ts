@@ -8,7 +8,7 @@ import { ComparisonReportModule } from './modules/comparison-report/comparison-r
 import { DatabaseModule } from './modules/database/database.module';
 import { GasMonitoringModule } from './modules/gas-monitoring/gas-monitoring.module';
 import { GasEstimationModule } from './modules/gas-estimation/gas-estimation.module';
-import { LiveBenchmarkModule } from './modules/live-benchmark/live-benchmark.module';
+import { LiveNetworkForkModule } from './modules/live-network-fork/live-network-fork.module';
 
 import { SharedModule } from './shared/shared.module';
 import { createNetworkConfig } from './config/shared-networks';
@@ -36,7 +36,7 @@ const networkConfig = registerAs('networks', createNetworkConfig);
     ComparisonReportModule,
     GasMonitoringModule,
     GasEstimationModule,
-    LiveBenchmarkModule,
+    LiveNetworkForkModule,
 
     SharedModule,
   ],

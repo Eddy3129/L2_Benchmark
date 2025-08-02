@@ -301,12 +301,12 @@ export interface ComparisonResult {
   }
   }
 
-// Live Benchmarker API
-class LiveBenchmarkerApi {
+// Live Network Forker API
+class LiveNetworkForkerApi {
   private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
   async setupNetwork(networkName: string) {
-    const response = await fetch(`${this.baseUrl}/live-benchmarker/setup-network`, {
+    const response = await fetch(`${this.baseUrl}/live-network-forker/setup-network`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -362,7 +362,7 @@ class LiveBenchmarkerApi {
     solidityVersion?: string;
     contractAddress?: string;
   }) {
-    const response = await fetch(`${this.baseUrl}/live-benchmarker/validate-functions`, {
+    const response = await fetch(`${this.baseUrl}/live-network-forker/validate-functions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -378,7 +378,7 @@ class LiveBenchmarkerApi {
     return response.json();
   }
 
-  async runLiveBenchmark(data: {
+  async runLiveNetworkFork(data: {
     benchmarkId: string;
     contractCode: string;
     constructorArgs?: any[];
@@ -389,7 +389,7 @@ class LiveBenchmarkerApi {
     solidityVersion?: string;
     contractAddress?: string;
   }) {
-    const response = await fetch(`${this.baseUrl}/live-benchmarker/run`, {
+    const response = await fetch(`${this.baseUrl}/live-network-forker/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -399,7 +399,7 @@ class LiveBenchmarkerApi {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || `Failed to run live benchmark: ${response.statusText}`);
+      throw new Error(errorData?.message || `Failed to run live network fork: ${response.statusText}`);
     }
 
     return response.json();
@@ -419,7 +419,7 @@ class LiveBenchmarkerApi {
   }
 
   async cleanupAllBenchmarks() {
-    const response = await fetch(`${this.baseUrl}/live-benchmarker/cleanup-all`, {
+    const response = await fetch(`${this.baseUrl}/live-network-forker/cleanup-all`, {
       method: 'DELETE',
     });
 
@@ -433,5 +433,5 @@ class LiveBenchmarkerApi {
 }
 
 export const apiService = new ApiService();
-export const liveBenchmarkerApi = new LiveBenchmarkerApi();
+export const liveNetworkForkerApi = new LiveNetworkForkerApi();
 // export type { BenchmarkSession, GasAnalysis };

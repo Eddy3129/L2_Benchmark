@@ -1,10 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-@Entity('live_benchmark_records')
-@Index('IDX_live_benchmark_network_timestamp', ['network', 'timestamp'])
-@Index('IDX_live_benchmark_timestamp', ['timestamp'])
-@Index('IDX_live_benchmark_contract_timestamp', ['contractName', 'timestamp'])
-export class LiveBenchmarkRecord {
+@Entity('live_network_fork_records')
+@Index('IDX_live_network_fork_network_timestamp', ['network', 'timestamp'])
+@Index('IDX_live_network_fork_timestamp', ['timestamp'])
+@Index('IDX_live_network_fork_contract_timestamp', ['contractName', 'timestamp'])
+export class LiveNetworkForkRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

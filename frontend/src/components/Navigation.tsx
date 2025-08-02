@@ -33,8 +33,8 @@ export function Navigation() {
       description: "Multi-chain cost analysis",
     },
     {
-      href: "/benchmark",
-      label: "Live Benchmark",
+      href: "/network-fork",
+      label: "Live Network Fork",
       icon: Zap,
       description: "Real-time testing suite",
     },

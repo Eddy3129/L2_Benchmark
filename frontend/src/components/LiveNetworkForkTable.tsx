@@ -22,7 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-interface LiveBenchmarkRecord {
+interface LiveNetworkForkRecord {
   id: string;
   network: string;
   contractName: string;
@@ -52,13 +52,13 @@ interface LiveBenchmarkRecord {
 
 interface GroupedBenchmarkRecord {
   timestamp: string;
-  records: LiveBenchmarkRecord[];
+  records: LiveNetworkForkRecord[];
   networkCount: number;
   contractName: string;
 }
 
-export default function LiveBenchmarkTable() {
-  const [records, setRecords] = useState<LiveBenchmarkRecord[]>([]);
+export default function LiveNetworkForkTable() {
+  const [records, setRecords] = useState<LiveNetworkForkRecord[]>([]);
   const [groupedRecords, setGroupedRecords] = useState<GroupedBenchmarkRecord[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -71,7 +71,7 @@ export default function LiveBenchmarkTable() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
   // Group records by timestamp
-  const groupRecordsByTimestamp = (records: LiveBenchmarkRecord[]): GroupedBenchmarkRecord[] => {
+  const groupRecordsByTimestamp = (records: LiveNetworkForkRecord[]): GroupedBenchmarkRecord[] => {
     const grouped = records.reduce((acc, record) => {
       const timestamp = record.timestamp;
       if (!acc[timestamp]) {
@@ -79,7 +79,7 @@ export default function LiveBenchmarkTable() {
       }
       acc[timestamp].push(record);
       return acc;
-    }, {} as Record<string, LiveBenchmarkRecord[]>);
+    }, {} as Record<string, LiveNetworkForkRecord[]>);
 
     return Object.entries(grouped)
       .map(([timestamp, records]) => ({
@@ -138,7 +138,7 @@ export default function LiveBenchmarkTable() {
       setLoading(true);
       setError(null);
 
-      let url = `${backendUrl}/api/live-benchmark/records?limit=100&sortBy=timestamp&sortOrder=desc`;
+      let url = `${backendUrl}/api/live-network-fork/records?limit=100&sortBy=timestamp&sortOrder=desc`;
       
       if (startDate) {
         url += `&startDate=${encodeURIComponent(startDate)}`;
@@ -169,7 +169,7 @@ export default function LiveBenchmarkTable() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${backendUrl}/api/live-benchmark/records?limit=100&sortBy=timestamp&sortOrder=desc`);
+      const response = await fetch(`${backendUrl}/api/live-network-fork/records?limit=100&sortBy=timestamp&sortOrder=desc`);
       if (!response.ok) {
         throw new Error(`Failed to fetch all records: ${response.status} ${response.statusText}`);
       }
@@ -189,7 +189,7 @@ export default function LiveBenchmarkTable() {
   const deleteRecordsByTimestamp = async (timestamp: string) => {
     try {
       setIsDeleting(true);
-      const response = await fetch(`${backendUrl}/api/live-benchmark/records/timestamp/${encodeURIComponent(timestamp)}`, {
+      const response = await fetch(`${backendUrl}/api/live-network-fork/records/timestamp/${encodeURIComponent(timestamp)}`, {
         method: 'DELETE',
       });
 
@@ -209,7 +209,7 @@ export default function LiveBenchmarkTable() {
 
   const exportToCsv = async () => {
     try {
-      let url = `${backendUrl}/api/live-benchmark/export`;
+      let url = `${backendUrl}/api/live-network-fork/export`;
       const params = new URLSearchParams();
       
       if (startDate) params.append('startDate', startDate);
@@ -325,15 +325,15 @@ export default function LiveBenchmarkTable() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Activity className="w-5 h-5 text-purple-400" />
-            Live Benchmark Records
+            Live Network Fork Records
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {(viewMode === 'grouped' ? groupedRecords.length === 0 : records.length === 0) ? (
             <div className="text-center py-8 text-gray-400">
               <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No live benchmark data found</p>
-              <p className="text-sm mt-1">Try adjusting your filters or run some live benchmarks</p>
+              <p>No live network fork data found</p>
+              <p className="text-sm mt-1">Try adjusting your filters or run some live network forks</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

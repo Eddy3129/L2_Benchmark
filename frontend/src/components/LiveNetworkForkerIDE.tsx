@@ -4,11 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, Square, Network, Zap, Code, Settings, FileText, Save, Trash2, CheckCircle, ArrowRight, AlertCircle, NetworkIcon, Globe, Layers, Box } from 'lucide-react';
-import { liveBenchmarkerApi } from '@/lib/api';
+import { liveNetworkForkerApi } from '@/lib/api';
 import { CONTRACT_TEMPLATES } from '@/config/contracts';
 import { loadContractTemplate } from '@/lib/contractTemplate';
 import FunctionCallsEditor from './FunctionCallsEditor';
-import LiveBenchmarkResults from './LiveBenchmarkResults';
+import LiveNetworkForkResults from './LiveNetworkForkResults';
 
 // Types for better TypeScript support
 interface NetworkSetupData {
@@ -88,7 +88,7 @@ interface ContractBenchmarkSession {
 const DEFAULT_CONTRACT = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract LiveBenchmarkExample {
+contract LiveNetworkForkExample {
     uint256 public value;
     mapping(address => uint256) public balances;
     
@@ -197,7 +197,7 @@ const SUPPORTED_NETWORKS = [
   }
 ];
 
-export default function ImprovedLiveBenchmarkerIDE() {
+export default function ImprovedLiveNetworkForkerIDE() {
   // Simplified state management
   const [activeTab, setActiveTab] = useState<string>('setup');
   const [selectedNetwork, setSelectedNetwork] = useState<string>('arbitrum');
@@ -252,7 +252,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
       const defaultFunctionCalls = getDefaultFunctionCalls(allFunctions, contractCode);
       
       // Call validation API
-      const validationResult = await liveBenchmarkerApi.validateFunctions({
+      const validationResult = await liveNetworkForkerApi.validateFunctions({
         benchmarkId: networkSetup.benchmarkId,
         contractCode,
         constructorArgs: parsedConstructorArgs,
@@ -433,7 +433,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
     
     try {
       console.log('Calling backend for network setup with network:', selectedNetwork);
-      const result = await liveBenchmarkerApi.setupNetwork(selectedNetwork);
+      const result = await liveNetworkForkerApi.setupNetwork(selectedNetwork);
       console.log('Backend network setup response:', result);
       if (result.success) {
         setNetworkSetup(result.data);
@@ -488,7 +488,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
       };
 
       console.log('Calling backend for deployment with payload:', payload);
-      const result = await liveBenchmarkerApi.runLiveBenchmark(payload);
+      const result = await liveNetworkForkerApi.runLiveNetworkFork(payload);
       console.log('Backend deployment response:', result);
       
       if (result.success) {
@@ -558,7 +558,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
       };
 
       console.log('Calling backend for function execution with payload:', payload);
-      const result = await liveBenchmarkerApi.runLiveBenchmark(payload);
+      const result = await liveNetworkForkerApi.runLiveNetworkFork(payload);
       console.log('Backend function execution response:', result);
       
       if (result.success) {
@@ -589,7 +589,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
 
   const resetSession = async () => {
     try {
-      await liveBenchmarkerApi.cleanupAllBenchmarks();
+      await liveNetworkForkerApi.cleanupAllBenchmarks();
       setNetworkSetup(null);
       setDeploymentResult(null);
       setBenchmarkSessions([]);
@@ -631,7 +631,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold mb-2">Live Benchmarker IDE</h1>
+          <h1 className="text-3xl font-bold mb-2">Live Network Forker IDE</h1>
           <p className="text-gray-400">Deploy and benchmark smart contracts on mainnet forks</p>
         </div>
 
@@ -907,7 +907,7 @@ export default function ImprovedLiveBenchmarkerIDE() {
           {/* Results Tab */}
           <TabsContent value="results" className="space-y-6">
             {benchmarkSessions.length > 0 ? (
-              <LiveBenchmarkResults 
+              <LiveNetworkForkResults 
                 sessions={benchmarkSessions}
                 onClearSessions={clearAllSessions}
               />
@@ -915,11 +915,11 @@ export default function ImprovedLiveBenchmarkerIDE() {
               <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-blue-400" />
-                  Benchmark Results
+                  Network Fork Results
                 </h3>
                 <Alert className="border-yellow-500/50 bg-yellow-900/20">
                   <AlertDescription className="text-yellow-300">
-                    No benchmark sessions available. Please deploy and execute contracts first.
+                    No network fork sessions available. Please deploy and execute contracts first.
                   </AlertDescription>
                 </Alert>
               </div>
