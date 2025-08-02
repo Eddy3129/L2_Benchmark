@@ -397,12 +397,9 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
         )}
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-1">
         <ChartCard title="Deployment Costs by Network">
           <Bar data={deploymentCostData} options={deploymentChartOptions} />
-        </ChartCard>
-        <ChartCard title="Total Function Costs by Network">
-          <Bar data={functionCostData} options={functionChartOptions} />
         </ChartCard>
       </section>
       

@@ -22,7 +22,7 @@ const convertNetworkToChain = (network: NetworkConfig): ChainConfig => {
     'optimism': 'optimistic-rollup',
     'base': 'optimistic-rollup',
     'polygon': 'sidechain',
-    'zksync-era': 'zk-rollup',
+    'zksync': 'zk-rollup',
     'scroll': 'zk-rollup',
     'ethereum': 'mainnet',
     'ink':'zk-rollup',
