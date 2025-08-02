@@ -10,9 +10,10 @@ import {
 } from 'lucide-react';
 import GasMonitoringTable from '@/components/GasMonitoringTable';
 import GasEstimationTable from '@/components/GasEstimationTable';
+import LiveBenchmarkTable from '@/components/LiveBenchmarkTable';
 
 export default function AnalysisPage() {
-  const [activeTab, setActiveTab] = useState<'monitoring' | 'estimation'>('monitoring');
+  const [activeTab, setActiveTab] = useState<'monitoring' | 'estimation' | 'benchmark'>('monitoring');
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 bg-gray-900 text-gray-300">
@@ -59,6 +60,18 @@ export default function AnalysisPage() {
               <Zap className="w-4 h-4" />
               Gas Estimation
             </Button>
+            <Button
+              onClick={() => setActiveTab('benchmark')}
+              variant={activeTab === 'benchmark' ? 'default' : 'ghost'}
+              className={`flex-1 flex items-center gap-2 ${
+                activeTab === 'benchmark'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Live Benchmark
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -82,6 +95,17 @@ export default function AnalysisPage() {
                 </p>
               </div>
               <GasEstimationTable />
+            </div>
+          )}
+          {activeTab === 'benchmark' && (
+            <div>
+              <div className="mb-4 p-4 bg-purple-900/20 border border-purple-500/50 rounded-lg">
+                <h3 className="text-purple-300 font-medium mb-2">Live Benchmark Data</h3>
+                <p className="text-sm text-gray-400">
+                  Real contract execution benchmarks from the Live Benchmarker. This includes actual gas usage statistics, execution counts, L1/L2 cost breakdowns, and performance metrics across networks.
+                </p>
+              </div>
+              <LiveBenchmarkTable />
             </div>
           )}
         </CardContent>

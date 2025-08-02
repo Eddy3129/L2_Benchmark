@@ -111,6 +111,8 @@ function formatTimestamp(timestamp: number): string {
 export default function LiveBenchmarkResults({ sessions, onClearSessions }: Props) {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const [isStoring, setIsStoring] = useState(false);
+  const [storeMessage, setStoreMessage] = useState<string | null>(null);
 
   const toggleSessionExpansion = (sessionId: string) => {
     const newExpanded = new Set(expandedSessions);
@@ -158,6 +160,105 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
     }, { totalCost: 0, totalGas: 0, totalFunctions: 0, totalContracts: 0 });
   };
 
+  const storeBenchmarkData = async () => {
+    if (sessions.length === 0) {
+      setStoreMessage('No benchmark data to store');
+      setTimeout(() => setStoreMessage(null), 3000);
+      return;
+    }
+
+    setIsStoring(true);
+    setStoreMessage(null);
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      
+      // Transform sessions data to match the backend interface
+      const benchmarkData = sessions.flatMap(session => {
+        const results = [];
+        
+        // Add deployment data if available
+        if (session.deploymentResult) {
+          results.push({
+            network: session.network.displayName,
+            contractName: session.contractName || 'Unknown',
+            functionName: 'deployment',
+            contractAddress: session.contractAddress,
+            minGasUsed: session.deploymentResult.deploymentCost.gasUsed.toString(),
+            maxGasUsed: session.deploymentResult.deploymentCost.gasUsed.toString(),
+            avgGasUsed: session.deploymentResult.deploymentCost.gasUsed.toString(),
+            executionCount: 1,
+            avgCostUsd: session.deploymentResult.deploymentCost.totalCostUsd,
+            gasPriceGwei: parseFloat(session.deploymentResult.deploymentCost.gasPrice) / 1e9,
+            tokenPriceUsd: 3500, // Default ETH price, should be dynamic
+            deploymentCostUsd: session.deploymentResult.deploymentCost.totalCostUsd,
+            timestamp: new Date(session.timestamp),
+            metadata: {
+              chainId: session.network.chainId,
+              sessionId: session.id,
+              executionTime: session.deploymentResult.executionTime,
+              transactionHash: session.deploymentResult.deploymentCost.transactionHash,
+            }
+          });
+        }
+        
+        // Add function execution data if available
+        if (session.executionResult?.functionCosts) {
+          session.executionResult.functionCosts.forEach(func => {
+            results.push({
+              network: session.network.displayName,
+              contractName: session.contractName || 'Unknown',
+              functionName: func.functionName,
+              contractAddress: session.contractAddress,
+              minGasUsed: func.gasUsed.toString(),
+              maxGasUsed: func.gasUsed.toString(),
+              avgGasUsed: func.gasUsed.toString(),
+              l1DataBytes: func.l1DataCost ? '100' : undefined, // Estimate, should be calculated
+              executionCount: 1,
+              avgCostUsd: func.totalCostUsd,
+              gasPriceGwei: parseFloat(func.gasPrice) / 1e9,
+              tokenPriceUsd: 3500, // Default ETH price, should be dynamic
+              l2ExecutionCostUsd: func.l2ExecutionCost,
+              l1DataCostUsd: func.l1DataCost,
+              timestamp: new Date(session.timestamp),
+              metadata: {
+                chainId: session.network.chainId,
+                sessionId: session.id,
+                executionTime: session.executionResult?.executionTime,
+                transactionHash: func.transactionHash,
+              }
+            });
+          });
+        }
+        
+        return results;
+      });
+
+      const response = await fetch(`${backendUrl}/api/live-benchmark/store`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(benchmarkData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const responseData = await response.json();
+      setStoreMessage(`Successfully stored ${responseData.data.recordsStored} benchmark records`);
+    } catch (error) {
+      console.error('Failed to store benchmark data:', error);
+      setStoreMessage(`Error: ${error instanceof Error ? error.message : 'Failed to store data'}`);
+    } finally {
+      setIsStoring(false);
+      // Clear message after 5 seconds
+      setTimeout(() => setStoreMessage(null), 5000);
+    }
+  };
+
   if (sessions.length === 0) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
@@ -187,17 +288,47 @@ export default function LiveBenchmarkResults({ sessions, onClearSessions }: Prop
             <h2 className="text-2xl font-bold text-white mb-2">Benchmark Analysis Dashboard</h2>
             <p className="text-gray-400">Comprehensive gas cost analysis across {sessions.length} contract{sessions.length !== 1 ? 's' : ''}</p>
           </div>
-          {onClearSessions && (
-            <Button 
-              onClick={onClearSessions}
-              variant="outline" 
-              size="sm"
-              className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+          <div className="flex gap-2">
+            <button
+              onClick={storeBenchmarkData}
+              disabled={isStoring || sessions.length === 0}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
             >
-              Clear All Sessions
-            </Button>
-          )}
+              {isStoring ? (
+                <>
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Storing...
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4" />
+                  Store Data
+                </>
+              )}
+            </button>
+            {onClearSessions && (
+              <Button 
+                onClick={onClearSessions}
+                variant="outline" 
+                size="sm"
+                className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+              >
+                Clear All Sessions
+              </Button>
+            )}
+          </div>
         </div>
+        
+        {/* Store Status Message */}
+        {storeMessage && (
+          <div className={`p-3 rounded-lg border ${
+            storeMessage.includes('Error') 
+              ? 'bg-red-900/20 border-red-500/50 text-red-300' 
+              : 'bg-green-900/20 border-green-500/50 text-green-300'
+          }`}>
+            <p className="text-sm">{storeMessage}</p>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-gray-900/50 p-4 rounded-lg border border-green-500/30">
