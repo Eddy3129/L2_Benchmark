@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GasMonitoringRecord } from '../../entities/gas-monitoring-record.entity';
+import { GasEstimationRecord } from '../../entities/gas-estimation-record.entity';
 
 @Module({
   imports: [
@@ -14,14 +15,14 @@ import { GasMonitoringRecord } from '../../entities/gas-monitoring-record.entity
         username: configService.get('DB_USERNAME', 'postgres'),
         password: configService.get('DB_PASSWORD', 'password'),
         database: configService.get('DB_NAME', 'benchmark_db'),
-        entities: [GasMonitoringRecord],
+        entities: [GasMonitoringRecord, GasEstimationRecord],
         synchronize: configService.get('NODE_ENV') !== 'production',
         logging: configService.get('NODE_ENV') === 'development',
         ssl: configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([GasMonitoringRecord]),
+    TypeOrmModule.forFeature([GasMonitoringRecord, GasEstimationRecord]),
   ],
   exports: [TypeOrmModule],
 })

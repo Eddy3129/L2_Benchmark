@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -15,8 +15,7 @@ import {
 import { NetworkResult } from '@/types/shared';
 import { NETWORK_CONFIGS, getNetworkDisplayName } from '@/utils/networkConfig'; 
 import { formatCurrency } from '@/utils/gasUtils';
-import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle, Download, Info } from 'lucide-react';
-import { ExportButton } from './ExportButton';
+import { TrendingDown, TrendingUp, DollarSign, Zap, Network, BarChart3, FileText, CheckCircle, AlertTriangle, Download, Info, Database } from 'lucide-react';
 import { Tooltip as HeroTooltip } from '@heroui/react';
 
 // Register Chart.js components
@@ -43,6 +42,96 @@ interface UnifiedGasResultsProps {
 
 // --- Component ---
 export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
+  const [isStoring, setIsStoring] = useState(false);
+  const [storeMessage, setStoreMessage] = useState<string | null>(null);
+  
+  // --- Store Data Function ---
+  const storeEstimationData = async () => {
+    try {
+      setIsStoring(true);
+      setStoreMessage(null);
+      
+      if (!result || !result.results || result.results.length === 0) {
+        throw new Error('No estimation data available to store');
+      }
+
+      // Transform estimation data to the format expected by the backend
+      const estimationDataToStore = result.results.map(networkResult => {
+        const networkDisplayName = getNetworkDisplayName(networkResult.network);
+        
+        // Calculate vs Ethereum percentage
+        const ethereumResult = result.results.find(r => getNetworkDisplayName(r.network) === 'Ethereum');
+        const ethereumCost = ethereumResult?.deployment.costUSD || 0;
+        const currentCost = networkResult.deployment.costUSD;
+        const vsEthereum = ethereumCost > 0 ? 
+          `${((ethereumCost - currentCost) / ethereumCost * 100).toFixed(1)}%` : '0%';
+        
+        // Helper function to handle null/undefined values and convert '-' to null
+        const sanitizeValue = (value: any): any => {
+          if (value === null || value === undefined || value === '' || value === '-') {
+            return null;
+          }
+          return value;
+        };
+
+        // Helper function to convert L1 blob cost to e-10 units
+        const convertToE10Units = (usdValue: number | null | undefined): number | null => {
+          if (usdValue === null || usdValue === undefined) {
+            return null;
+          }
+          // Convert USD to e-10 units (multiply by 10^10)
+          // Don't exclude zero values - very small values like 4.62e-10 are valid
+          const e10Value = usdValue * Math.pow(10, 10);
+          // Use maximum precision - 18 decimal places to capture tiniest values
+          return Math.round(e10Value * Math.pow(10, 18)) / Math.pow(10, 18);
+        };
+
+        return {
+          network: networkDisplayName,
+          contractName: result.contractName,
+          measuredGasUsed: networkResult.deployment.gasUsed,
+          l2GasPriceGwei: sanitizeValue(networkResult.gasPriceBreakdown?.totalFee),
+          tokenPriceUsd: sanitizeValue(networkResult.ethPriceUSD),
+          estDeploymentCostUsd: sanitizeValue(networkResult.deployment.totalCost || networkResult.deployment.costUSD),
+          estL2ExecutionUsd: sanitizeValue(networkResult.deployment.l2ExecutionCost),
+          estL1BlobCostE10: convertToE10Units(sanitizeValue(networkResult.deployment.l1DataCost)),
+          vsEthereum,
+          confidenceLevel: networkResult.gasPriceBreakdown?.confidence || 99,
+          metadata: {
+            chainId: NETWORK_CONFIGS[networkResult.network]?.chainId,
+            gasPriceSource: networkResult.gasPriceBreakdown?.source,
+            l1GasPriceGwei: networkResult.gasPriceBreakdown?.l1GasPrice,
+            analysisId: result.timestamp,
+            functionCount: networkResult.functions.length,
+          },
+        };
+      });
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/api/gas-estimation/store`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(estimationDataToStore),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const responseData = await response.json();
+      setStoreMessage(`Successfully stored ${responseData.data.recordsStored} estimation records`);
+    } catch (error) {
+      console.error('Failed to store estimation data:', error);
+      setStoreMessage(`Error: ${error instanceof Error ? error.message : 'Failed to store data'}`);
+    } finally {
+      setIsStoring(false);
+      // Clear message after 5 seconds
+      setTimeout(() => setStoreMessage(null), 5000);
+    }
+  };
   
   // --- Memoized Calculations ---
   const sortedResults = useMemo(() => {
@@ -265,6 +354,47 @@ export function UnifiedGasResults({ result }: UnifiedGasResultsProps) {
           subtitle="same across all networks"
           color="amber"
         />
+      </section>
+
+      {/* Store Data Section */}
+      <section className="bg-gray-800/30 rounded-lg border border-gray-700/50 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-400" />
+              Store Analysis Results
+            </h3>
+            <p className="text-sm text-gray-400 mt-1">
+              Save this gas estimation analysis to the database for future reference
+            </p>
+          </div>
+          <button
+            onClick={storeEstimationData}
+            disabled={isStoring}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
+          >
+            {isStoring ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                Storing...
+              </>
+            ) : (
+              <>
+                <Database className="w-4 h-4" />
+                Store Data
+              </>
+            )}
+          </button>
+        </div>
+        {storeMessage && (
+          <div className={`mt-3 p-3 rounded-lg text-sm ${
+            storeMessage.includes('Error') 
+              ? 'bg-red-900/20 border border-red-500/50 text-red-300'
+              : 'bg-green-900/20 border border-green-500/50 text-green-300'
+          }`}>
+            {storeMessage}
+          </div>
+        )}
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">

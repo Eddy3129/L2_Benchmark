@@ -48,7 +48,7 @@ export function GasDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [ethereumBlockPrices, setEthereumBlockPrices] = useState<any>(null);
   const [isStoring, setIsStoring] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+
   const [storeMessage, setStoreMessage] = useState<string | null>(null);
 
   // --- Store Data Functions ---
@@ -113,45 +113,7 @@ export function GasDashboard() {
     }
   };
 
-  const exportToCSV = async () => {
-    try {
-      setIsExporting(true);
-      setStoreMessage(null);
-      
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/gas-monitoring/export/csv`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}), // Export all data
-      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to export CSV: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      // Download the CSV file
-      const downloadUrl = `${backendUrl}/api/gas-monitoring/export/csv/download/${result.data.filename}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = result.data.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setStoreMessage(`Successfully exported ${result.data.recordCount} records`);
-      setTimeout(() => setStoreMessage(null), 3000);
-    } catch (err) {
-      console.error('Failed to export CSV:', err);
-      setStoreMessage(`Error: ${err instanceof Error ? err.message : 'Failed to export CSV'}`);
-      setTimeout(() => setStoreMessage(null), 5000);
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   // --- Data Fetching ---
   const fetchEthereumBlockPrices = async () => {
@@ -500,19 +462,6 @@ export function GasDashboard() {
             </div>
           </div>
           <div className="flex flex-col items-end space-y-2">
-            {/* Action Buttons */}
-            
-            {/* Status Message */}
-            {storeMessage && (
-              <div className={`text-xs px-3 py-1.5 rounded-full border ${
-                storeMessage.startsWith('Error') 
-                  ? 'bg-red-900/50 text-red-300 border-red-600' 
-                  : 'bg-green-900/50 text-green-300 border-green-600'
-              }`}>
-                {storeMessage}
-              </div>
-            )}
-            
             {/* Ethereum Block Prices */}
             {ethereumBlockPrices && ethereumBlockPrices.blockPrices && ethereumBlockPrices.blockPrices[0] && (
               <>
@@ -566,7 +515,19 @@ export function GasDashboard() {
               <h2 className="text-lg font-semibold text-gray-200">Network Gas Analysis</h2>
               <p className="text-sm text-gray-400 mt-1">Standard transaction gas metrics (21,000 gas limit)</p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col items-end space-y-2">
+              {/* Status Message */}
+              {storeMessage && (
+                <div className={`text-xs px-3 py-1.5 rounded-full border ${
+                  storeMessage.startsWith('Error') 
+                    ? 'bg-red-900/50 text-red-300 border-red-600' 
+                    : 'bg-green-900/50 text-green-300 border-green-600'
+                }`}>
+                  {storeMessage}
+                </div>
+              )}
+              
+              {/* Store Button */}
               <button
                 onClick={storeCurrentData}
                 disabled={isStoring || !multiChainData || multiChainData.length === 0}
@@ -586,7 +547,6 @@ export function GasDashboard() {
                   </>
                 )}
               </button>
-              
             </div>
           </div>
         </div>

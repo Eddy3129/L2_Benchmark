@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { UnifiedGasResults } from './UnifiedGasResults';
-import { ExportButton } from './ExportButton';
 
 interface AnalysisResult {
   contractName: string;
@@ -45,10 +44,6 @@ export function GasEstimatorResultsTab({ analysisResult }: GasEstimatorResultsTa
             Analyzed: <span className="text-green-400 font-medium">{new Date(analysisResult.timestamp).toLocaleString()}</span>
           </p>
         </div>
-        <ExportButton 
-          sessions={[]}
-          analysisResult={analysisResult}
-        />
       </div>
       <UnifiedGasResults result={analysisResult} />
     </div>

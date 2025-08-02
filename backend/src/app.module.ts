@@ -7,11 +7,13 @@ import { GasAnalysisModule } from './modules/gas-analysis/gas-analysis.module';
 import { ComparisonReportModule } from './modules/comparison-report/comparison-report.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { GasMonitoringModule } from './modules/gas-monitoring/gas-monitoring.module';
+import { GasEstimationModule } from './modules/gas-estimation/gas-estimation.module';
 
 import { SharedModule } from './shared/shared.module';
 import { createNetworkConfig } from './config/shared-networks';
 import { registerAs } from '@nestjs/config';
 import appConfig from './config/app.config';
+
 
 
 const networkConfig = registerAs('networks', createNetworkConfig);
@@ -25,12 +27,14 @@ const networkConfig = registerAs('networks', createNetworkConfig);
       cache: true,
     }),
     DatabaseModule,
+
     BenchmarkModule,
     GasAnalyzerModule,
     AbiModule,
     GasAnalysisModule,
     ComparisonReportModule,
     GasMonitoringModule,
+    GasEstimationModule,
 
     SharedModule,
   ],
